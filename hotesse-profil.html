@@ -72,7 +72,7 @@
 
   <div class="head" id="head"></div>
 
-  <div class="section"><h2>Mes photos <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ajouterPhotos()">＋ Ajouter</a></h2></div>
+  <div class="section"><h2>Mes photos <span id="compteur-photos"></span> <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ajouterPhotos()">＋ Ajouter</a></h2></div>
   <div class="photos" id="photos"></div>
 
   <div class="section"><h2>Mon profil <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()">✏️ Modifier</a></h2></div>
@@ -90,6 +90,7 @@
   </div>
 
   <div class="section"><h2>Avis des établissements</h2><div id="avis"></div></div>
+  <div class="section"><h2>Mes missions</h2><div id="mes-missions"></div></div>
   <div class="section"><h2>Ma mission — à présenter à l'entrée</h2></div>
   <div class="qrcard" id="qr"></div>
 
@@ -112,6 +113,7 @@
     user = data.user;
     await chargerProfil();
     chargerAvis();
+    chargerMesMissions();
     chargerQR();
   }
 
@@ -135,6 +137,12 @@
   function afficherPhotos() {
     const photos = profil?.photos || [];
     const zone = document.getElementById("photos");
+    const compteur = document.getElementById("compteur-photos");
+    if (compteur) {
+      const nb = photos.length;
+      compteur.textContent = nb < 4 ? `(${nb}/7) — minimum 4 requis` : `(${nb}/7)`;
+      compteur.style.color = nb < 4 ? "#C0392B" : "var(--gris)";
+    }
     let html = photos.map((p, i) => `
       <div class="p" style="background-image:url('${p}')">
         <span class="del" onclick="supprimerPhoto(${i})">✕</span>
@@ -194,6 +202,19 @@
     chargerProfil();
   }
 
+  async function chargerMesMissions() {
+    const { data } = await db.from("candidatures")
+      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
+      .eq("hotesse_id", user.id).order("created_at", { ascending: false });
+    const statuts = { en_attente: "🕓 En attente", acceptee: "✅ Acceptée", confirmee: "💚 Confirmée", refusee: "❌ Refusée" };
+    document.getElementById("mes-missions").innerHTML = (data && data.length)
+      ? data.map(c => {
+          const m = c.missions;
+          return `<div class="avis"><div class="t"><span class="e">${m?.etablissements?.nom || ""}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${m?.date || ""} · ${m?.heure_debut || ""}–${m?.heure_fin || ""} · ${m?.adresse || ""}</div></div>`;
+        }).join("")
+      : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
+  }
+
   async function chargerAvis() {
     const { data } = await db.from("avis")
       .select("note, commentaire, etablissements(nom)")
@@ -216,7 +237,15 @@
       <h2>${m.etablissements?.nom || "Mission"}</h2>
       <div class="sous">${m.date} · ${m.heure_debut}–${m.heure_fin}</div>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+c.id)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
-      <div class="info"><div>👤 <b>${user.email}</b></div><div>📍 ${m.adresse || ""}</div></div>`;
+      <div class="info"><div>👤 <b>${user.email}</b></div><div>📍 ${m.adresse || ""}</div></div>
+      ${c.statut === "acceptee" ? `<button class="btn btn-primaire btn-block" onclick="confirmerMission('${c.id}')" style="margin-top:14px">Confirmer ma venue ✅</button>` : `<div style="margin-top:12px;color:var(--champagne);font-size:13px">✅ Présence confirmée</div>`}`;
+  }
+
+  async function confirmerMission(id) {
+    await db.from("candidatures").update({ statut: "confirmee" }).eq("id", id);
+    alert("Présence confirmée ✅");
+    chargerQR();
+    chargerMesMissions();
   }
 
   document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });

@@ -142,7 +142,7 @@
       return `
       <div class="mission" onclick="ouvrirMission('${m.id}')">
         <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
-          <span class="badge badge-champagne nb">${m.nb_hotesses} hôtesse(s)</span></div>
+          <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} place(s) restante(s)</span></div>
         <div class="corps">
           <h3>${e?.nom || "Établissement"}</h3>
           <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
@@ -165,6 +165,8 @@
 
   // --- postuler : crée une candidature "en attente" ---
   async function postuler(missionId) {
+    const { data: h } = await db.from("hotesses").select("photos").eq("id", user.id).single();
+    if ((h?.photos || []).length < 4) { alert("Ajoute au moins 4 photos sur ton profil pour postuler (minimum requis)."); return; }
     const { error } = await db.from("candidatures").insert({
       mission_id: missionId, hotesse_id: user.id, statut: "en_attente"
     });
@@ -194,6 +196,7 @@
         <div class="meta">
           <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
           <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
+          <span class="badge badge-champagne">👥 ${m.places_restantes ?? m.nb_hotesses} place(s) restante(s)</span>
         </div>
         <div class="lieu" style="margin:10px 0">📍 ${m.adresse || e?.ville || ""}</div>
         <div class="offres">${offres}</div>
