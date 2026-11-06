@@ -74,7 +74,7 @@ h1, h2, h3, .serif {
 
 /* ---------- badge ---------- */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px;
-  border-radius: 999px; font-size: 12px; font-weight: 600; }
+  border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .badge-aubergine { background: var(--aubergine); color: var(--ivoire); }
 .badge-champagne { background: var(--champagne); color: var(--aubergine); }
 .badge-vert { background: #E3F2E0; color: var(--ok); }

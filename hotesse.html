@@ -96,6 +96,7 @@
 
   // --- articles offerts : libellés lisibles ---
   const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍴", dessert:"🍰", chicha:"💨" };
+  const TYPES = { bar:"🍸", restaurant:"🍴", club:"🥂", lounge:"🛋️" };
 
   // --- garde d'accès : il faut être connecté ---
   async function init() {
@@ -138,11 +139,11 @@
     liste.innerHTML = missions.map(m => {
       const e = m.etablissements;
       const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
-      const couverture = `${ICONES[e?.type]||"📍"}`;
+      const couverture = `${TYPES[e?.type]||"📍"}`;
       return `
       <div class="mission" onclick="ouvrirMission('${m.id}')">
         <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
-          <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} place(s) restante(s)</span></div>
+          <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} places</span></div>
         <div class="corps">
           <h3>${e?.nom || "Établissement"}</h3>
           <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
@@ -196,7 +197,7 @@
         <div class="meta">
           <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
           <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
-          <span class="badge badge-champagne">👥 ${m.places_restantes ?? m.nb_hotesses} place(s) restante(s)</span>
+          <span class="badge badge-champagne">👥 ${m.places_restantes ?? m.nb_hotesses} places restantes</span>
         </div>
         <div class="lieu" style="margin:10px 0">📍 ${m.adresse || e?.ville || ""}</div>
         <div class="offres">${offres}</div>
