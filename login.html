@@ -116,7 +116,7 @@
         </div>
         <div class="ligne">
           <div class="champ"><label class="label">Téléphone</label><input class="field" id="tel" placeholder="06 12 34 56 78"></div>
-          <div class="champ"><label class="label">Instagram</label><input class="field" id="insta" placeholder="@lea.damup"></div>
+          <div class="champ"><label class="label">Instagram (obligatoire)</label><input class="field" id="insta" placeholder="@lea.damup"></div>
         </div>`;
     } else {
       zone.innerHTML = `
@@ -171,6 +171,7 @@
           if (!document.getElementById("prenom").value) return afficherMsg("Le prénom est obligatoire.", "err");
           if (!age || age < 18) return afficherMsg("Tu dois avoir 18 ans ou plus.", "err");
           if (!document.getElementById("ville").value) return afficherMsg("La ville est obligatoire.", "err");
+          if (!document.getElementById("insta").value) return afficherMsg("Le compte Instagram est obligatoire.", "err");
         } else {
           if (!document.getElementById("etab-nom").value) return afficherMsg("Le nom de l'établissement est obligatoire.", "err");
           if (!document.getElementById("etab-siret").value) return afficherMsg("Le SIRET est obligatoire.", "err");
