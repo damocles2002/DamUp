@@ -125,8 +125,13 @@
         const { data, error } = await auth.signUp({ email: email.value, password: mdp.value });
         if (error) throw error;
         if (data.user) {
-          // 2) créer le profil correspondant au rôle
+          // 2) créer le profil + l'entrée métier correspondante (sinon l'espace est vide)
           await db.from("profiles").insert({ id: data.user.id, type: role, email: email.value });
+          if (role === "hotesse") {
+            await db.from("hotesses").insert({ id: data.user.id, prenom: "", age: 18, ville: "", photos: [] });
+          } else {
+            await db.from("etablissements").insert({ id: data.user.id, nom: "", adresse: "", ville: "", photos: [], videos: [] });
+          }
           afficherMsg("Compte créé ! Vérifie ta boîte mail pour confirmer ton e-mail, puis connecte-toi.", "ok");
         } else {
           afficherMsg("Un e-mail de confirmation t'a été envoyé. Clique sur le lien puis connecte-toi.", "ok");
