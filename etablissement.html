@@ -108,6 +108,7 @@
 <script>
   const contenu = document.getElementById("contenu");
   let user = null, etab = null, vue = "missions";
+  let mediasEnCours = [];
 
   const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍽️", dessert:"🍰", chicha:"💨" };
 
@@ -140,6 +141,7 @@
 
   // ============ MISSIONS ============
   function afficherMissions() {
+    mediasEnCours = [];
     contenu.innerHTML = `
       <div class="pub">
         <h3>Publier une mission</h3>
@@ -155,10 +157,33 @@
         <div class="offres-grid">
           ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
         </div>
-        <button class="btn btn-primaire btn-block btn-sm" onclick="publierMission()" style="margin-top:12px">Publier</button>
+        <div id="apercu-medias" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
+      <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterMediaMission()">＋ Ajouter photos/vidéos</button>
+      <button class="btn btn-primaire btn-block btn-sm" onclick="publierMission()" style="margin-top:12px">Publier</button>
       </div>
       <div id="liste-missions"></div>`;
     chargerMissions();
+  }
+
+  async function ajouterMediaMission() {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*,video/*"; input.multiple = true;
+    input.onchange = async () => {
+      for (const f of input.files) {
+        const path = `${user.id}/mission-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+        const { error } = await sb.storage.from("photos").upload(path, f);
+        if (error) { alert("Erreur : " + error.message); continue; }
+        mediasEnCours.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
+      }
+      afficherApercuMedias();
+    };
+    input.click();
+  }
+
+  function afficherApercuMedias() {
+    const zone = document.getElementById("apercu-medias");
+    if (!zone) return;
+    zone.innerHTML = mediasEnCours.map(m => `<div style="width:60px;height:60px;border-radius:10px;background-image:url('${m}');background-size:cover;background-position:center"></div>`).join("");
   }
 
   async function publierMission() {
@@ -171,13 +196,14 @@
       adresse: document.getElementById("m-adresse").value || (etab?.adresse || ""),
       nb_hotesses: parseInt(document.getElementById("m-nb").value || "2"),
       articles_offerts: articles,
+      medias: mediasEnCours,
       statut: "ouverte"
-    };
+      };
     if (!payload.date) { alert("Choisis une date."); return; }
     const { error } = await db.from("missions").insert(payload);
     if (error) { alert("Erreur : " + error.message); return; }
     alert("Mission publiée ✅");
-    chargerMissions();
+    afficherMissions();
   }
 
   async function chargerMissions() {
