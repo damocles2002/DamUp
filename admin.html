@@ -52,6 +52,7 @@
       <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau de bord</a>
       <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
       <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
+      <a data-vue="equipe"><span class="ico">🛡️</span>Équipe & droits</a>
       <div class="sep"></div>
       <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
     </nav>
@@ -84,6 +85,7 @@
     if (vue === "utilisateurs") return afficherUtilisateurs();
     if (vue === "signalements") return afficherSignalements();
     if (vue === "reglages") return afficherReglages();
+    if (vue === "equipe") return afficherEquipe();
   }
 
   // ============ DASHBOARD ============
@@ -158,6 +160,101 @@
     const mensuel = parseFloat(document.getElementById("prix-mensuel").value);
     await db.from("settings").upsert([{ key: "prix_hebdo", value: hebdo }, { key: "prix_mensuel", value: mensuel }]);
     document.getElementById("msg-prix").textContent = "Prix enregistrés ✅";
+  }
+
+  // ============ ÉQUIPE & DROITS ============
+  const DROITS_DISPONIBLES = [
+    { key: "valider_profils", label: "Valider les profils" },
+    { key: "gerer_annonces", label: "Gérer les annonces" },
+    { key: "traiter_signalements", label: "Traiter les signalements" },
+    { key: "gerer_prix", label: "Gérer les prix" },
+    { key: "voir_stats", label: "Voir les statistiques" },
+    { key: "echanger", label: "Échanger avec les membres" },
+    { key: "gerer_equipe", label: "Gérer l'équipe" },
+  ];
+  let membresListe = [];
+  let membreEnEdition = null;
+
+  async function afficherEquipe() {
+    membreEnEdition = null;
+    main.innerHTML = `<h1>Équipe & droits</h1>
+      <div class='panneau'><div class='tete' id="titre-form">Créer un membre</div>
+        <div style="padding:20px">
+          <div class="champ-inline"><label>Nom</label><input class="field" id="m-nom" style="max-width:240px"></div>
+          <div class="champ-inline"><label>E-mail</label><input class="field" id="m-email" type="email" style="max-width:240px"></div>
+          <div class="champ-inline" id="ligne-mdp"><label>Mot de passe</label><input class="field" id="m-mdp" style="max-width:240px"></div>
+          <div style="margin:14px 0 8px;font-size:14px;font-weight:600">Droits accordés :</div>
+          <div id="m-droits" style="display:flex;flex-wrap:wrap;gap:10px">
+            ${DROITS_DISPONIBLES.map(d => `<label style="display:flex;gap:6px;align-items:center;font-size:13.5px;background:var(--ivoire);padding:7px 12px;border-radius:999px;cursor:pointer"><input type="checkbox" value="${d.key}"> ${d.label}</label>`).join("")}
+          </div>
+          <button class="btn btn-primaire btn-sm" onclick="creerMembre()" style="margin-top:14px" id="btn-membre">Créer le compte</button>
+          <div id="msg-membre" style="margin-top:10px;font-size:13px"></div>
+        </div>
+      </div>
+      <div class='panneau'><div class='tete'>Membres de l'équipe</div><div id="liste-membres" class="vide">Chargement…</div></div>`;
+    chargerMembres();
+  }
+
+  async function creerMembre() {
+    const nom = document.getElementById("m-nom").value;
+    const email = document.getElementById("m-email").value;
+    const mdp = document.getElementById("m-mdp").value;
+    const droits = Object.fromEntries([...document.querySelectorAll("#m-droits input:checked")].map(i => [i.value, true]));
+    const msg = document.getElementById("msg-membre");
+
+    // mode édition : on ne met à jour que les droits + le nom
+    if (membreEnEdition) {
+      const { data, error } = await sb.functions.invoke("membres", { body: { action: "update", id: membreEnEdition.id, nom, droits } });
+      if (error || (data && data.error)) { msg.textContent = "Erreur : " + (data?.error || error?.message); return; }
+      msg.textContent = "Droits mis à jour ✅";
+      afficherEquipe();
+      return;
+    }
+
+    // mode création
+    if (!nom || !email || !mdp) { msg.textContent = "Remplis le nom, l'e-mail et le mot de passe."; return; }
+    msg.textContent = "Création…";
+    const { data, error } = await sb.functions.invoke("membres", { body: { action: "create", nom, email, password: mdp, droits } });
+    if (error || (data && data.error)) { msg.textContent = "Erreur : " + (data?.error || error?.message); return; }
+    msg.textContent = "Membre créé ✅ Il peut se connecter avec son e-mail + mot de passe.";
+    afficherEquipe();
+  }
+
+  async function chargerMembres() {
+    const { data } = await sb.functions.invoke("membres", { body: { action: "list" } });
+    membresListe = data?.data || [];
+    const zone = document.getElementById("liste-membres");
+    if (!zone) return;
+    if (!membresListe.length) { zone.innerHTML = "Aucun membre pour l'instant."; return; }
+    zone.innerHTML = `<table><tr><th>Nom</th><th>Droits</th><th></th></tr>
+      ${membresListe.map(m => `<tr>
+        <td>${m.nom || "—"}</td>
+        <td style="font-size:12.5px;color:var(--gris)">${DROITS_DISPONIBLES.filter(d => m.droits && m.droits[d.key]).map(d => d.label).join(", ") || "aucun"}</td>
+        <td>
+          <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="editerMembre('${m.id}')">Modifier</button>
+          <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="supprimerMembre('${m.id}','${m.user_id}')">Retirer</button>
+        </td>
+      </tr>`).join("")}</table>`;
+  }
+
+  function editerMembre(id) {
+    const m = membresListe.find(x => x.id === id);
+    if (!m) return;
+    membreEnEdition = { id };
+    document.getElementById("titre-form").textContent = "Modifier : " + (m.nom || "");
+    document.getElementById("m-nom").value = m.nom || "";
+    document.getElementById("m-email").style.display = "none";
+    document.getElementById("ligne-mdp").style.display = "none";
+    document.getElementById("btn-membre").textContent = "Enregistrer les droits";
+    document.querySelectorAll("#m-droits input").forEach(i => { i.checked = !!(m.droits && m.droits[i.value]); });
+    document.getElementById("msg-membre").textContent = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function supprimerMembre(id, user_id) {
+    if (!confirm("Retirer ce membre ? Son accès sera supprimé.")) return;
+    await sb.functions.invoke("membres", { body: { action: "delete", id, user_id } });
+    chargerMembres();
   }
 
   init();
