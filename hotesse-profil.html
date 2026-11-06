@@ -19,22 +19,31 @@
   .back { font-size: 20px; color: var(--aubergine); text-decoration: none; }
   .head { display: flex; align-items: center; gap: 15px; padding: 10px 18px 6px; }
   .avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(140deg, var(--champagne), var(--aubergine-3));
-            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 600; }
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 600; overflow: hidden; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .head h1 { font-size: 21px; }
   .head .sub { color: var(--gris); font-size: 13px; }
   .note { margin-left: auto; text-align: center; }
   .note .n { font-family: var(--font-titre); font-size: 25px; font-weight: 700; }
   .note .s { color: var(--champagne-2); font-size: 13px; }
   .note .c { color: var(--gris); font-size: 11px; }
+
   .section { padding: 12px 18px; }
-  .section h2 { font-size: 15px; margin-bottom: 10px; }
-  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 12px 18px; }
-  .photos .p { aspect-ratio: 3/4; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .section h2 { font-size: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 0 18px 6px; }
+  .photos .p { aspect-ratio: 3/4; border-radius: 12px; background: linear-gradient(140deg,#4E223F,#2A1120);
+                background-size: cover; background-position: center; position: relative; }
+  .photos .p.add { display: flex; align-items: center; justify-content: center; font-size: 26px; color: #fff; cursor: pointer;
+                   background: rgba(42,17,32,.4); border: 2px dashed var(--champagne); }
+  .photos .p .del { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,.5); color: #fff; width: 22px; height: 22px;
+                    border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; }
+
   .avis { background: #fff; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 9px; box-shadow: 0 4px 14px rgba(42,17,32,.06); }
   .avis .t { display: flex; justify-content: space-between; font-size: 13.5px; }
   .avis .e { font-weight: 600; }
   .avis .st { color: var(--champagne-2); }
   .avis .txt { font-size: 13px; color: var(--gris); margin-top: 4px; }
+
   .qrcard { background: linear-gradient(150deg, var(--aubergine), var(--aubergine-2)); color: var(--ivoire);
             border-radius: var(--radius); padding: 20px; text-align: center; margin: 4px 18px 90px; }
   .qrcard h2 { font-family: var(--font-titre); font-size: 19px; }
@@ -42,6 +51,10 @@
   .qrcard img { width: 180px; height: 180px; margin: 0 auto 14px; border-radius: 10px; background: #fff; padding: 8px; }
   .qrcard .info { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
   .qrcard .info b { color: var(--champagne); }
+
+  #form-edit { display: none; background: #fff; border-radius: var(--radius-sm); padding: 16px; margin: 0 18px; box-shadow: 0 4px 14px rgba(42,17,32,.08); }
+  #form-edit.visible { display: block; }
+  .ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
                background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
   .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--gris); text-decoration: none; }
@@ -58,7 +71,23 @@
   </div>
 
   <div class="head" id="head"></div>
+
+  <div class="section"><h2>Mes photos <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ajouterPhotos()">＋ Ajouter</a></h2></div>
   <div class="photos" id="photos"></div>
+
+  <div class="section"><h2>Mon profil <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()">✏️ Modifier</a></h2></div>
+  <div id="form-edit">
+    <div class="champ"><label class="label">Prénom</label><input class="field" id="e-prenom"></div>
+    <div class="ligne">
+      <div class="champ"><label class="label">Âge</label><input class="field" type="number" id="e-age" min="18"></div>
+      <div class="champ"><label class="label">Ville</label><input class="field" id="e-ville"></div>
+    </div>
+    <div class="ligne">
+      <div class="champ"><label class="label">Téléphone</label><input class="field" id="e-tel"></div>
+      <div class="champ"><label class="label">Instagram</label><input class="field" id="e-insta"></div>
+    </div>
+    <button class="btn btn-primaire btn-block btn-sm" onclick="sauverProfil()">Enregistrer</button>
+  </div>
 
   <div class="section"><h2>Avis des établissements</h2><div id="avis"></div></div>
   <div class="section"><h2>Ma mission — à présenter à l'entrée</h2></div>
@@ -75,22 +104,94 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script>
-  let user = null;
+  let user = null, profil = null;
 
   async function init() {
     const { data } = await auth.getUser();
     if (!data.user) { location.href = "login.html"; return; }
     user = data.user;
-    const { data: h } = await db.from("hotesses").select("*").eq("id", user.id).single();
-    document.getElementById("head").innerHTML = `
-      <div class="avatar">${(h?.prenom || "?")[0]}</div>
-      <div><h1>${h?.prenom || ""}, ${h?.age || ""}</h1><div class="sub">${h?.ville || ""} · ${h?.instagram || ""}</div></div>
-      <div class="note"><div class="n">${h?.note_moyenne ?? 5}</div><div class="s">★★★★★</div><div class="c">${h?.nb_avis ?? 0} avis</div></div>`;
-    document.getElementById("photos").innerHTML = Array.from({length: 4}).map(() =>
-      `<div class="p" style="background:linear-gradient(140deg,#4E223F,#2A1120)">📸</div>`).join("");
-
+    await chargerProfil();
     chargerAvis();
     chargerQR();
+  }
+
+  async function chargerProfil() {
+    const { data: h } = await db.from("hotesses").select("*").eq("id", user.id).single();
+    profil = h;
+    const avatarUrl = (h?.photos && h.photos[0]) || "";
+    document.getElementById("head").innerHTML = `
+      <div class="avatar">${avatarUrl ? `<img src="${avatarUrl}">` : (h?.prenom || "?")[0]}</div>
+      <div><h1>${h?.prenom || "Complète ton profil"}, ${h?.age || ""}</h1><div class="sub">${h?.ville || ""} · ${h?.instagram || ""}</div></div>
+      <div class="note"><div class="n">${h?.note_moyenne ?? 5}</div><div class="s">★★★★★</div><div class="c">${h?.nb_avis ?? 0} avis</div></div>`;
+    // formulaire d'édition pré-rempli
+    document.getElementById("e-prenom").value = h?.prenom || "";
+    document.getElementById("e-age").value = h?.age || "";
+    document.getElementById("e-ville").value = h?.ville || "";
+    document.getElementById("e-tel").value = h?.telephone || "";
+    document.getElementById("e-insta").value = h?.instagram || "";
+    afficherPhotos();
+  }
+
+  function afficherPhotos() {
+    const photos = profil?.photos || [];
+    const zone = document.getElementById("photos");
+    let html = photos.map((p, i) => `
+      <div class="p" style="background-image:url('${p}')">
+        <span class="del" onclick="supprimerPhoto(${i})">✕</span>
+      </div>`).join("");
+    // bouton ajouter (max 7 photos, comme le cahier des charges)
+    if (photos.length < 7) html += `<div class="p add" onclick="ajouterPhotos()">＋</div>`;
+    zone.innerHTML = html;
+  }
+
+  async function ajouterPhotos() {
+    const nbActuel = (profil?.photos || []).length;
+    if (nbActuel >= 7) { alert("Maximum 7 photos."); return; }
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*"; input.multiple = true;
+    input.onchange = async () => {
+      let photos = [...(profil.photos || [])];
+      for (const f of input.files) {
+        if (photos.length >= 7) break;
+        const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+        const { error } = await sb.storage.from("photos").upload(path, f);
+        if (error) { alert("Erreur : " + error.message); continue; }
+        photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
+      }
+      await db.from("hotesses").update({ photos }).eq("id", user.id);
+      profil.photos = photos;
+      afficherPhotos();
+    };
+    input.click();
+  }
+
+  async function supprimerPhoto(i) {
+    const photos = [...(profil.photos || [])];
+    photos.splice(i, 1);
+    await db.from("hotesses").update({ photos }).eq("id", user.id);
+    profil.photos = photos;
+    afficherPhotos();
+  }
+
+  function ouvrirEdit() {
+    const f = document.getElementById("form-edit");
+    f.classList.toggle("visible");
+  }
+
+  async function sauverProfil() {
+    const maj = {
+      prenom: document.getElementById("e-prenom").value,
+      age: parseInt(document.getElementById("e-age").value) || null,
+      ville: document.getElementById("e-ville").value,
+      telephone: document.getElementById("e-tel").value || null,
+      instagram: document.getElementById("e-insta").value || null,
+    };
+    if (!maj.prenom) { alert("Le prénom est obligatoire."); return; }
+    if (!maj.age || maj.age < 18) { alert("Âge invalide (18 ans minimum)."); return; }
+    const { error } = await db.from("hotesses").update(maj).eq("id", user.id);
+    if (error) { alert(error.message); return; }
+    document.getElementById("form-edit").classList.remove("visible");
+    chargerProfil();
   }
 
   async function chargerAvis() {
@@ -104,23 +205,18 @@
   }
 
   async function chargerQR() {
-    // mission acceptée/confirmée la plus récente → QR code unique à présenter à l'entrée
     const { data } = await db.from("candidatures")
-      .select("*, missions(date, heure_debut, heure_fin, adresse, articles_offerts, etablissements(nom))")
+      .select("*, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
       .eq("hotesse_id", user.id).in("statut", ["acceptee","confirmee"])
       .order("created_at", { ascending: false }).limit(1);
     const zone = document.getElementById("qr");
     if (!data || !data.length) { zone.innerHTML = "Aucune mission à venir. Ton QR code apparaîtra ici une fois acceptée ✨"; return; }
     const c = data[0], m = c.missions;
-    const token = c.id; // identifiant unique de la candidature (QR scanné par l'établissement)
     zone.innerHTML = `
       <h2>${m.etablissements?.nom || "Mission"}</h2>
       <div class="sous">${m.date} · ${m.heure_debut}–${m.heure_fin}</div>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+token)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
-      <div class="info">
-        <div>👤 <b>${user.email}</b></div>
-        <div>📍 ${m.adresse || ""}</div>
-      </div>`;
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+c.id)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
+      <div class="info"><div>👤 <b>${user.email}</b></div><div>📍 ${m.adresse || ""}</div></div>`;
   }
 
   document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });

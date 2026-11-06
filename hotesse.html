@@ -48,7 +48,10 @@
 <div class="app">
   <div class="topbar">
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
-    <div class="avatar" id="avatar" title="Mon profil">?</div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div id="cloche"></div>
+      <div class="avatar" id="avatar" title="Mon profil">?</div>
+    </div>
   </div>
 
   <div class="salut">
@@ -94,7 +97,7 @@
     document.getElementById("avatar").textContent = (p?.prenom || user.email || "?")[0].toUpperCase();
     document.getElementById("salut").textContent = "Bonjour " + (p?.prenom || "") + " 👋";
     chargerMissions();
-    ecouterCandidaturesHotesse(user.id);
+    initCloche("cloche", user.id);
   }
 
   // --- filtrer par type d'établissement ---

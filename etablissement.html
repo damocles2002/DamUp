@@ -78,7 +78,10 @@
 <div class="app">
   <div class="topbar">
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
-    <div class="avatar" id="avatar">?</div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div id="cloche"></div>
+      <div class="avatar" id="avatar">?</div>
+    </div>
   </div>
 
   <div class="tabs">
@@ -117,7 +120,7 @@
     etab = e;
     document.getElementById("avatar").textContent = (e?.nom || "?")[0].toUpperCase();
     afficher();
-    ecouterCandidaturesEtab();
+    initCloche("cloche", user.id);
   }
 
   function afficher() {
