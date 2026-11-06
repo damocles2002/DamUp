@@ -115,7 +115,7 @@
   async function chargerMissions() {
     liste.innerHTML = '<div class="spin">Chargement…</div>';
     const { data: toutes, error } = await db.from("missions")
-      .select("*, etablissements(nom, ville, type)")
+      .select("*, etablissements(nom, ville, type, photos)")
       .eq("statut", "ouverte")
       .gte("date", new Date().toISOString().slice(0,10))
       .order("date", { ascending: true });
@@ -129,9 +129,11 @@
     liste.innerHTML = missions.map(m => {
       const e = m.etablissements;
       const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
-      const couverture = (m.medias && m.medias[0])
-        ? `<img src="${m.medias[0]}" style="width:100%;height:100%;object-fit:cover">`
-        : `${ICONES[e?.type]||"📍"}`;
+      const couverture = (e?.photos && e.photos[0])
+        ? `<img src="${e.photos[0]}" style="width:100%;height:100%;object-fit:cover">`
+        : (m.medias && m.medias[0])
+          ? `<img src="${m.medias[0]}" style="width:100%;height:100%;object-fit:cover">`
+          : `${ICONES[e?.type]||"📍"}`;
       return `
       <div class="mission">
         <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
