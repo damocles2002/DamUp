@@ -191,7 +191,8 @@
         if (error) throw error;
         afficherMsg("Connecté ! Redirection…", "ok");
         const { data: p } = await db.from("profiles").select("type").eq("id", (await auth.getUser()).data.user.id).single();
-        setTimeout(() => location.href = (p && p.type === "etablissement") ? "etablissement.html" : "hotesse.html", 600);
+        const type = p && p.type;
+        setTimeout(() => location.href = type === "etablissement" ? "etablissement.html" : (type === "admin" ? "admin.html" : "hotesse.html"), 600);
       }
     } catch (e) {
       afficherMsg(e.message || "Une erreur est survenue.", "err");
