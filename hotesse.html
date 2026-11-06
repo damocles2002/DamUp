@@ -76,6 +76,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
+<script src="js/notifications.js"></script>
 <script>
   const liste = document.getElementById("liste");
   let user = null, profil = null, filtre = "";
@@ -93,6 +94,7 @@
     document.getElementById("avatar").textContent = (p?.prenom || user.email || "?")[0].toUpperCase();
     document.getElementById("salut").textContent = "Bonjour " + (p?.prenom || "") + " 👋";
     chargerMissions();
+    ecouterCandidaturesHotesse(user.id);
   }
 
   // --- filtrer par type d'établissement ---
