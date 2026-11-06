@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamUp — Espace établissement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
+  .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
+         box-shadow: 0 0 60px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 8px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .crown { width: 26px; }
+  .brand .nom { font-family: var(--font-titre); font-size: 22px; font-weight: 700; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(140deg, var(--aubergine-3), var(--champagne));
+            display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; }
+
+  .tabs { display: flex; gap: 8px; padding: 6px 18px 12px; }
+  .tab { padding: 8px 15px; border-radius: 999px; font-size: 13.5px; background: #fff; border: 1.5px solid #EADFCC;
+         color: var(--gris); cursor: pointer; }
+  .tab.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
+
+  .contenu { flex: 1; padding: 4px 18px 90px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* --- formulaire publication --- */
+  .pub { background: #fff; border-radius: var(--radius); padding: 16px; box-shadow: 0 6px 20px rgba(42,17,32,.08); }
+  .pub h3 { font-size: 17px; margin-bottom: 12px; }
+  .ligne { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .offres-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+  .offres-grid label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; background: var(--ivoire);
+                       padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+  .offres-grid input { accent-color: var(--aubergine); }
+
+  /* --- cartes mission --- */
+  .mission { background: #fff; border-radius: var(--radius); padding: 15px 16px; box-shadow: 0 6px 20px rgba(42,17,32,.08); }
+  .mission .t { display: flex; justify-content: space-between; align-items: center; }
+  .mission h4 { font-size: 16px; }
+  .mission .meta { color: var(--gris); font-size: 13px; margin: 6px 0; }
+
+  /* --- swipe --- */
+  .swipe-titre { display: flex; justify-content: space-between; align-items: baseline; }
+  .swipe-titre h3 { font-size: 18px; }
+  .swipe-titre .cpt { color: var(--gris); font-size: 13px; }
+  .carte { position: relative; border-radius: 22px; overflow: hidden; box-shadow: 0 14px 40px rgba(42,17,32,.2);
+           background: linear-gradient(150deg, #4E223F, #2A1120); height: 440px; color: var(--ivoire); }
+  .carte .photo { height: 100%; display: flex; align-items: center; justify-content: center; }
+  .carte .initiale { font-family: var(--font-titre); font-size: 110px; color: rgba(244,232,214,.9); }
+  .carte .gradient { position: absolute; inset: 0; background: linear-gradient(to top, rgba(30,12,23,.95) 0%, rgba(30,12,23,0) 55%); }
+  .carte .infos { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; }
+  .carte .infos h3 { font-size: 24px; }
+  .carte .infos .sous { font-size: 14px; opacity: .85; margin-top: 2px; }
+  .actions { display: flex; justify-content: center; gap: 22px; padding: 18px 0 6px; }
+  .act { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 25px;
+         display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(42,17,32,.18); }
+  .act.non { background: #fff; }
+  .act.oui { background: var(--aubergine); color: var(--champagne); }
+
+  .vide { text-align: center; color: var(--gris); padding: 50px 20px; font-size: 15px; }
+
+  /* --- dashboard --- */
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat { background: #fff; border-radius: var(--radius-sm); padding: 16px; box-shadow: 0 4px 14px rgba(42,17,32,.06); }
+  .stat .v { font-family: var(--font-titre); font-size: 26px; font-weight: 700; }
+  .stat .l { color: var(--gris); font-size: 12.5px; }
+
+  .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
+               background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
+  .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--gris); text-decoration: none; }
+  .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
+  .bottomnav .ico { font-size: 20px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
+    <div class="avatar" id="avatar">?</div>
+  </div>
+
+  <div class="tabs">
+    <span class="tab on" data-vue="missions">📋 Missions</span>
+    <span class="tab" data-vue="selection">✨ Sélection</span>
+    <span class="tab" data-vue="dashboard">📊 Dashboard</span>
+  </div>
+
+  <div class="contenu" id="contenu"></div>
+
+  <nav class="bottomnav">
+    <a href="#" class="on" id="nav-missions"><span class="ico">📋</span>Missions</a>
+    <a href="#" id="nav-selection"><span class="ico">✨</span>Sélection</a>
+    <a href="#" id="nav-dashboard"><span class="ico">📊</span>Dashboard</a>
+    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  const contenu = document.getElementById("contenu");
+  let user = null, etab = null, vue = "missions";
+
+  const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍽️", dessert:"🍰", chicha:"💨" };
+
+  async function init() {
+    const { data } = await auth.getUser();
+    if (!data.user) { location.href = "login.html"; return; }
+    user = data.user;
+    const { data: p } = await db.from("profiles").select("type").eq("id", user.id).single();
+    if (!p || p.type !== "etablissement") { location.href = "hotesse.html"; return; } // un établissement seulement
+    const { data: e } = await db.from("etablissements").select("*").eq("id", user.id).single();
+    etab = e;
+    document.getElementById("avatar").textContent = (e?.nom || "?")[0].toUpperCase();
+    afficher();
+  }
+
+  function afficher() {
+    document.querySelectorAll(".tabs .tab").forEach(t => t.classList.toggle("on", t.dataset.vue === vue));
+    if (vue === "missions") afficherMissions();
+    else if (vue === "selection") afficherSelection();
+    else afficherDashboard();
+  }
+  document.querySelectorAll(".tabs .tab").forEach(t => t.addEventListener("click", () => { vue = t.dataset.vue; afficher(); }));
+  document.querySelectorAll("[id^=nav-]").forEach(a => a.addEventListener("click", (e) => {
+    if (a.id === "logout") return; e.preventDefault();
+    vue = a.id.replace("nav-",""); afficher();
+  }));
+  document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
+
+  // ============ MISSIONS ============
+  function afficherMissions() {
+    contenu.innerHTML = `
+      <div class="pub">
+        <h3>Publier une mission</h3>
+        <div class="ligne" style="margin-bottom:10px">
+          <input class="field" id="m-date" type="date">
+          <input class="field" id="m-nb" type="number" min="1" value="2" placeholder="Nb hôtesses">
+        </div>
+        <div class="ligne" style="margin-bottom:10px">
+          <input class="field" id="m-debut" type="time" value="20:00">
+          <input class="field" id="m-fin" type="time" value="23:00">
+        </div>
+        <input class="field" id="m-adresse" placeholder="Adresse du lieu" style="margin-bottom:10px">
+        <div class="offres-grid">
+          ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
+        </div>
+        <button class="btn btn-primaire btn-block btn-sm" onclick="publierMission()" style="margin-top:12px">Publier</button>
+      </div>
+      <div id="liste-missions"></div>`;
+    chargerMissions();
+  }
+
+  async function publierMission() {
+    const articles = [...document.querySelectorAll(".offres-grid input:checked")].map(i => i.value);
+    const payload = {
+      etablissement_id: user.id,
+      date: document.getElementById("m-date").value,
+      heure_debut: document.getElementById("m-debut").value,
+      heure_fin: document.getElementById("m-fin").value,
+      adresse: document.getElementById("m-adresse").value || (etab?.adresse || ""),
+      nb_hotesses: parseInt(document.getElementById("m-nb").value || "2"),
+      articles_offerts: articles,
+      statut: "ouverte"
+    };
+    if (!payload.date) { alert("Choisis une date."); return; }
+    const { error } = await db.from("missions").insert(payload);
+    if (error) { alert("Erreur : " + error.message); return; }
+    alert("Mission publiée ✅");
+    chargerMissions();
+  }
+
+  async function chargerMissions() {
+    const { data } = await db.from("missions").select("*").eq("etablissement_id", user.id).order("date", { ascending: true });
+    const zone = document.getElementById("liste-missions");
+    if (!zone) return;
+    if (!data || !data.length) { zone.innerHTML = '<div class="vide">Aucune mission publiée pour l\'instant.</div>'; return; }
+    zone.innerHTML = data.map(m => `
+      <div class="mission">
+        <div class="t"><h4>📅 ${m.date} · ${m.heure_debut}–${m.heure_fin}</h4>
+          <span class="badge badge-aubergine">${m.statut}</span></div>
+        <div class="meta">📍 ${m.adresse} · ${m.nb_hotesses} hôtesse(s) · ${(m.articles_offerts||[]).map(a=>ICONES[a]||a).join(" ")}</div>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="annulerMission('${m.id}')">Annuler</button>
+      </div>`).join("");
+  }
+
+  async function annulerMission(id) {
+    if (!confirm("Annuler cette mission ?")) return;
+    await db.from("missions").update({ statut: "annulee" }).eq("id", id);
+    chargerMissions();
+  }
+
+  // ============ SÉLECTION (swipe) ============
+  async function afficherSelection() {
+    contenu.innerHTML = '<div class="swipe-titre"><h3>Candidates à tes missions</h3><span class="cpt">Chargement…</span></div><div id="swipe-zone"></div>';
+    // candidatures en attente sur les missions de cet établissement
+    const { data: cands } = await db.from("candidatures")
+      .select("*, hotesses(prenom, age, ville, note_moyenne, nb_avis), missions(date, heure_debut)")
+      .eq("statut", "en_attente")
+      .order("created_at");
+    // filtrer : missions de CET établissement
+    const { data: mesMissions } = await db.from("missions").select("id").eq("etablissement_id", user.id);
+    const mesIds = new Set((mesMissions || []).map(m => m.id));
+    const mes = (cands || []).filter(c => mesIds.has(c.mission_id));
+    const zone = document.getElementById("swipe-zone");
+    document.querySelector(".swipe-titre .cpt").textContent = mes.length + " candidate(s)";
+    if (!mes.length) { zone.innerHTML = '<div class="vide">Aucune candidate en attente.</div>'; return; }
+    afficherCarte(mes, 0);
+  }
+
+  function afficherCarte(mes, i) {
+    const zone = document.getElementById("swipe-zone");
+    if (i >= mes.length) { zone.innerHTML = '<div class="vide">Toutes les candidates ont été vues 🎉</div>'; return; }
+    const c = mes[i], h = c.hotesses;
+    zone.innerHTML = `
+      <div class="carte">
+        <div class="photo"><span class="initiale">${(h.prenom||"?")[0].toUpperCase()}</span></div>
+        <div class="gradient"></div>
+        <div class="infos">
+          <h3>${h.prenom}, ${h.age}</h3>
+          <div class="sous">📍 ${h.ville || ""} · ⭐ ${h.note_moyenne ?? 5} (${h.nb_avis ?? 0} avis)</div>
+          <div class="sous">Mission du ${c.missions?.date || "?"} à ${c.missions?.heure_debut || "?"}</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="act non" onclick="decider('${c.id}','refusee')">✕</button>
+        <button class="act oui" onclick="decider('${c.id}','acceptee')">♥</button>
+      </div>`;
+  }
+
+  async function decider(candId, statut) {
+    const { error } = await db.from("candidatures").update({ statut }).eq("id", candId);
+    if (error) { alert(error.message); return; }
+    afficherSelection(); // recharge le lot restant
+  }
+
+  // ============ DASHBOARD ============
+  async function afficherDashboard() {
+    contenu.innerHTML = '<div class="stats"><div class="stat"><div class="v">…</div><div class="l">chargement</div></div></div>';
+    const { data: missions } = await db.from("missions").select("id, statut").eq("etablissement_id", user.id);
+    const { data: cands } = await db.from("candidatures").select("id, statut, mission_id");
+    const mesIds = new Set((missions||[]).map(m => m.id));
+    const mesCands = (cands||[]).filter(c => mesIds.has(c.mission_id));
+    const ouvertes = (missions||[]).filter(m => m.statut === "ouverte").length;
+    contenu.innerHTML = `
+      <div class="stats">
+        <div class="stat"><div class="v">${(missions||[]).length}</div><div class="l">Missions publiées</div></div>
+        <div class="stat"><div class="v">${ouvertes}</div><div class="l">Missions ouvertes</div></div>
+        <div class="stat"><div class="v">${mesCands.length}</div><div class="l">Candidatures reçues</div></div>
+        <div class="stat"><div class="v">${mesCands.filter(c=>c.statut==="acceptee").length}</div><div class="l">Hôtesses acceptées</div></div>
+      </div>`;
+  }
+
+  init();
+</script>
+</body>
+</html>

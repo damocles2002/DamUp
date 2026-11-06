@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamUp — Back-office administrateur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: var(--ivoire-2); min-height: 100vh; }
+  .layout { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--aubergine); color: var(--ivoire); padding: 22px 14px; display: flex; flex-direction: column; }
+  .sidebar .brand { display: flex; align-items: center; gap: 9px; padding: 0 8px 22px; }
+  .sidebar .brand .crown { width: 28px; }
+  .sidebar .brand .nom { font-family: var(--font-titre); font-size: 23px; font-weight: 700; }
+  .menu { display: flex; flex-direction: column; gap: 3px; }
+  .menu a { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 11px;
+            font-size: 14.5px; color: rgba(244,232,214,.72); cursor: pointer; text-decoration: none; }
+  .menu a.on { background: rgba(244,232,214,.12); color: var(--champagne); font-weight: 600; }
+  .menu .ico { font-size: 17px; width: 22px; text-align: center; }
+  .menu .sep { height: 1px; background: rgba(244,232,214,.12); margin: 8px; }
+  .sidebar .profil { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid rgba(244,232,214,.12); font-size: 13px; }
+  .sidebar .profil b { color: var(--champagne); }
+
+  .main { padding: 26px 32px; overflow-y: auto; }
+  .main h1 { font-size: 25px; margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 24px; }
+  .stat { background: #fff; border-radius: var(--radius-sm); padding: 18px 20px; box-shadow: 0 4px 16px rgba(42,17,32,.06); }
+  .stat .v { font-family: var(--font-titre); font-size: 28px; font-weight: 700; }
+  .stat .l { color: var(--gris); font-size: 13px; }
+  .panneau { background: #fff; border-radius: var(--radius-sm); box-shadow: 0 4px 16px rgba(42,17,32,.06); margin-bottom: 18px; }
+  .panneau .tete { padding: 15px 20px; border-bottom: 1px solid #F1E9DA; font-size: 16px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 11px 20px; color: var(--gris); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+  td { padding: 12px 20px; border-top: 1px solid #F5EEE2; }
+  .cell { display: flex; align-items: center; gap: 10px; }
+  .cell .av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(140deg, var(--champagne), var(--aubergine-3));
+              color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .champ-inline { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .champ-inline label { width: 120px; font-size: 14px; }
+  .vide { color: var(--gris); padding: 30px; text-align: center; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } .stats { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
+    <nav class="menu">
+      <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau de bord</a>
+      <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
+      <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
+      <div class="sep"></div>
+      <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
+    </nav>
+    <div class="profil">Connecté en <b>Administrateur</b></div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  const main = document.getElementById("main");
+  let vue = "dashboard";
+
+  async function init() {
+    const { data } = await auth.getUser();
+    if (!data.user) { location.href = "login.html"; return; }
+    const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
+    if (!p || p.type !== "admin") { alert("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
+    afficher();
+  }
+  document.querySelectorAll(".menu a").forEach(a => a.addEventListener("click", () => {
+    vue = a.dataset.vue; document.querySelectorAll(".menu a").forEach(x => x.classList.toggle("on", x === a)); afficher();
+  }));
+
+  function afficher() {
+    if (vue === "dashboard") return afficherDashboard();
+    if (vue === "utilisateurs") return afficherUtilisateurs();
+    if (vue === "signalements") return afficherSignalements();
+    if (vue === "reglages") return afficherReglages();
+  }
+
+  // ============ DASHBOARD ============
+  async function afficherDashboard() {
+    main.innerHTML = "<h1>Tableau de bord</h1><div class='stats'>chargement…</div>";
+    const [[ , h], [, e], [, m], [, c]] = await Promise.all([
+      db.from("hotesses").select("id", { count: "exact", head: true }),
+      db.from("etablissements").select("id", { count: "exact", head: true }),
+      db.from("missions").select("id", { count: "exact", head: true }),
+      db.from("candidatures").select("id", { count: "exact", head: true }),
+    ]);
+    main.innerHTML = `<h1>Tableau de bord</h1>
+      <div class="stats">
+        <div class="stat"><div class="v">${h.count}</div><div class="l">Hôtesses inscrites</div></div>
+        <div class="stat"><div class="v">${e.count}</div><div class="l">Établissements</div></div>
+        <div class="stat"><div class="v">${m.count}</div><div class="l">Missions publiées</div></div>
+        <div class="stat"><div class="v">${c.count}</div><div class="l">Candidatures</div></div>
+      </div>
+      <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
+    const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
+    document.getElementById("a-valider").innerHTML = (nonVerif && nonVerif.length)
+      ? nonVerif.map(h => `<div style="padding:10px 20px;border-top:1px solid #F5EEE2">✨ ${h.prenom}, ${h.age} — ${h.ville} (photo à valider)</div>`).join("")
+      : "Aucun profil en attente.";
+  }
+
+  // ============ UTILISATEURS ============
+  async function afficherUtilisateurs() {
+    main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste' class='vide'>Chargement…</div></div>";
+    const { data } = await db.from("hotesses").select("id, prenom, age, ville, verifie").order("created_at", { ascending: false });
+    document.getElementById("liste").innerHTML = (data && data.length) ? `
+      <table><tr><th>Hôtesse</th><th>Ville</th><th>Statut</th><th></th></tr>
+      ${data.map(h => `<tr>
+        <td><div class="cell"><div class="av">${(h.prenom||"?")[0]}</div>${h.prenom}, ${h.age}</div></td>
+        <td>${h.ville || "—"}</td>
+        <td>${h.verifie ? '<span class="badge badge-vert">Vérifiée</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
+        <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button>`}</td>
+      </tr>`).join("")}
+      </table>` : "Aucune hôtesse.";
+  }
+  async function valider(id) {
+    await db.from("hotesses").update({ verifie: true }).eq("id", id);
+    afficherUtilisateurs();
+  }
+
+  // ============ SIGNALEMENTS ============
+  async function afficherSignalements() {
+    main.innerHTML = "<h1>Signalements</h1><div class='panneau'><div class='tete'>Reçus</div><div id='liste' class='vide'>Chargement…</div></div>";
+    const { data } = await db.from("signalements").select("*").order("created_at", { ascending: false });
+    document.getElementById("liste").innerHTML = (data && data.length) ? data.map(s => `
+      <div style="padding:13px 20px;border-top:1px solid #F5EEE2">
+        <b>${s.signalant_type} → ${s.cible_type}</b> <span style="color:var(--gris)">${s.motif || ""}</span>
+        <span class="badge ${s.statut==='nouveau' ? 'badge-rouge' : 'badge-aubergine'}">${s.statut}</span>
+      </div>`).join("") : "Aucun signalement.";
+  }
+
+  // ============ RÉGLAGES (prix) ============
+  async function afficherReglages() {
+    main.innerHTML = `<h1>Réglages</h1><div class='panneau'><div class='tete'>Prix des abonnements</div>
+      <div style="padding:20px">
+        <div class="champ-inline"><label>Hebdomadaire (€)</label><input class="field" id="prix-hebdo" type="number" style="max-width:140px"></div>
+        <div class="champ-inline"><label>Mensuel (€)</label><input class="field" id="prix-mensuel" type="number" style="max-width:140px"></div>
+        <button class="btn btn-primaire btn-sm" onclick="sauverPrix()">Enregistrer</button>
+        <div id="msg-prix" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>
+      </div></div>`;
+    const { data } = await db.from("settings").select("*");
+    const s = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+    document.getElementById("prix-hebdo").value = s.prix_hebdo || 25;
+    document.getElementById("prix-mensuel").value = s.prix_mensuel || 79;
+  }
+  async function sauverPrix() {
+    const hebdo = parseFloat(document.getElementById("prix-hebdo").value);
+    const mensuel = parseFloat(document.getElementById("prix-mensuel").value);
+    await db.from("settings").upsert([{ key: "prix_hebdo", value: hebdo }, { key: "prix_mensuel", value: mensuel }]);
+    document.getElementById("msg-prix").textContent = "Prix enregistrés ✅";
+  }
+
+  init();
+</script>
+</body>
+</html>

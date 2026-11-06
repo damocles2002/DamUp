@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamUp — Profil hôtesse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
+  .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
+         box-shadow: 0 0 60px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .crown { width: 26px; }
+  .brand .nom { font-family: var(--font-titre); font-size: 22px; font-weight: 700; }
+  .back { font-size: 20px; color: var(--aubergine); text-decoration: none; }
+  .head { display: flex; align-items: center; gap: 15px; padding: 10px 18px 6px; }
+  .avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(140deg, var(--champagne), var(--aubergine-3));
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; font-weight: 600; }
+  .head h1 { font-size: 21px; }
+  .head .sub { color: var(--gris); font-size: 13px; }
+  .note { margin-left: auto; text-align: center; }
+  .note .n { font-family: var(--font-titre); font-size: 25px; font-weight: 700; }
+  .note .s { color: var(--champagne-2); font-size: 13px; }
+  .note .c { color: var(--gris); font-size: 11px; }
+  .section { padding: 12px 18px; }
+  .section h2 { font-size: 15px; margin-bottom: 10px; }
+  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 12px 18px; }
+  .photos .p { aspect-ratio: 3/4; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .avis { background: #fff; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 9px; box-shadow: 0 4px 14px rgba(42,17,32,.06); }
+  .avis .t { display: flex; justify-content: space-between; font-size: 13.5px; }
+  .avis .e { font-weight: 600; }
+  .avis .st { color: var(--champagne-2); }
+  .avis .txt { font-size: 13px; color: var(--gris); margin-top: 4px; }
+  .qrcard { background: linear-gradient(150deg, var(--aubergine), var(--aubergine-2)); color: var(--ivoire);
+            border-radius: var(--radius); padding: 20px; text-align: center; margin: 4px 18px 90px; }
+  .qrcard h2 { font-family: var(--font-titre); font-size: 19px; }
+  .qrcard .sous { font-size: 13px; opacity: .75; margin: 4px 0 14px; }
+  .qrcard img { width: 180px; height: 180px; margin: 0 auto 14px; border-radius: 10px; background: #fff; padding: 8px; }
+  .qrcard .info { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+  .qrcard .info b { color: var(--champagne); }
+  .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
+               background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
+  .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--gris); text-decoration: none; }
+  .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
+  .bottomnav .ico { font-size: 20px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <a class="back" href="hotesse.html">‹</a>
+    <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
+    <div style="width:20px"></div>
+  </div>
+
+  <div class="head" id="head"></div>
+  <div class="photos" id="photos"></div>
+
+  <div class="section"><h2>Avis des établissements</h2><div id="avis"></div></div>
+  <div class="section"><h2>Ma mission — à présenter à l'entrée</h2></div>
+  <div class="qrcard" id="qr"></div>
+
+  <nav class="bottomnav">
+    <a href="hotesse.html"><span class="ico">🏠</span>Missions</a>
+    <a href="#" class="on"><span class="ico">👤</span>Profil</a>
+    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  let user = null;
+
+  async function init() {
+    const { data } = await auth.getUser();
+    if (!data.user) { location.href = "login.html"; return; }
+    user = data.user;
+    const { data: h } = await db.from("hotesses").select("*").eq("id", user.id).single();
+    document.getElementById("head").innerHTML = `
+      <div class="avatar">${(h?.prenom || "?")[0]}</div>
+      <div><h1>${h?.prenom || ""}, ${h?.age || ""}</h1><div class="sub">${h?.ville || ""} · ${h?.instagram || ""}</div></div>
+      <div class="note"><div class="n">${h?.note_moyenne ?? 5}</div><div class="s">★★★★★</div><div class="c">${h?.nb_avis ?? 0} avis</div></div>`;
+    document.getElementById("photos").innerHTML = Array.from({length: 4}).map(() =>
+      `<div class="p" style="background:linear-gradient(140deg,#4E223F,#2A1120)">📸</div>`).join("");
+
+    chargerAvis();
+    chargerQR();
+  }
+
+  async function chargerAvis() {
+    const { data } = await db.from("avis")
+      .select("note, commentaire, etablissements(nom)")
+      .eq("hotesse_id", user.id).order("created_at", { ascending: false });
+    document.getElementById("avis").innerHTML = (data && data.length)
+      ? data.map(a => `<div class="avis"><div class="t"><span class="e">${a.etablissements?.nom || "Établissement"}</span>
+          <span class="st">${"★".repeat(a.note)}</span></div><div class="txt">${a.commentaire || ""}</div></div>`).join("")
+      : '<div style="color:var(--gris);font-size:13px">Aucun avis pour le moment.</div>';
+  }
+
+  async function chargerQR() {
+    // mission acceptée/confirmée la plus récente → QR code unique à présenter à l'entrée
+    const { data } = await db.from("candidatures")
+      .select("*, missions(date, heure_debut, heure_fin, adresse, articles_offerts, etablissements(nom))")
+      .eq("hotesse_id", user.id).in("statut", ["acceptee","confirmee"])
+      .order("created_at", { ascending: false }).limit(1);
+    const zone = document.getElementById("qr");
+    if (!data || !data.length) { zone.innerHTML = "Aucune mission à venir. Ton QR code apparaîtra ici une fois acceptée ✨"; return; }
+    const c = data[0], m = c.missions;
+    const token = c.id; // identifiant unique de la candidature (QR scanné par l'établissement)
+    zone.innerHTML = `
+      <h2>${m.etablissements?.nom || "Mission"}</h2>
+      <div class="sous">${m.date} · ${m.heure_debut}–${m.heure_fin}</div>
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+token)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
+      <div class="info">
+        <div>👤 <b>${user.email}</b></div>
+        <div>📍 ${m.adresse || ""}</div>
+      </div>`;
+  }
+
+  document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
+  init();
+</script>
+</body>
+</html>
