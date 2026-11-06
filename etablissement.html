@@ -158,7 +158,7 @@
           ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
         </div>
         <div id="apercu-medias" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
-      <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterMediaMission()">＋ Ajouter photos/vidéos</button>
+      <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterMediaMission()">＋ Ajouter photos/vidéos (obligatoire)</button>
       <button class="btn btn-primaire btn-block btn-sm" onclick="publierMission()" style="margin-top:12px">Publier</button>
       </div>
       <div id="liste-missions"></div>`;
@@ -200,6 +200,7 @@
       statut: "ouverte"
       };
     if (!payload.date) { alert("Choisis une date."); return; }
+  if (!mediasEnCours.length) { alert("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
     const { error } = await db.from("missions").insert(payload);
     if (error) { alert("Erreur : " + error.message); return; }
     alert("Mission publiée ✅");
