@@ -177,35 +177,14 @@
         }
         btn.disabled = false; btn.textContent = "Créer mon compte";
 
-        const { data, error } = await auth.signUp({ email, password: mdp });
+        // les champs partent dans user_metadata → le trigger SQL crée les entrées automatiquement
+        const meta = role === "hotesse"
+          ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null }
+          : { role: "etablissement", nom: document.getElementById("etab-nom").value, type_etab: document.getElementById("etab-type").value, ville: document.getElementById("etab-ville").value || null, adresse: document.getElementById("etab-adresse").value || null, siret: document.getElementById("etab-siret").value };
+
+        const { data, error } = await auth.signUp({ email, password: mdp, options: { data: meta } });
         if (error) throw error;
-        if (data.user) {
-          await db.from("profiles").insert({ id: data.user.id, type: role, email });
-          if (role === "hotesse") {
-            await db.from("hotesses").insert({
-              id: data.user.id,
-              prenom: document.getElementById("prenom").value,
-              age: parseInt(document.getElementById("age").value),
-              ville: document.getElementById("ville").value,
-              instagram: document.getElementById("insta").value || null,
-              telephone: document.getElementById("tel").value || null,
-              photos: []
-            });
-          } else {
-            await db.from("etablissements").insert({
-              id: data.user.id,
-              nom: document.getElementById("etab-nom").value,
-              type: document.getElementById("etab-type").value,
-              ville: document.getElementById("etab-ville").value || null,
-              adresse: document.getElementById("etab-adresse").value || null,
-              siret: document.getElementById("etab-siret").value,
-              photos: [], videos: []
-            });
-          }
-          afficherMsg("Compte créé ! Vérifie ta boîte mail pour confirmer ton e-mail, puis connecte-toi.", "ok");
-        } else {
-          afficherMsg("Un e-mail de confirmation t'a été envoyé. Clique sur le lien puis connecte-toi.", "ok");
-        }
+        afficherMsg("Compte créé ! Vérifie ta boîte mail pour confirmer ton e-mail, puis connecte-toi.", "ok");
       } else {
         const { error } = await auth.signInWithPassword({ email, password: mdp });
         if (error) throw error;

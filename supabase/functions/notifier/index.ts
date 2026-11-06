@@ -1,18 +1,16 @@
 // ============================================================
-//  DamUp — Edge Function "notifier"
-//  Envoie un e-mail (via Resend) après vérification de l'auth.
-//  Utilisé pour : acceptation/refus d'une candidature,
-//  nouvelle mission, décision de l'administrateur.
+//  DamUp — Edge Function "notifier" (envoi d'emails via Brevo)
+//  Même technologie que DAMAVIS. Expéditeur : « DamUp ».
 // ============================================================
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM = Deno.env.get("FROM_EMAIL") ?? "DamUp <onboarding@resend.dev>";
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
+const SENDER_EMAIL = Deno.env.get("SENDER_EMAIL") ?? "ngongangdjomo@gmail.com";
+const SENDER_NAME = "DamUp";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
-    // 1) Vérifier que l'appelant est bien connecté (sécurité)
+    // Vérifier que l'appelant est connecté (sécurité)
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -20,27 +18,23 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401 });
-    }
+    if (!user) return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401 });
 
-    // 2) Envoyer l'e-mail
     const { to, subject, html } = await req.json();
-    if (!to || !subject) {
-      return new Response(JSON.stringify({ error: "to et subject requis" }), { status: 400 });
-    }
+    if (!to || !subject) return new Response(JSON.stringify({ error: "to et subject requis" }), { status: 400 });
 
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from: FROM, to: [to], subject, html }),
+      headers: { "Content-Type": "application/json", "api-key": BREVO_API_KEY },
+      body: JSON.stringify({
+        sender: { name: SENDER_NAME, email: SENDER_EMAIL },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
     });
-
-    const body = await res.json();
-    return new Response(JSON.stringify({ ok: res.ok, id: body.id }), {
+    const text = await res.text();
+    return new Response(JSON.stringify({ ok: res.ok, message: res.ok ? "envoyé" : text }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
