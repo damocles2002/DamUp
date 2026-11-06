@@ -41,7 +41,17 @@
   .champ-inline { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
   .champ-inline label { width: 120px; font-size: 14px; }
   .vide { color: var(--gris); padding: 30px; text-align: center; }
-  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } .stats { grid-template-columns: 1fr 1fr; } }
+  .menu-mobile { display: none; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .menu-mobile { display: flex; gap: 6px; overflow-x: auto; padding: 12px 16px; background: var(--aubergine); position: sticky; top: 0; z-index: 10; }
+    .menu-mobile a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 12px; border-radius: 10px; font-size: 10.5px; color: rgba(244,232,214,.72); cursor: pointer; text-decoration: none; white-space: nowrap; }
+    .menu-mobile a .ico { font-size: 17px; }
+    .menu-mobile a.on { background: rgba(244,232,214,.12); color: var(--champagne); font-weight: 600; }
+    .main { padding: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -59,6 +69,13 @@
     <div class="profil">Connecté en <b>Administrateur</b></div>
   </aside>
 
+  <div class="menu-mobile">
+    <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau</a>
+    <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
+    <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
+    <a data-vue="equipe"><span class="ico">🛡️</span>Équipe</a>
+    <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
+  </div>
   <main class="main" id="main"></main>
 </div>
 
@@ -76,8 +93,10 @@
     if (!p || p.type !== "admin") { alert("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
     afficher();
   }
-  document.querySelectorAll(".menu a").forEach(a => a.addEventListener("click", () => {
-    vue = a.dataset.vue; document.querySelectorAll(".menu a").forEach(x => x.classList.toggle("on", x === a)); afficher();
+  document.querySelectorAll(".menu a, .menu-mobile a").forEach(a => a.addEventListener("click", () => {
+    vue = a.dataset.vue;
+    document.querySelectorAll(".menu a, .menu-mobile a").forEach(x => x.classList.toggle("on", x.dataset.vue === vue));
+    afficher();
   }));
 
   function afficher() {
