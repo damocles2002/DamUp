@@ -233,7 +233,7 @@
     contenu.innerHTML = '<div class="swipe-titre"><h3>Candidates à tes missions</h3><span class="cpt">Chargement…</span></div><div id="swipe-zone"></div>';
     // candidatures en attente sur les missions de cet établissement
     const { data: cands } = await db.from("candidatures")
-      .select("*, hotesses(prenom, age, ville, note_moyenne, nb_avis), missions(date, heure_debut)")
+      .select("*, hotesses(prenom, age, ville, note_moyenne, nb_avis, photos), missions(date, heure_debut)")
       .eq("statut", "en_attente")
       .order("created_at");
     // filtrer : missions de CET établissement
@@ -250,9 +250,10 @@
     const zone = document.getElementById("swipe-zone");
     if (i >= mes.length) { zone.innerHTML = '<div class="vide">Toutes les candidates ont été vues 🎉</div>'; return; }
     const c = mes[i], h = c.hotesses;
+    const photo = (h.photos && h.photos[0]) ? `<img src="${h.photos[0]}" style="width:100%;height:100%;object-fit:cover">` : `<span class="initiale">${(h.prenom||"?")[0].toUpperCase()}</span>`;
     zone.innerHTML = `
       <div class="carte">
-        <div class="photo"><span class="initiale">${(h.prenom||"?")[0].toUpperCase()}</span></div>
+        <div class="photo">${photo}</div>
         <div class="gradient"></div>
         <div class="infos">
           <h3>${h.prenom}, ${h.age}</h3>
