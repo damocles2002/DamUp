@@ -87,7 +87,7 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script>
-  let mode = "inscription";
+  let mode = "connexion";
   let role = "hotesse";
   const msg = document.getElementById("msg");
   const champsRole = document.getElementById("champs-role");
@@ -138,17 +138,20 @@
   const sousTitre = document.getElementById("sous-titre");
   function setMode(m) {
     mode = m;
+    const choixRole = document.getElementById("choix-role");
     if (m === "inscription") {
       btn.textContent = "Créer mon compte";
       txtBascule.textContent = "Déjà un compte ?";
       lienBascule.textContent = "Se connecter";
       sousTitre.textContent = "Créez votre compte gratuitement";
+      choixRole.style.display = "grid";
       champsRole.classList.add("visible");
     } else {
       btn.textContent = "Se connecter";
       txtBascule.textContent = "Pas encore de compte ?";
       lienBascule.textContent = "Créer un compte";
       sousTitre.textContent = "Bon retour sur DamUp";
+      choixRole.style.display = "none";
       champsRole.classList.remove("visible");
     }
   }
@@ -201,6 +204,7 @@
   });
 
   adapterChamps();
+  setMode("connexion");
 </script>
 </body>
 </html>
