@@ -19,9 +19,9 @@
   .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(140deg, var(--aubergine-3), var(--champagne));
             display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; }
 
-  .tabs { display: flex; gap: 8px; padding: 6px 18px 12px; }
+  .tabs { display: flex; gap: 8px; padding: 6px 18px 12px; overflow-x: auto; }
   .tab { padding: 8px 15px; border-radius: 999px; font-size: 13.5px; background: #fff; border: 1.5px solid #EADFCC;
-         color: var(--gris); cursor: pointer; }
+         color: var(--gris); cursor: pointer; white-space: nowrap; }
   .tab.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
 
   .contenu { flex: 1; padding: 4px 18px 90px; display: flex; flex-direction: column; gap: 14px; }

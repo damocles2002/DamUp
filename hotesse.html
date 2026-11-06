@@ -114,14 +114,14 @@
   // --- charger les missions ouvertes (join établissement pour le nom) ---
   async function chargerMissions() {
     liste.innerHTML = '<div class="spin">Chargement…</div>';
-    let q = db.from("missions")
+    const { data: toutes, error } = await db.from("missions")
       .select("*, etablissements(nom, ville, type)")
       .eq("statut", "ouverte")
       .gte("date", new Date().toISOString().slice(0,10))
       .order("date", { ascending: true });
-    if (filtre) q = q.eq("etablissements.type", filtre);
-    const { data: missions, error } = await q;
     if (error) { liste.innerHTML = '<div class="vide">Erreur de chargement.</div>'; return; }
+    // filtre côté client (fiable, contrairement au filtre serveur sur relation imbriquée)
+    const missions = filtre ? (toutes || []).filter(m => m.etablissements?.type === filtre) : (toutes || []);
     document.getElementById("sous-salut").textContent = missions.length + " mission(s) disponible(s).";
 
     if (!missions.length) { liste.innerHTML = '<div class="vide">Aucune mission pour le moment.<br>Reviens bientôt ✨</div>'; return; }
@@ -129,9 +129,12 @@
     liste.innerHTML = missions.map(m => {
       const e = m.etablissements;
       const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
+      const couverture = (m.medias && m.medias[0])
+        ? `<img src="${m.medias[0]}" style="width:100%;height:100%;object-fit:cover">`
+        : `${ICONES[e?.type]||"📍"}`;
       return `
       <div class="mission">
-        <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${ICONES[e?.type]||"📍"}
+        <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
           <span class="badge badge-champagne nb">${m.nb_hotesses} hôtesse(s)</span></div>
         <div class="corps">
           <h3>${e?.nom || "Établissement"}</h3>
