@@ -88,6 +88,7 @@
     <span class="tab on" data-vue="missions">📋 Missions</span>
     <span class="tab" data-vue="selection">✨ Sélection</span>
     <span class="tab" data-vue="dashboard">📊 Dashboard</span>
+    <span class="tab" data-vue="profil">👤 Profil</span>
   </div>
 
   <div class="contenu" id="contenu"></div>
@@ -127,8 +128,9 @@
     document.querySelectorAll(".tabs .tab").forEach(t => t.classList.toggle("on", t.dataset.vue === vue));
     if (vue === "missions") afficherMissions();
     else if (vue === "selection") afficherSelection();
-    else afficherDashboard();
-  }
+    else if (vue === "dashboard") afficherDashboard();
+    else if (vue === "profil") afficherProfil();
+    }
   document.querySelectorAll(".tabs .tab").forEach(t => t.addEventListener("click", () => { vue = t.dataset.vue; afficher(); }));
   document.querySelectorAll("[id^=nav-]").forEach(a => a.addEventListener("click", (e) => {
     if (a.id === "logout") return; e.preventDefault();
@@ -257,6 +259,80 @@
         <div class="stat"><div class="v">${mesCands.length}</div><div class="l">Candidatures reçues</div></div>
         <div class="stat"><div class="v">${mesCands.filter(c=>c.statut==="acceptee").length}</div><div class="l">Hôtesses acceptées</div></div>
       </div>`;
+  }
+
+  // ============ PROFIL ÉTABLISSEMENT ============
+  async function afficherProfil() {
+    contenu.innerHTML = `
+      <div class="pub"><h3>Mon établissement</h3>
+        <div class="champ"><label class="label">Nom</label><input class="field" id="p-nom"></div>
+        <div class="ligne">
+          <div class="champ"><label class="label">Type</label><select class="field" id="p-type"><option>bar</option><option>restaurant</option><option>club</option><option>lounge</option></select></div>
+          <div class="champ"><label class="label">Ville</label><input class="field" id="p-ville"></div>
+        </div>
+        <div class="champ"><label class="label">Adresse</label><input class="field" id="p-adresse"></div>
+        <div class="champ"><label class="label">SIRET</label><input class="field" id="p-siret"></div>
+        <button class="btn btn-primaire btn-block btn-sm" onclick="sauverProfilEtab()" style="margin-top:12px">Enregistrer</button>
+      </div>
+      <div class="pub"><h3>Photos du lieu</h3>
+        <div id="photos-etab" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterPhotoEtab()">＋ Ajouter des photos</button>
+      </div>`;
+    chargerProfilEtab();
+  }
+
+  async function chargerProfilEtab() {
+    const { data: e } = await db.from("etablissements").select("*").eq("id", user.id).single();
+    etab = e;
+    document.getElementById("p-nom").value = e?.nom || "";
+    document.getElementById("p-type").value = e?.type || "bar";
+    document.getElementById("p-ville").value = e?.ville || "";
+    document.getElementById("p-adresse").value = e?.adresse || "";
+    document.getElementById("p-siret").value = e?.siret || "";
+    const photos = e?.photos || [];
+    document.getElementById("photos-etab").innerHTML = photos.length
+      ? photos.map((p, i) => `<div style="aspect-ratio:4/3;border-radius:10px;background-image:url('${p}');background-size:cover;background-position:center;position:relative"><span onclick="supprimerPhotoEtab(${i})" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.5);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer">✕</span></div>`).join("")
+      : '<div style="color:var(--gris);font-size:13px">Aucune photo pour le moment.</div>';
+  }
+
+  async function sauverProfilEtab() {
+    const maj = {
+      nom: document.getElementById("p-nom").value,
+      type: document.getElementById("p-type").value,
+      ville: document.getElementById("p-ville").value || null,
+      adresse: document.getElementById("p-adresse").value || null,
+      siret: document.getElementById("p-siret").value || null,
+    };
+    if (!maj.nom) { alert("Le nom est obligatoire."); return; }
+    await db.from("etablissements").update(maj).eq("id", user.id);
+    alert("Profil enregistré ✅");
+    chargerProfilEtab();
+  }
+
+  async function ajouterPhotoEtab() {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "image/*"; input.multiple = true;
+    input.onchange = async () => {
+      let photos = [...(etab?.photos || [])];
+      for (const f of input.files) {
+        const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+        const { error } = await sb.storage.from("photos").upload(path, f);
+        if (error) { alert("Erreur : " + error.message); continue; }
+        photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
+      }
+      await db.from("etablissements").update({ photos }).eq("id", user.id);
+      etab.photos = photos;
+      chargerProfilEtab();
+    };
+    input.click();
+  }
+
+  async function supprimerPhotoEtab(i) {
+    const photos = [...(etab?.photos || [])];
+    photos.splice(i, 1);
+    await db.from("etablissements").update({ photos }).eq("id", user.id);
+    etab.photos = photos;
+    chargerProfilEtab();
   }
 
   init();
