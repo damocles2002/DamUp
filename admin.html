@@ -113,20 +113,37 @@
 
   // ============ UTILISATEURS ============
   async function afficherUtilisateurs() {
-    main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste' class='vide'>Chargement…</div></div>";
-    const { data } = await db.from("hotesses").select("id, prenom, age, ville, verifie").order("created_at", { ascending: false });
-    document.getElementById("liste").innerHTML = (data && data.length) ? `
-      <table><tr><th>Hôtesse</th><th>Ville</th><th>Statut</th><th></th></tr>
+    main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste-hotesses' class='vide'>Chargement…</div></div><div class='panneau'><div class='tete'>Établissements</div><div id='liste-etabs' class='vide'>Chargement…</div></div>";
+    const { data } = await db.from("hotesses").select("id, prenom, age, ville, verifie, instagram, telephone").order("created_at", { ascending: false });
+    document.getElementById("liste-hotesses").innerHTML = (data && data.length) ? `
+      <table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th></th></tr>
       ${data.map(h => `<tr>
         <td><div class="cell"><div class="av">${(h.prenom||"?")[0]}</div>${h.prenom}, ${h.age}</div></td>
         <td>${h.ville || "—"}</td>
+        <td style="font-size:12.5px;color:var(--gris)">${h.instagram || ""}<br>${h.telephone || ""}</td>
         <td>${h.verifie ? '<span class="badge badge-vert">Vérifiée</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
         <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button>`}</td>
       </tr>`).join("")}
       </table>` : "Aucune hôtesse.";
+    const { data: etabs } = await db.from("etablissements").select("id, nom, type, ville, siret, verifie").order("created_at", { ascending: false });
+    document.getElementById("liste-etabs").innerHTML = (etabs && etabs.length) ? `
+      <table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>SIRET</th><th>Statut</th><th></th></tr>
+      ${etabs.map(e => `<tr>
+        <td><div class="cell"><div class="av">${(e.nom||"?")[0]}</div>${e.nom}</div></td>
+        <td>${e.type || "—"}</td>
+        <td>${e.ville || "—"}</td>
+        <td>${e.siret || "—"}</td>
+        <td>${e.verifie ? '<span class="badge badge-vert">Vérifié</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
+        <td>${e.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="validerEtab('${e.id}')">Valider</button>`}</td>
+      </tr>`).join("")}
+      </table>` : "Aucun établissement.";
   }
   async function valider(id) {
     await db.from("hotesses").update({ verifie: true }).eq("id", id);
+    afficherUtilisateurs();
+  }
+  async function validerEtab(id) {
+    await db.from("etablissements").update({ verifie: true }).eq("id", id);
     afficherUtilisateurs();
   }
 
@@ -178,6 +195,7 @@
   async function afficherEquipe() {
     membreEnEdition = null;
     main.innerHTML = `<h1>Équipe & droits</h1>
+      <div class='panneau'><div class='tete'>Administrateurs</div><div id="liste-admins" class="vide">Chargement…</div></div>
       <div class='panneau'><div class='tete' id="titre-form">Créer un membre</div>
         <div style="padding:20px">
           <div class="champ-inline"><label>Nom</label><input class="field" id="m-nom" style="max-width:240px"></div>
@@ -193,6 +211,7 @@
       </div>
       <div class='panneau'><div class='tete'>Membres de l'équipe</div><div id="liste-membres" class="vide">Chargement…</div></div>`;
     chargerMembres();
+    chargerAdmins();
   }
 
   async function creerMembre() {
@@ -255,6 +274,25 @@
     if (!confirm("Retirer ce membre ? Son accès sera supprimé.")) return;
     await sb.functions.invoke("membres", { body: { action: "delete", id, user_id } });
     chargerMembres();
+  }
+
+  async function chargerAdmins() {
+    const { data } = await db.from("profiles").select("id, email").eq("type", "admin");
+    const zone = document.getElementById("liste-admins");
+    if (!zone) return;
+    const moi = (await auth.getUser()).data.user.id;
+    zone.innerHTML = (data && data.length) ? `<table><tr><th>E-mail</th><th>Rôle</th><th></th></tr>
+      ${data.map(a => `<tr>
+        <td>${a.email}</td>
+        <td><span class="badge badge-aubergine">Admin</span></td>
+        <td>${a.id === moi ? '<span style="color:var(--gris);font-size:12.5px">(vous)</span>' : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="retrograderAdmin('${a.id}')">Retirer le rôle</button>`}</td>
+      </tr>`).join("")}</table>` : "Aucun administrateur.";
+  }
+
+  async function retrograderAdmin(id) {
+    if (!confirm("Retirer le rôle administrateur de ce compte ?")) return;
+    await db.from("profiles").update({ type: "hotesse" }).eq("id", id);
+    chargerAdmins();
   }
 
   init();
