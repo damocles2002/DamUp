@@ -23,7 +23,8 @@
   .salut p { color: var(--gris); font-size: 14px; }
   .filtres { display: flex; gap: 8px; padding: 0 18px 14px; overflow-x: auto; }
   .chip { padding: 7px 14px; border-radius: 999px; font-size: 13px; white-space: nowrap; background: #fff;
-          border: 1.5px solid #EADFCC; color: var(--gris); cursor: pointer; }
+          border: 1.5px solid var(--champagne-2); color: var(--aubergine); font-weight: 500; cursor: pointer;
+          box-shadow: 0 1px 4px rgba(42,17,32,.08); }
   .chip.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
   .liste { flex: 1; padding: 0 18px 90px; display: flex; flex-direction: column; gap: 14px; }
   .mission { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 20px rgba(42,17,32,.08); }
@@ -34,7 +35,7 @@
   .mission .lieu { color: var(--gris); font-size: 13px; margin-bottom: 10px; }
   .mission .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 13px; }
   .mission .offres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-  .mission .offres span { background: var(--ivoire); color: var(--aubergine); padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500; }
+  .mission .offres span { background: var(--champagne); color: var(--aubergine); padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--champagne-2); }
   .vide { text-align: center; color: var(--gris); padding: 60px 20px; font-size: 15px; }
   .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
                background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
@@ -85,7 +86,7 @@
   let user = null, profil = null, filtre = "";
 
   // --- articles offerts : libellés lisibles ---
-  const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍽️", dessert:"🍰", chicha:"💨" };
+  const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍴", dessert:"🍰", chicha:"💨" };
 
   // --- garde d'accès : il faut être connecté ---
   async function init() {
