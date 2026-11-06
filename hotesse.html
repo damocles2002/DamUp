@@ -27,7 +27,7 @@
           box-shadow: 0 1px 4px rgba(42,17,32,.08); }
   .chip.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
   .liste { flex: 1; padding: 0 18px 140px; display: flex; flex-direction: column; gap: 14px; }
-  .mission { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 20px rgba(42,17,32,.08); }
+  .mission { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 20px rgba(42,17,32,.08); cursor: pointer; }
   .mission .cover { height: 140px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 44px; }
   .mission .cover .nb { position: absolute; top: 10px; right: 10px; }
   .mission .corps { padding: 14px 16px 16px; }
@@ -43,6 +43,15 @@
   .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
   .bottomnav .ico { font-size: 20px; }
   .spin { text-align: center; padding: 60px; color: var(--gris); }
+  .overlay { position: fixed; inset: 0; background: rgba(42,17,32,.62); display: none; align-items: flex-end; justify-content: center; z-index: 200; }
+  .overlay.on { display: flex; }
+  .sheet { background: #fff; width: 100%; max-width: 430px; max-height: 90vh; overflow-y: auto; border-radius: 22px 22px 0 0; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #F1E9DA; position: sticky; top: 0; background: #fff; }
+  .sheet-head h3 { font-size: 17px; margin: 0; }
+  .sheet-close { border: none; background: #F4E8D6; width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer; color: var(--aubergine); }
+  .galerie { display: flex; gap: 10px; overflow-x: auto; padding: 16px 18px 0; scroll-snap-type: x mandatory; }
+  .galerie img { width: 84vw; max-width: 370px; height: 230px; object-fit: cover; border-radius: 14px; flex-shrink: 0; scroll-snap-align: center; }
+  .sheet .details { padding: 16px 18px 8px; }
 </style>
 </head>
 <body>
@@ -135,7 +144,7 @@
           ? `<img src="${m.medias[0]}" style="width:100%;height:100%;object-fit:cover">`
           : `${ICONES[e?.type]||"📍"}`;
       return `
-      <div class="mission">
+      <div class="mission" onclick="ouvrirMission('${m.id}')">
         <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
           <span class="badge badge-champagne nb">${m.nb_hotesses} hôtesse(s)</span></div>
         <div class="corps">
@@ -146,7 +155,7 @@
             <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
           </div>
           <div class="offres">${offres}</div>
-          <button class="btn btn-primaire btn-block btn-sm" onclick="postuler('${m.id}')">Postuler</button>
+          <button class="btn btn-primaire btn-block btn-sm" onclick="event.stopPropagation(); ouvrirMission('${m.id}')">Voir les photos 📸</button>
         </div>
       </div>`;
     }).join("");
@@ -167,10 +176,47 @@
     alert("Candidature envoyée ✅ Tu seras notifiée en cas de sélection.");
   }
 
+  // --- ouvrir le détail d'une mission (photos + infos) ---
+  async function ouvrirMission(id) {
+    const { data: m } = await db.from("missions").select("*, etablissements(nom, ville, type, photos)").eq("id", id).single();
+    if (!m) return;
+    const e = m.etablissements;
+    const photos = e?.photos || [];
+    const medias = (m.medias || []).filter(x => !photos.includes(x));
+    const tous = [...photos, ...medias];
+    const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
+    const sheet = document.getElementById("sheet-mission");
+    sheet.innerHTML = `
+      <div class="sheet-head">
+        <h3>${e?.nom || "Établissement"}</h3>
+        <button class="sheet-close" onclick="fermerMission()">✕</button>
+      </div>
+      <div class="galerie">
+        ${tous.length ? tous.map(p => `<img src="${p}">`).join("") : '<div style="padding:30px 18px;color:var(--gris)">Aucune photo pour le moment.</div>'}
+      </div>
+      <div class="details">
+        <div class="meta">
+          <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
+          <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
+        </div>
+        <div class="lieu" style="margin:10px 0">📍 ${m.adresse || e?.ville || ""}</div>
+        <div class="offres">${offres}</div>
+        <button class="btn btn-primaire btn-block" onclick="postulerDepuisModal('${m.id}')" style="margin-top:14px">Postuler</button>
+      </div>`;
+    document.getElementById("modal-mission").classList.add("on");
+  }
+
+  function fermerMission() { document.getElementById("modal-mission").classList.remove("on"); }
+
+  async function postulerDepuisModal(id) { fermerMission(); await postuler(id); }
+
   document.getElementById("avatar").addEventListener("click", () => location.href = "hotesse-profil.html");
   document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
 
   init();
 </script>
+<div class="overlay" id="modal-mission">
+  <div class="sheet" id="sheet-mission"></div>
+</div>
 </body>
 </html>
