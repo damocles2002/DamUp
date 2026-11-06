@@ -28,11 +28,14 @@
   .chip.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
   .liste { flex: 1; padding: 0 18px 140px; display: flex; flex-direction: column; gap: 14px; }
   .mission { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 20px rgba(42,17,32,.08); cursor: pointer; }
-  .mission .cover { height: 110px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 40px; }
-  .mission .cover .nb { position: absolute; top: 10px; right: 10px; }
   .mission .corps { padding: 14px 16px 16px; }
-  .mission .corps h3 { font-size: 17px; line-height: 1.3; margin: 0 0 4px; word-break: break-word; }
-  .mission .lieu { color: var(--gris); font-size: 13px; margin-bottom: 10px; }
+  .mission .entete { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .mission .icone-type { width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(140deg,#4E223F,#2A1120);
+                         display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .mission .titres { flex: 1; min-width: 0; }
+  .mission .entete h3 { font-size: 17px; line-height: 1.3; margin: 0 0 2px; word-break: break-word; }
+  .mission .entete .lieu { color: var(--gris); font-size: 12.5px; margin: 0; }
+  .mission .entete .nb { flex-shrink: 0; }
   .mission .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 13px; }
   .mission .offres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
   .mission .offres span { background: var(--champagne); color: var(--aubergine); padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--champagne-2); }
@@ -142,11 +145,15 @@
       const couverture = `${TYPES[e?.type]||"📍"}`;
       return `
       <div class="mission" onclick="ouvrirMission('${m.id}')">
-        <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${couverture}
-          <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} places</span></div>
         <div class="corps">
-          <h3>${e?.nom || "Établissement"}</h3>
-          <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
+          <div class="entete">
+            <div class="icone-type">${couverture}</div>
+            <div class="titres">
+              <h3>${e?.nom || "Établissement"}</h3>
+              <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
+            </div>
+            <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} places</span>
+          </div>
           <div class="meta">
             <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
             <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
