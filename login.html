@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamUp — Connexion / Inscription</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: radial-gradient(120% 120% at 50% 0%, #4E223F 0%, #2A1120 55%, #1E0C17 100%);
+         color: var(--ivoire); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .carte-auth { width: 100%; max-width: 420px; background: var(--blanc); color: var(--encre);
+                border-radius: 22px; padding: 34px 30px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .logo { text-align: center; margin-bottom: 8px; }
+  .logo img { width: 60px; margin: 0 auto; }
+  .logo h1 { font-family: var(--font-titre); font-size: 30px; margin-top: 6px; }
+  .sous { text-align: center; color: var(--gris); font-size: 14px; margin-bottom: 22px; }
+
+  .choix-role { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .role { padding: 13px 10px; border-radius: 13px; border: 1.5px solid #EADFCC; text-align: center;
+          cursor: pointer; font-size: 14px; font-weight: 500; transition: all .15s ease; }
+  .role.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
+
+  .champ { margin-bottom: 14px; }
+  .msg { display: none; padding: 11px 14px; border-radius: 11px; font-size: 13.5px; margin-bottom: 14px; }
+  .msg.err { display: block; background: #FBE4E1; color: var(--danger); }
+  .msg.ok { display: block; background: #E3F2E0; color: var(--ok); }
+
+  .bascule { text-align: center; margin-top: 18px; font-size: 14px; color: var(--gris); }
+  .bascule a { color: var(--aubergine); font-weight: 600; cursor: pointer; }
+  .note { text-align: center; font-size: 12px; color: var(--gris); margin-top: 18px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="carte-auth">
+  <div class="logo">
+    <img src="assets/logo-couronne.png" alt="DamUp">
+    <h1>DamUp</h1>
+  </div>
+  <div class="sous" id="sous-titre">Créez votre compte gratuitement</div>
+
+  <div class="choix-role" id="choix-role">
+    <div class="role on" data-role="hotesse">✨ Hôtesse</div>
+    <div class="role" data-role="etablissement">🏠 Établissement</div>
+  </div>
+
+  <div class="msg" id="msg"></div>
+
+  <div class="champ">
+    <label class="label">E-mail</label>
+    <input class="field" type="email" id="email" placeholder="vous@exemple.fr">
+  </div>
+  <div class="champ">
+    <label class="label">Mot de passe</label>
+    <input class="field" type="password" id="mdp" placeholder="6 caractères minimum">
+  </div>
+
+  <button class="btn btn-primaire btn-block" id="btn-action">Créer mon compte</button>
+
+  <div class="bascule">
+    <span id="txt-bascule">Déjà un compte ?</span> <a id="lien-bascule">Se connecter</a>
+  </div>
+
+  <div class="note">En vous inscrivant, vous acceptez nos CGU et notre politique de confidentialité.<br>Réservé aux personnes majeures (18 ans et +).</div>
+</div>
+
+<!-- SDK Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  // --- état de l'écran ---
+  let mode = "inscription";           // "inscription" | "connexion"
+  let role = "hotesse";               // rôle choisi
+  const msg = document.getElementById("msg");
+  const email = document.getElementById("email");
+  const mdp = document.getElementById("mdp");
+
+  function afficherMsg(txt, type) {
+    msg.textContent = txt;
+    msg.className = "msg " + type;
+  }
+
+  // --- choix du rôle ---
+  document.querySelectorAll("#choix-role .role").forEach(el => {
+    el.addEventListener("click", () => {
+      document.querySelectorAll("#choix-role .role").forEach(r => r.classList.remove("on"));
+      el.classList.add("on");
+      role = el.dataset.role;
+    });
+  });
+
+  // --- bascule inscription / connexion ---
+  const btn = document.getElementById("btn-action");
+  const lienBascule = document.getElementById("lien-bascule");
+  const txtBascule = document.getElementById("txt-bascule");
+  const sousTitre = document.getElementById("sous-titre");
+  function setMode(m) {
+    mode = m;
+    if (m === "inscription") {
+      btn.textContent = "Créer mon compte";
+      txtBascule.textContent = "Déjà un compte ?";
+      lienBascule.textContent = "Se connecter";
+      sousTitre.textContent = "Créez votre compte gratuitement";
+    } else {
+      btn.textContent = "Se connecter";
+      txtBascule.textContent = "Pas encore de compte ?";
+      lienBascule.textContent = "Créer un compte";
+      sousTitre.textContent = "Bon retour sur DamUp";
+    }
+  }
+  lienBascule.addEventListener("click", () => setMode(mode === "inscription" ? "connexion" : "inscription"));
+
+  // --- action principale ---
+  btn.addEventListener("click", async () => {
+    afficherMsg("");
+    if (!email.value || !mdp.value) return afficherMsg("Renseigne ton e-mail et ton mot de passe.", "err");
+    btn.disabled = true; btn.textContent = "Un instant…";
+
+    try {
+      if (mode === "inscription") {
+        // 1) créer le compte (auth)
+        const { data, error } = await auth.signUp({ email: email.value, password: mdp.value });
+        if (error) throw error;
+        if (data.user) {
+          // 2) créer le profil correspondant au rôle
+          await db.from("profiles").insert({ id: data.user.id, type: role, email: email.value });
+          afficherMsg("Compte créé ! Vérifie ta boîte mail pour confirmer ton e-mail, puis connecte-toi.", "ok");
+        } else {
+          afficherMsg("Un e-mail de confirmation t'a été envoyé. Clique sur le lien puis connecte-toi.", "ok");
+        }
+      } else {
+        const { error } = await auth.signInWithPassword({ email: email.value, password: mdp.value });
+        if (error) throw error;
+        afficherMsg("Connecté ! Redirection…", "ok");
+        // redirection selon le type de profil
+        const { data: p } = await db.from("profiles").select("type").eq("id", (await auth.getUser()).data.user.id).single();
+        setTimeout(() => location.href = (p && p.type === "etablissement") ? "etablissement.html" : "hotesse.html", 600);
+      }
+    } catch (e) {
+      afficherMsg(e.message || "Une erreur est survenue.", "err");
+    } finally {
+      btn.disabled = false; setMode(mode);
+    }
+  });
+</script>
+</body>
+</html>

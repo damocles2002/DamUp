@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamUp — Espace hôtesse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
+  .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
+         box-shadow: 0 0 60px rgba(0,0,0,.5); display: flex; flex-direction: column; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .crown { width: 26px; }
+  .brand .nom { font-family: var(--font-titre); font-size: 22px; font-weight: 700; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(140deg, var(--champagne), var(--aubergine-3));
+            display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 16px; cursor: pointer; }
+  .salut { padding: 4px 18px 14px; }
+  .salut h1 { font-size: 24px; }
+  .salut p { color: var(--gris); font-size: 14px; }
+  .filtres { display: flex; gap: 8px; padding: 0 18px 14px; overflow-x: auto; }
+  .chip { padding: 7px 14px; border-radius: 999px; font-size: 13px; white-space: nowrap; background: #fff;
+          border: 1.5px solid #EADFCC; color: var(--gris); cursor: pointer; }
+  .chip.on { background: var(--aubergine); color: var(--ivoire); border-color: var(--aubergine); }
+  .liste { flex: 1; padding: 0 18px 90px; display: flex; flex-direction: column; gap: 14px; }
+  .mission { background: #fff; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 20px rgba(42,17,32,.08); }
+  .mission .cover { height: 140px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 44px; }
+  .mission .cover .nb { position: absolute; top: 10px; right: 10px; }
+  .mission .corps { padding: 14px 16px 16px; }
+  .mission h3 { font-size: 18px; margin-bottom: 2px; }
+  .mission .lieu { color: var(--gris); font-size: 13px; margin-bottom: 10px; }
+  .mission .meta { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 13px; }
+  .mission .offres { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .mission .offres span { background: var(--ivoire); color: var(--aubergine); padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500; }
+  .vide { text-align: center; color: var(--gris); padding: 60px 20px; font-size: 15px; }
+  .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
+               background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
+  .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--gris); text-decoration: none; }
+  .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
+  .bottomnav .ico { font-size: 20px; }
+  .spin { text-align: center; padding: 60px; color: var(--gris); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
+    <div class="avatar" id="avatar" title="Mon profil">?</div>
+  </div>
+
+  <div class="salut">
+    <h1 id="salut">Bonjour 👋</h1>
+    <p id="sous-salut">Chargement…</p>
+  </div>
+
+  <div class="filtres">
+    <span class="chip on" data-type="">Toutes</span>
+    <span class="chip" data-type="bar">Bar</span>
+    <span class="chip" data-type="restaurant">Restaurant</span>
+    <span class="chip" data-type="club">Club</span>
+    <span class="chip" data-type="lounge">Lounge</span>
+  </div>
+
+  <div class="liste" id="liste"><div class="spin">Chargement des missions…</div></div>
+
+  <nav class="bottomnav">
+    <a class="on" href="#"><span class="ico">🏠</span>Missions</a>
+    <a href="hotesse-profil.html"><span class="ico">👤</span>Profil</a>
+    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+  </nav>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  const liste = document.getElementById("liste");
+  let user = null, profil = null, filtre = "";
+
+  // --- articles offerts : libellés lisibles ---
+  const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍽️", dessert:"🍰", chicha:"💨" };
+
+  // --- garde d'accès : il faut être connecté ---
+  async function init() {
+    const { data } = await auth.getUser();
+    if (!data.user) { location.href = "login.html"; return; }
+    user = data.user;
+    const { data: p } = await db.from("hotesses").select("*").eq("id", user.id).single();
+    profil = p;
+    document.getElementById("avatar").textContent = (p?.prenom || user.email || "?")[0].toUpperCase();
+    document.getElementById("salut").textContent = "Bonjour " + (p?.prenom || "") + " 👋";
+    chargerMissions();
+  }
+
+  // --- filtrer par type d'établissement ---
+  document.querySelectorAll(".filtres .chip").forEach(c => {
+    c.addEventListener("click", () => {
+      document.querySelectorAll(".filtres .chip").forEach(x => x.classList.remove("on"));
+      c.classList.add("on");
+      filtre = c.dataset.type;
+      chargerMissions();
+    });
+  });
+
+  // --- charger les missions ouvertes (join établissement pour le nom) ---
+  async function chargerMissions() {
+    liste.innerHTML = '<div class="spin">Chargement…</div>';
+    let q = db.from("missions")
+      .select("*, etablissements(nom, ville, type)")
+      .eq("statut", "ouverte")
+      .gte("date", new Date().toISOString().slice(0,10))
+      .order("date", { ascending: true });
+    if (filtre) q = q.eq("etablissements.type", filtre);
+    const { data: missions, error } = await q;
+    if (error) { liste.innerHTML = '<div class="vide">Erreur de chargement.</div>'; return; }
+    document.getElementById("sous-salut").textContent = missions.length + " mission(s) disponible(s).";
+
+    if (!missions.length) { liste.innerHTML = '<div class="vide">Aucune mission pour le moment.<br>Reviens bientôt ✨</div>'; return; }
+
+    liste.innerHTML = missions.map(m => {
+      const e = m.etablissements;
+      const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
+      return `
+      <div class="mission">
+        <div class="cover" style="background:linear-gradient(140deg,#4E223F,#2A1120)">${ICONES[e?.type]||"📍"}
+          <span class="badge badge-champagne nb">${m.nb_hotesses} hôtesse(s)</span></div>
+        <div class="corps">
+          <h3>${e?.nom || "Établissement"}</h3>
+          <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
+          <div class="meta">
+            <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
+            <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
+          </div>
+          <div class="offres">${offres}</div>
+          <button class="btn btn-primaire btn-block btn-sm" onclick="postuler('${m.id}')">Postuler</button>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function formaterDate(d) {
+    // "2026-11-08" → "sam. 8 nov."
+    const j = new Date(d + "T00:00:00");
+    return j.toLocaleDateString("fr-FR", { weekday:"short", day:"numeric", month:"short" });
+  }
+
+  // --- postuler : crée une candidature "en attente" ---
+  async function postuler(missionId) {
+    const { error } = await db.from("candidatures").insert({
+      mission_id: missionId, hotesse_id: user.id, statut: "en_attente"
+    });
+    if (error) { alert("Impossible de postuler : " + error.message); return; }
+    alert("Candidature envoyée ✅ Tu seras notifiée en cas de sélection.");
+  }
+
+  document.getElementById("avatar").addEventListener("click", () => location.href = "hotesse-profil.html");
+  document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
+
+  init();
+</script>
+</body>
+</html>
