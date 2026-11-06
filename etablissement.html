@@ -200,6 +200,7 @@
       statut: "ouverte"
       };
     if (!payload.date) { alert("Choisis une date."); return; }
+  if (!payload.adresse || !payload.adresse.trim()) { alert("L'adresse est obligatoire pour publier."); return; }
   if (!mediasEnCours.length) { alert("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
     const { error } = await db.from("missions").insert(payload);
     if (error) { alert("Erreur : " + error.message); return; }
