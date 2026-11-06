@@ -71,6 +71,7 @@ h1, h2, h3, .serif {
   font-size: 15px; color: var(--encre); }
 .field:focus { outline: none; border-color: var(--champagne-2); box-shadow: 0 0 0 3px rgba(231,207,168,.35); }
 .label { font-size: 13px; font-weight: 600; color: var(--gris); margin-bottom: 6px; display: block; }
+.champ { margin-bottom: 12px; }
 
 /* ---------- badge ---------- */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px;

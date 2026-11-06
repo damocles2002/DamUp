@@ -145,17 +145,17 @@
     contenu.innerHTML = `
       <div class="pub">
         <h3>Publier une mission</h3>
-        <div class="ligne" style="margin-bottom:10px">
-          <input class="field" id="m-date" type="date">
-          <input class="field" id="m-nb" type="number" min="1" value="2" placeholder="Nb hôtesses">
+        <div class="champ"><label class="label">📅 Date</label><input class="field" id="m-date" type="date"></div>
+        <div class="ligne">
+          <div class="champ"><label class="label">🕐 Début</label><input class="field" id="m-debut" type="time" value="20:00"></div>
+          <div class="champ"><label class="label">🕐 Fin</label><input class="field" id="m-fin" type="time" value="23:00"></div>
         </div>
-        <div class="ligne" style="margin-bottom:10px">
-          <input class="field" id="m-debut" type="time" value="20:00">
-          <input class="field" id="m-fin" type="time" value="23:00">
-        </div>
-        <input class="field" id="m-adresse" placeholder="Adresse du lieu" style="margin-bottom:10px">
-        <div class="offres-grid">
-          ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
+        <div class="champ"><label class="label">👥 Nombre d'hôtesses</label><input class="field" id="m-nb" type="number" min="1" value="2"></div>
+        <div class="champ"><label class="label">📍 Adresse du lieu</label><input class="field" id="m-adresse" placeholder="12 rue Oberkampf, Paris"></div>
+        <div class="champ"><label class="label">🍽️ Articles offerts</label>
+          <div class="offres-grid">
+            ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
+          </div>
         </div>
         <div id="apercu-medias" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
       <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterMediaMission()">＋ Ajouter photos/vidéos (obligatoire)</button>
