@@ -145,7 +145,9 @@ create table public.messages (
   "destinataire_id" uuid NOT NULL,
   "contenu" text,
   "photo_url" text,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "hotesse_id" uuid,
+  "lu_a" timestamp with time zone
 );
 
 -- TABLE missions
@@ -369,6 +371,39 @@ AS $function$
   select * from public.hotesses where public.is_admin() order by created_at desc;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_lire_conversation(p_signalement uuid)
+ RETURNS SETOF messages
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_mission uuid;
+  v_signalant uuid;
+  v_cible_type text;
+  v_cible uuid;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  select signalant_id, cible_type, cible_id into v_signalant, v_cible_type, v_cible
+    from public.signalements where id = p_signalement;
+  if v_signalant is null then raise exception 'Signalement introuvable.'; end if;
+  if v_cible_type = 'mission' then
+    v_mission := v_cible;
+  elsif v_cible_type = 'hotesse' then
+    select m.id into v_mission
+      from public.missions m join public.candidatures c on c.mission_id = m.id
+     where m.etablissement_id = v_signalant and c.hotesse_id = v_cible
+     limit 1;
+  else
+    select m.id into v_mission
+      from public.missions m join public.candidatures c on c.mission_id = m.id
+     where m.etablissement_id = v_cible and c.hotesse_id = v_signalant
+     limit 1;
+  end if;
+  if v_mission is null then return; end if;
+  return query select * from public.messages where mission_id = v_mission order by created_at;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
  RETURNS integer
  LANGUAGE plpgsql
@@ -581,6 +616,54 @@ begin
   return new;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.controle_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_etab uuid;
+begin
+  select etablissement_id into v_etab from public.missions where id = new.mission_id;
+  if auth.uid() = new.hotesse_id then
+    new.expediteur_type := 'hotesse';   new.expediteur_id := auth.uid();
+    new.destinataire_type := 'etablissement'; new.destinataire_id := v_etab;
+  elsif auth.uid() = v_etab then
+    new.expediteur_type := 'etablissement'; new.expediteur_id := auth.uid();
+    new.destinataire_type := 'hotesse'; new.destinataire_id := new.hotesse_id;
+  else
+    raise exception 'Conversation non autorisée.' using hint = 'conversation_interdite';
+  end if;
+  if not public.conversation_ouverte(new.mission_id, new.hotesse_id) then
+    raise exception 'Cette conversation est fermée.' using hint = 'conversation_fermee';
+  end if;
+  if char_length(coalesce(new.contenu, '')) > 1000 then
+    raise exception 'Message trop long.' using hint = 'message_trop_long';
+  end if;
+  new.lu_a := null;
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.controle_message_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.contenu is distinct from old.contenu
+     or new.hotesse_id is distinct from old.hotesse_id
+     or new.mission_id is distinct from old.mission_id
+     or new.expediteur_id is distinct from old.expediteur_id
+     or new.expediteur_type is distinct from old.expediteur_type
+     or new.destinataire_id is distinct from old.destinataire_id
+     or new.destinataire_type is distinct from old.destinataire_type
+     or new.photo_url is distinct from old.photo_url then
+    raise exception 'Seul le champ "lu" peut être modifié.' using hint = 'modification_interdite';
+  end if;
+  return new;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.controle_signalement()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -606,6 +689,24 @@ begin
     from public.profiles p where p.type = 'admin';
   return new;
 end; $function$;
+
+CREATE OR REPLACE FUNCTION public.conversation_ouverte(p_mission uuid, p_hotesse uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.candidatures c
+    join public.missions m on m.id = c.mission_id
+    where c.mission_id = p_mission and c.hotesse_id = p_hotesse
+      and c.statut in ('acceptee', 'confirmee') and not c.annulation
+      and auth.uid() in (c.hotesse_id, m.etablissement_id)
+      and now() < ((m.date + m.heure_fin
+                     + case when m.heure_fin <= m.heure_debut then interval '1 day' else interval '0' end)
+                    at time zone 'Europe/Paris') + interval '12 hours'
+  );
+$function$;
 
 CREATE OR REPLACE FUNCTION public.creer_facture(p_paiement uuid)
  RETURNS void
@@ -978,6 +1079,38 @@ begin
       (select etablissement_id from public.missions where id = new.mission_id),
       'notif.confirmee_etab', jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
   end if;
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.notifier_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_dest uuid;
+  v_nom text;
+  v_langue text;
+  v_non_lus int;
+  v_message text;
+begin
+  if new.destinataire_type = 'hotesse' then
+    v_dest := new.destinataire_id;
+    select coalesce(e.nom, '') into v_nom from public.etablissements e where e.id = new.expediteur_id;
+  else
+    v_dest := new.destinataire_id;
+    select coalesce(h.prenom, '') into v_nom from public.hotesses h where h.id = new.expediteur_id;
+  end if;
+  select count(*) into v_non_lus from public.messages
+   where mission_id = new.mission_id and hotesse_id = new.hotesse_id
+     and destinataire_id = v_dest and lu_a is null and id <> new.id;
+  if v_non_lus > 0 then return new; end if;
+  select langue into v_langue from public.profiles where id = v_dest;
+  v_message := public.traduire('notif.message.nouveau', coalesce(v_langue, 'fr'), jsonb_build_object('nom', v_nom));
+  insert into public.notifications (user_id, message, cle, params)
+  values (v_dest, v_message, 'notif.message.nouveau', jsonb_build_object('nom', v_nom));
+  perform public.notifier_push(v_dest, 'notif.message.nouveau', v_message);
   return new;
 end; $function$;
 
@@ -1405,6 +1538,15 @@ CREATE TRIGGER protege_hotesse BEFORE UPDATE ON public.hotesses FOR EACH ROW EXE
 -- messages: bloque_infos_contact
 CREATE TRIGGER bloque_infos_contact BEFORE INSERT OR UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION bloque_infos_contact();
 
+-- messages: controle_message
+CREATE TRIGGER controle_message BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION controle_message();
+
+-- messages: controle_message_update
+CREATE TRIGGER controle_message_update BEFORE UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION controle_message_update();
+
+-- messages: notifier_message
+CREATE TRIGGER notifier_message AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION notifier_message();
+
 -- missions: init_places_mission_trigger
 CREATE TRIGGER init_places_mission_trigger BEFORE INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION init_places_mission();
 
@@ -1489,11 +1631,15 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- hotesses.hotesses_update_own (UPDATE, to {)
   using (((id = auth.uid()) OR is_admin()))
 
--- messages.messages_insert_participant (INSERT, to {)
-  with check ((expediteur_id = auth.uid()))
+-- messages.messages_ecriture (INSERT, to {)
+  with check ((auth.uid() IS NOT NULL))
 
--- messages.messages_select_participant (SELECT, to {)
-  using (((expediteur_id = auth.uid()) OR (destinataire_id = auth.uid()) OR is_admin()))
+-- messages.messages_lecture (SELECT, to {)
+  using (((expediteur_id = auth.uid()) OR (destinataire_id = auth.uid())))
+
+-- messages.messages_marquer_lu (UPDATE, to {)
+  using ((destinataire_id = auth.uid()))
+  with check ((destinataire_id = auth.uid()))
 
 -- missions.missions_insert_own (INSERT, to {)
   with check ((etablissement_id = auth.uid()))
