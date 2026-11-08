@@ -48,9 +48,19 @@ begin
   on conflict (id) do nothing;
 
   if r = 'hotesse' then
+    -- champs obligatoires : prénom, ville, Instagram
+    if coalesce(nullif(trim(m->>'prenom'), ''), '') = '' then
+      raise exception 'Le prénom est obligatoire.';
+    end if;
     v_age := nullif(m->>'age', '')::int;
     if v_age is null or v_age < 18 then
       raise exception 'Inscription réservée aux personnes de 18 ans et plus.';
+    end if;
+    if coalesce(nullif(trim(m->>'ville'), ''), '') = '' then
+      raise exception 'La ville est obligatoire.';
+    end if;
+    if coalesce(nullif(trim(m->>'instagram'), ''), '') = '' then
+      raise exception 'Le compte Instagram est obligatoire.';
     end if;
     v_villes := (select value from public.settings where key = 'villes');
     if v_villes is not null and jsonb_array_length(v_villes) > 0
@@ -58,12 +68,18 @@ begin
       raise exception 'Cette ville n''est pas encore ouverte aux inscriptions.';
     end if;
     insert into public.hotesses (id, prenom, age, ville, instagram, telephone, photos)
-    values (new.id, left(coalesce(nullif(trim(m->>'prenom'), ''), '?'), 50), v_age,
+    values (new.id, left(nullif(trim(m->>'prenom'), ''), 50), v_age,
             left(m->>'ville', 80), left(m->>'instagram', 60), left(m->>'telephone', 20), '[]'::jsonb)
     on conflict (id) do nothing;
   elsif r = 'etablissement' then
+    if coalesce(nullif(trim(m->>'nom'), ''), '') = '' then
+      raise exception 'Le nom de l''établissement est obligatoire.';
+    end if;
+    if coalesce(nullif(trim(m->>'siret'), ''), '') = '' then
+      raise exception 'Le SIRET est obligatoire.';
+    end if;
     insert into public.etablissements (id, nom, type, ville, adresse, siret, photos, videos)
-    values (new.id, left(coalesce(nullif(trim(m->>'nom'), ''), '?'), 100),
+    values (new.id, left(nullif(trim(m->>'nom'), ''), 100),
             case when m->>'type_etab' in ('bar','restaurant','club','lounge') then m->>'type_etab' end,
             left(m->>'ville', 80), left(m->>'adresse', 200),
             left(regexp_replace(coalesce(m->>'siret', ''), '\s', '', 'g'), 14), '[]'::jsonb, '[]'::jsonb)
