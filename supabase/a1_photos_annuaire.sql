@@ -3,6 +3,7 @@
 --  aux annuaires admin.
 -- ============================================================
 
+drop function if exists public.admin_annuaire_hotesses();
 create or replace function public.admin_annuaire_hotesses()
 returns table (id uuid, prenom text, age int, ville text, email text, instagram text, telephone text,
                verifie boolean, suspendu boolean, note_moyenne numeric, nb_avis int, signes_negatifs int,
@@ -18,6 +19,7 @@ language sql stable security definer set search_path = public as $$
    order by h.created_at desc;
 $$;
 
+drop function if exists public.admin_annuaire_etablissements();
 create or replace function public.admin_annuaire_etablissements()
 returns table (id uuid, nom text, type text, ville text, adresse text, email text, siret text,
                verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamptz,
