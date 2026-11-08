@@ -38,7 +38,9 @@ create table public.candidatures (
   "qr_code" text,
   "confirme_a" timestamp with time zone,
   "annulation" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "presente_a" timestamp with time zone,
+  "rappel_envoye" boolean NOT NULL DEFAULT false
 );
 
 -- TABLE equipe
@@ -82,7 +84,8 @@ create table public.hotesses (
   "id_document" text,
   "signes_negatifs" integer DEFAULT 0,
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-  "telephone" text
+  "telephone" text,
+  "missions_honorees" integer NOT NULL DEFAULT 0
 );
 
 -- TABLE messages
@@ -130,7 +133,8 @@ create table public.profiles (
   "id" uuid NOT NULL,
   "type" text NOT NULL,
   "email" text,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "suspendu" boolean NOT NULL DEFAULT false
 );
 
 -- TABLE settings
@@ -164,6 +168,26 @@ AS $function$
   select * from public.hotesses where public.is_admin() order by created_at desc;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.apres_annulation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.annulation and not old.annulation then
+    if old.statut = 'confirmee' then
+      update public.hotesses set signes_negatifs = signes_negatifs + 1, missions_honorees = 0
+       where id = new.hotesse_id;
+    end if;
+    insert into public.notifications (user_id, message)
+    select m.etablissement_id, '⚠️ Une hôtesse a annulé sa venue : une place se libère sur ta mission du '
+           || to_char(m.date, 'DD/MM') || '.'
+      from public.missions m where m.id = new.mission_id;
+  end if;
+  return new;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.bloque_infos_contact()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -186,22 +210,29 @@ AS $function$
 declare
   v_m public.missions%rowtype;
   v_pris int;
+  v_debut timestamptz;
 begin
   if current_user not in ('authenticated', 'anon') or public.is_admin() then return new; end if;
   select * into v_m from public.missions where id = new.mission_id;
+  v_debut := (v_m.date + v_m.heure_debut) at time zone 'Europe/Paris';
 
   if tg_op = 'INSERT' then
     if new.hotesse_id is distinct from auth.uid() then raise exception 'Modification non autorisée.'; end if;
-    if v_m.statut <> 'ouverte' or v_m.date < current_date then
+    if public.est_suspendu() then raise exception 'Ton compte est suspendu. Contacte DamUp.'; end if;
+    if not exists (select 1 from public.hotesses h where h.id = auth.uid() and h.verifie) then
+      raise exception 'Ton profil doit être validé par DamUp avant de postuler.';
+    end if;
+    if v_m.statut <> 'ouverte' or v_debut <= now() then
       raise exception 'Cette mission n''accepte plus de candidatures.';
     end if;
-    new.statut := 'en_attente'; new.qr_code := null; new.annulation := false; new.confirme_a := null;
+    new.statut := 'en_attente'; new.qr_code := null; new.annulation := false;
+    new.confirme_a := null; new.presente_a := null;
     return new;
   end if;
 
   if new.mission_id is distinct from old.mission_id or new.hotesse_id is distinct from old.hotesse_id
      or new.groupe_id is distinct from old.groupe_id or new.qr_code is distinct from old.qr_code
-     or new.confirme_a is distinct from old.confirme_a then
+     or new.confirme_a is distinct from old.confirme_a or new.presente_a is distinct from old.presente_a then
     raise exception 'Modification non autorisée.';
   end if;
 
@@ -213,23 +244,63 @@ begin
         raise exception 'Changement de statut non autorisé.';
       end if;
       if new.statut = 'acceptee' then
+        if v_debut <= now() then raise exception 'La mission a déjà commencé.'; end if;
         select count(*) into v_pris from public.candidatures
          where mission_id = new.mission_id and id <> new.id
            and statut in ('acceptee', 'confirmee') and not annulation;
         if v_pris >= v_m.nb_hotesses then
           raise exception 'Toutes les places de cette mission sont déjà prises.';
         end if;
+        new.confirme_a := least(
+          now() + case when v_debut - now() < interval '24 hours' then interval '3 hours' else interval '12 hours' end,
+          v_debut);
       end if;
     end if;
+
   elsif auth.uid() = old.hotesse_id then
-    if new.statut is distinct from old.statut
-       and not (old.statut = 'acceptee' and new.statut = 'confirmee') then
-      raise exception 'Changement de statut non autorisé.';
+    if new.statut is distinct from old.statut then
+      if not (old.statut = 'acceptee' and new.statut = 'confirmee') then
+        raise exception 'Changement de statut non autorisé.';
+      end if;
+      if old.annulation then raise exception 'Cette candidature a été annulée.'; end if;
+      if now() > coalesce(old.confirme_a, v_debut) then
+        raise exception 'Le délai de confirmation est dépassé.';
+      end if;
+      new.qr_code := replace(gen_random_uuid()::text, '-', '');
     end if;
     if old.annulation and not new.annulation then raise exception 'Une annulation ne peut pas être retirée.'; end if;
+    if new.annulation and not old.annulation and v_debut <= now() then
+      raise exception 'La mission a déjà commencé, l''annulation n''est plus possible.';
+    end if;
+
   else
     raise exception 'Modification non autorisée.';
   end if;
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.controle_signalement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- le type du signalant vient du profil, pas du navigateur
+  select p.type into new.signalant_type from public.profiles p where p.id = auth.uid();
+  if new.signalant_type is null or new.signalant_type not in ('hotesse', 'etablissement') then
+    raise exception 'Signalement non autorisé.';
+  end if;
+  new.signalant_id := auth.uid();
+  new.statut := 'nouveau';
+  new.decision := null;
+  if char_length(coalesce(new.motif, '')) > 1000 then raise exception 'Motif trop long (1000 caractères maximum).'; end if;
+  if (select count(*) from public.signalements
+       where signalant_id = auth.uid() and created_at > now() - interval '1 day') >= 10 then
+    raise exception 'Trop de signalements aujourd''hui. Contacte DamUp directement.';
+  end if;
+  insert into public.notifications (user_id, message)
+  select p.id, '🚩 Nouveau signalement à traiter.' from public.profiles p where p.type = 'admin';
   return new;
 end; $function$;
 
@@ -266,6 +337,15 @@ begin
   );
   return new;
 end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.est_suspendu()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce((select suspendu from public.profiles where id = auth.uid()), false);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -309,12 +389,12 @@ end;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.hotesse_prive(p_id uuid)
- RETURNS TABLE(telephone text, instagram text, signes_negatifs integer)
+ RETURNS TABLE(telephone text, instagram text, signes_negatifs integer, missions_honorees integer)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select h.telephone, h.instagram, h.signes_negatifs from public.hotesses h
+  select h.telephone, h.instagram, h.signes_negatifs, h.missions_honorees from public.hotesses h
   where h.id = p_id and (p_id = auth.uid() or public.is_admin());
 $function$;
 
@@ -337,6 +417,20 @@ AS $function$
   select exists (select 1 from public.profiles where id = auth.uid() and type = 'admin');
 $function$;
 
+CREATE OR REPLACE FUNCTION public.maj_note_hotesse()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.hotesses h set
+    note_moyenne = coalesce((select round(avg(a.note)::numeric, 1) from public.avis a where a.hotesse_id = new.hotesse_id), 5.0),
+    nb_avis = (select count(*) from public.avis a where a.hotesse_id = new.hotesse_id)
+  where h.id = new.hotesse_id;
+  return new;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.maj_places_mission()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -344,18 +438,18 @@ CREATE OR REPLACE FUNCTION public.maj_places_mission()
  SET search_path TO 'public'
 AS $function$
 begin
-  if new.statut in ('acceptee','confirmee') and old.statut is distinct from new.statut then
-    update public.missions
-    set places_restantes = greatest(coalesce(places_restantes, 0) - 1, 0)
-    where id = new.mission_id;
-
-    update public.missions
-    set statut = 'cloturee'
-    where id = new.mission_id and places_restantes <= 0;
-  end if;
+  update public.missions m
+     set places_restantes = greatest(m.nb_hotesses - (
+           select count(*) from public.candidatures c
+            where c.mission_id = m.id and c.statut in ('acceptee','confirmee') and not c.annulation), 0)
+   where m.id = new.mission_id;
+  update public.missions
+     set statut = case when places_restantes <= 0 and statut = 'ouverte' then 'cloturee'
+                       when places_restantes > 0 and statut = 'cloturee' then 'ouverte'
+                       else statut end
+   where id = new.mission_id;
   return new;
-end;
-$function$;
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.nettoie_document_etab()
  RETURNS trigger
@@ -387,16 +481,35 @@ CREATE OR REPLACE FUNCTION public.notifier_candidature()
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_lieu text;
+  v_date text;
 begin
-  if new.statut in ('acceptee','refusee') and old.statut is distinct from new.statut then
+  if old.statut is not distinct from new.statut then return new; end if;
+  select e.nom, to_char(m.date, 'DD/MM') into v_lieu, v_date
+    from public.missions m join public.etablissements e on e.id = m.etablissement_id
+   where m.id = new.mission_id;
+
+  if new.statut = 'acceptee' then
+    insert into public.notifications (user_id, message) values (new.hotesse_id,
+      '🎉 Tu as été acceptée chez ' || v_lieu || ' pour le ' || v_date
+      || ' ! Confirme ta venue avant le '
+      || to_char(new.confirme_a at time zone 'Europe/Paris', 'DD/MM à HH24"h"MI')
+      || ', sinon ta place sera libérée.');
+  elsif new.statut = 'refusee' then
+    insert into public.notifications (user_id, message) values (new.hotesse_id,
+      'Ta candidature chez ' || v_lieu || ' pour le ' || v_date || ' n''a pas été retenue.');
+  elsif new.statut = 'expiree' then
+    insert into public.notifications (user_id, message) values (new.hotesse_id,
+      '⏰ Tu n''as pas confirmé à temps ta mission chez ' || v_lieu || ' du ' || v_date
+      || ' : ta place a été libérée.');
+  elsif new.statut = 'confirmee' then
     insert into public.notifications (user_id, message)
-    values (new.hotesse_id,
-      case when new.statut = 'acceptee' then '🎉 Tu as été acceptée à une mission !'
-           else 'Ta candidature a été refusée.' end);
+    select m.etablissement_id, '✅ Une hôtesse a confirmé sa venue pour ta mission du ' || v_date || '.'
+      from public.missions m where m.id = new.mission_id;
   end if;
   return new;
-end;
-$function$;
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.notifier_nouvelle_candidature()
  RETURNS trigger
@@ -439,7 +552,8 @@ begin
        or new.verifie is distinct from old.verifie
        or new.note_moyenne is distinct from old.note_moyenne
        or new.nb_avis is distinct from old.nb_avis
-       or new.signes_negatifs is distinct from old.signes_negatifs then
+       or new.signes_negatifs is distinct from old.signes_negatifs
+       or new.missions_honorees is distinct from old.missions_honorees then
       raise exception 'Modification non autorisée.';
     end if;
   end if;
@@ -456,12 +570,81 @@ begin
       raise exception 'Modification non autorisée.';
     end if;
     if tg_op = 'INSERT' then
+      if public.est_suspendu() then raise exception 'Ton compte est suspendu. Contacte DamUp.'; end if;
+      if not exists (select 1 from public.etablissements e where e.id = auth.uid() and e.verifie) then
+        raise exception 'Ton établissement doit être validé par DamUp avant de publier.';
+      end if;
       if new.date < current_date then raise exception 'La date de la mission est déjà passée.'; end if;
       if new.nb_hotesses not between 1 and 50 then raise exception 'Le nombre d''hôtesses doit être entre 1 et 50.'; end if;
       new.statut := 'ouverte';
     end if;
   end if;
   return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.taches_auto()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- rappel quand il reste 1 h ou moins pour confirmer (un seul rappel par candidature)
+  with a_rappeler as (
+    update public.candidatures c set rappel_envoye = true
+     where c.statut = 'acceptee' and not c.annulation and not c.rappel_envoye
+       and c.confirme_a > now() and c.confirme_a - now() <= interval '1 hour'
+    returning c.hotesse_id, c.confirme_a
+  )
+  insert into public.notifications (user_id, message)
+  select hotesse_id, '⏳ Rappel : confirme ta venue avant '
+         || to_char(confirme_a at time zone 'Europe/Paris', 'HH24"h"MI')
+         || ', sinon ta place sera libérée.'
+    from a_rappeler;
+
+  -- acceptations non confirmées à temps
+  update public.candidatures set statut = 'expiree'
+   where statut = 'acceptee' and not annulation
+     and confirme_a is not null and confirme_a < now();
+
+  -- missions terminées
+  update public.missions set statut = 'terminee'
+   where statut in ('ouverte', 'cloturee', 'en_cours')
+     and ((date + heure_fin + case when heure_fin <= heure_debut then interval '1 day' else interval '0' end)
+          at time zone 'Europe/Paris') < now();
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.valider_presence(p_code text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c record;
+  v_jour date := (now() at time zone 'Europe/Paris')::date;
+begin
+  select ca.id, ca.statut, ca.annulation, ca.presente_a, ca.hotesse_id,
+         m.etablissement_id, m.date, h.prenom
+    into c
+    from public.candidatures ca
+    join public.missions m on m.id = ca.mission_id
+    join public.hotesses h on h.id = ca.hotesse_id
+   where ca.qr_code = p_code;
+  if c.id is null then raise exception 'QR code inconnu.'; end if;
+  if c.etablissement_id is distinct from auth.uid() then
+    raise exception 'Ce QR code concerne une mission d''un autre établissement.';
+  end if;
+  if c.statut <> 'confirmee' or c.annulation then raise exception 'Cette venue n''est pas confirmée.'; end if;
+  if c.date not between v_jour - 1 and v_jour then raise exception 'Ce QR code n''est pas pour aujourd''hui.'; end if;
+  if c.presente_a is not null then return c.prenom || ' est déjà enregistrée.'; end if;
+
+  update public.candidatures set presente_a = now() where id = c.id;
+  update public.hotesses set missions_honorees = missions_honorees + 1 where id = c.hotesse_id;
+  -- 3 missions honorées = un signe négatif retiré
+  update public.hotesses set signes_negatifs = signes_negatifs - 1, missions_honorees = 0
+   where id = c.hotesse_id and missions_honorees >= 3 and signes_negatifs > 0;
+  return '✅ ' || c.prenom || ' est bien arrivée.';
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.verifie_medias_mission()
@@ -481,6 +664,12 @@ $function$;
 
 
 -- ============ TRIGGERS ============
+
+-- avis: maj_note_hotesse
+CREATE TRIGGER maj_note_hotesse AFTER INSERT ON public.avis FOR EACH ROW EXECUTE FUNCTION maj_note_hotesse();
+
+-- candidatures: apres_annulation
+CREATE TRIGGER apres_annulation AFTER UPDATE ON public.candidatures FOR EACH ROW EXECUTE FUNCTION apres_annulation();
 
 -- candidatures: controle_candidature
 CREATE TRIGGER controle_candidature BEFORE INSERT OR UPDATE ON public.candidatures FOR EACH ROW EXECUTE FUNCTION controle_candidature();
@@ -520,6 +709,9 @@ CREATE TRIGGER verifie_medias_mission_trigger BEFORE INSERT ON public.missions F
 
 -- notifications: envoyer_email_notification
 CREATE TRIGGER envoyer_email_notification AFTER INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION envoyer_email_notification();
+
+-- signalements: controle_signalement
+CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EACH ROW EXECUTE FUNCTION controle_signalement();
 
 
 -- ============ POLICIES ============
