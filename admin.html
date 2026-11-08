@@ -245,8 +245,8 @@
     const sep = ";";
     let lignes;
     if (annuaireType === "hotesses") {
-      lignes = [["Prenom","Age","Ville","Email","Instagram","Telephone","Verifie","Suspendu","Note","Avis","Missions honorees","Inscrite le","Tarif","Actif jusqu'au"]];
-      annuaireData.forEach(h => lignes.push([h.prenom,h.age,h.ville,h.email,h.instagram,h.telephone,h.verifie?"oui":"non",h.suspendu?"oui":"non",h.note_moyenne,h.nb_avis,h.missions_honorees,h.inscrite_le?new Date(h.inscrite_le).toLocaleDateString("fr-FR"):"",h.tarif,h.actif_jusqu_a?new Date(h.actif_jusqu_a).toLocaleDateString("fr-FR"):""]));
+      lignes = [["Prénom","Âge","E-mail","Instagram"]];
+      annuaireData.forEach(h => lignes.push([h.prenom,h.age,h.email,h.instagram]));
     } else {
       lignes = [["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le","Tarif","Actif jusqu'au","Dernier mode"]];
       annuaireData.forEach(e => lignes.push([e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):"",e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode]));
