@@ -384,6 +384,17 @@
       const { data: r } = await db.rpc("reference_virement", { p_uid: id });
       reference = r || "";
     }
+    // documents d'identité éventuels
+    let docRecto = "", docSelfie = "";
+    try {
+      const table = type === "hotesse" ? "hotesses" : "etablissements";
+      const { data: d } = await db.from(table).select("id_document").eq("id", id).single();
+      if (d?.id_document) {
+        const r1 = await sb.storage.from("documents").createSignedUrl(d.id_document.recto, 600);
+        const r2 = await sb.storage.from("documents").createSignedUrl(d.id_document.selfie, 600);
+        docRecto = r1.data?.signedUrl || ""; docSelfie = r2.data?.signedUrl || "";
+      }
+    } catch (e) {}
     const nom = type === "hotesse" ? (x.prenom || "?") : (x.nom || "?");
     const estVerifie = x.verifie;
     const estSuspendu = x.suspendu;
@@ -402,6 +413,17 @@
         </div>
 
         <div style="margin-bottom:14px">${statutBadge(estVerifie, estSuspendu)}</div>
+
+        ${docRecto ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Vérification d'identité</b>
+          <div style="display:flex;gap:10px;margin:10px 0">
+            <img src="${docRecto}" style="width:45%;border-radius:10px;object-fit:cover">
+            <img src="${docSelfie}" style="width:45%;border-radius:10px;object-fit:cover">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="background:#E7F5EC;color:#1E7A3C" onclick="validerIdentite('${type}','${id}',true)">Valider</button>
+            <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="validerIdentite('${type}','${id}',false)">Refuser</button>
+          </div>
+        </div>` : ""}
 
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
           <div style="font-size:13px;margin:8px 0">Statut : ${x.actif_jusqu_a ? "Actif jusqu'au " + new Date(x.actif_jusqu_a).toLocaleDateString("fr-FR") : "Essai / jamais payé"}</div>
@@ -901,6 +923,25 @@
     const lignes = [["Date","Numero recu","Mode","Montant","Periode debut","Periode fin"]];
     recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, libelleMode(p.mode), Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
     exporterXlsx(lignes, "recettes.xlsx");
+  }
+
+  async function validerIdentite(type, id, valide) {
+    let motif = null;
+    if (!valide) {
+      motif = prompt("Motif du refus (obligatoire) :") || "";
+      if (!motif) return;
+    }
+    try {
+      const table = type === "hotesse" ? "hotesses" : "etablissements";
+      const { data: d } = await db.from(table).select("id_document").eq("id", id).single();
+      const chemins = [d?.id_document?.recto, d?.id_document?.selfie].filter(Boolean);
+      if (chemins.length) await sb.storage.from("documents").remove(chemins);
+    } catch (e) {}
+    const { error } = await db.rpc("admin_valider_identite", { p_profil: id, p_type: type, p_valide: valide, p_motif: motif });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast(valide ? "Identité validée ✅" : "Identité refusée.");
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
   }
 
   init();

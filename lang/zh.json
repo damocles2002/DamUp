@@ -209,5 +209,11 @@
   "copine.proposee": "👯 {prenom} 邀请您于 {date} 和她一起去 {lieu}。",
   "copine.acceptee": "✅ {prenom} 已接受您关于 {lieu} 的邀请。",
   "copine.refusee": "{prenom} 已拒绝您的邀请。",
-  "copine.candidate": "👯 {prenom} 的朋友应聘了您的任务。"
+  "copine.candidate": "👯 {prenom} 的朋友应聘了您的任务。",
+  "verif.rappel": "请记得验证身份（证件 + 自拍）以完成您的资料。",
+  "verif.titre": "验证我的身份",
+  "verif.piece": "证件正面",
+  "verif.selfie": "自拍",
+  "verif.envoyer": "发送我的文件",
+  "verif.envoye": "文件已发送，等待审核。"
 }

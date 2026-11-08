@@ -86,6 +86,7 @@
 
   <div class="section"><h2><span data-i18n="profil.mon_profil">Mon profil</span> <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()" data-i18n="commun.modifier">✏️ Modifier</a></h2></div>
   <div class="section"><h2>Mon code DamUp</h2><div id="code-damup" style="padding:4px 0 8px"></div></div>
+  <div class="section"><h2 data-i18n="verif.titre">Vérifier mon identité</h2><div id="verif-identite"></div></div>
   <div id="form-edit">
     <div class="champ"><label class="label" data-i18n="commun.prenom">Prénom</label><input class="field" id="e-prenom"></div>
     <div class="ligne">
@@ -139,6 +140,36 @@
     afficherBlocAbonnement("bloc-abonnement");
     chargerNotifications("notifications");
     chargerCodeDamup();
+    chargerVerification();
+  }
+
+  async function chargerVerification() {
+    const zone = document.getElementById("verif-identite");
+    if (!zone) return;
+    const { data: h } = await db.from("hotesses").select("id_document, verifie").eq("id", user.id).single();
+    if (h?.verifie) { zone.innerHTML = '<div style="color:#1E7A3C;font-size:13px">✅ Identité vérifiée.</div>'; return; }
+    if (h?.id_document) { zone.innerHTML = '<div style="color:var(--gris);font-size:13px">' + t("verif.envoye") + '</div>'; return; }
+    zone.innerHTML = `
+      <div style="font-size:12.5px;color:var(--gris);margin-bottom:10px">Pour valider ton profil, envoie le recto de ta pièce d'identité et un selfie (les fichiers sont supprimés dès la décision).</div>
+      <div class="champ"><label class="label">${t("verif.piece")}</label><input class="field" type="file" id="verif-piece" accept="image/*"></div>
+      <div class="champ"><label class="label">${t("verif.selfie")}</label><input class="field" type="file" id="verif-selfie" accept="image/*" capture="user"></div>
+      <button class="btn btn-primaire btn-block btn-sm" onclick="envoyerDocuments()">${t("verif.envoyer")}</button>`;
+  }
+
+  async function envoyerDocuments() {
+    const piece = document.getElementById("verif-piece").files[0];
+    const selfie = document.getElementById("verif-selfie").files[0];
+    if (!piece || !selfie) { toast("Ajoute la pièce d'identité et le selfie."); return; }
+    try {
+      const pc = await redimensionnerImage(piece, 1200, 0.75);
+      const sc = await redimensionnerImage(selfie, 1200, 0.75);
+      const pPiece = `${user.id}/recto.jpg`, pSelfie = `${user.id}/selfie.jpg`;
+      await sb.storage.from("documents").upload(pPiece, pc, { contentType: "image/jpeg", upsert: true });
+      await sb.storage.from("documents").upload(pSelfie, sc, { contentType: "image/jpeg", upsert: true });
+      await db.from("hotesses").update({ id_document: { recto: pPiece, selfie: pSelfie } }).eq("id", user.id);
+      toast(t("verif.envoye"), "ok");
+      chargerVerification();
+    } catch (e) { toast(e.message, "erreur"); }
   }
 
   async function chargerCodeDamup() {

@@ -209,5 +209,11 @@
   "copine.proposee": "👯 {prenom} invites you to join her at {lieu} on {date}.",
   "copine.acceptee": "✅ {prenom} accepted your invitation at {lieu}.",
   "copine.refusee": "{prenom} declined your invitation.",
-  "copine.candidate": "👯 {prenom}'s friend applied to your mission."
+  "copine.candidate": "👯 {prenom}'s friend applied to your mission.",
+  "verif.rappel": "Don't forget to verify your identity (ID + selfie) to complete your profile.",
+  "verif.titre": "Verify my identity",
+  "verif.piece": "Front of your ID",
+  "verif.selfie": "Selfie",
+  "verif.envoyer": "Send my documents",
+  "verif.envoye": "Documents sent, awaiting review."
 }

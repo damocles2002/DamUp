@@ -209,5 +209,11 @@
   "copine.proposee": "👯 {prenom} te propose de venir avec elle chez {lieu} le {date}.",
   "copine.acceptee": "✅ {prenom} a accepté ton invitation chez {lieu}.",
   "copine.refusee": "{prenom} a refusé ton invitation.",
-  "copine.candidate": "👯 La copine de {prenom} a postulé à ta mission."
+  "copine.candidate": "👯 La copine de {prenom} a postulé à ta mission.",
+  "verif.rappel": "N'oublie pas de vérifier ton identité (pièce d'identité + selfie) pour finaliser ton profil.",
+  "verif.titre": "Vérifier mon identité",
+  "verif.piece": "Recto de la pièce d'identité",
+  "verif.selfie": "Selfie",
+  "verif.envoyer": "Envoyer mes documents",
+  "verif.envoye": "Documents envoyés, en attente de validation."
 }

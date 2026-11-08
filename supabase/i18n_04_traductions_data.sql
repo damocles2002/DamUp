@@ -148,6 +148,12 @@ insert into public.traductions (cle, langue, texte) values
 ('copine.candidate', 'es', '👯 La amiga de {prenom} se postuló a tu misión.'),
 ('copine.candidate', 'zh', '👯 {prenom} 的朋友应聘了您的任务。'),
 
+-- vérification d'identité
+('verif.rappel', 'fr', 'N''oublie pas de vérifier ton identité (pièce d''identité + selfie) pour finaliser ton profil.'),
+('verif.rappel', 'en', 'Don''t forget to verify your identity (ID + selfie) to complete your profile.'),
+('verif.rappel', 'es', 'No olvides verificar tu identidad (documento + selfie) para completar tu perfil.'),
+('verif.rappel', 'zh', '请记得验证身份（证件 + 自拍）以完成您的资料。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),
