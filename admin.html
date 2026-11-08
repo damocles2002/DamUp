@@ -110,7 +110,7 @@
   // ============ DASHBOARD ============
   async function afficherDashboard() {
     main.innerHTML = "<h1>Tableau de bord</h1><div class='stats'>chargement…</div>";
-    const [[ , h], [, e], [, m], [, c]] = await Promise.all([
+    const [h, e, m, c] = await Promise.all([
       db.from("hotesses").select("id", { count: "exact", head: true }),
       db.from("etablissements").select("id", { count: "exact", head: true }),
       db.from("missions").select("id", { count: "exact", head: true }),
@@ -118,10 +118,10 @@
     ]);
     main.innerHTML = `<h1>Tableau de bord</h1>
       <div class="stats">
-        <div class="stat"><div class="v">${h.count}</div><div class="l">Hôtesses inscrites</div></div>
-        <div class="stat"><div class="v">${e.count}</div><div class="l">Établissements</div></div>
-        <div class="stat"><div class="v">${m.count}</div><div class="l">Missions publiées</div></div>
-        <div class="stat"><div class="v">${c.count}</div><div class="l">Candidatures</div></div>
+        <div class="stat"><div class="v">${h.count ?? 0}</div><div class="l">Hôtesses inscrites</div></div>
+        <div class="stat"><div class="v">${e.count ?? 0}</div><div class="l">Établissements</div></div>
+        <div class="stat"><div class="v">${m.count ?? 0}</div><div class="l">Missions publiées</div></div>
+        <div class="stat"><div class="v">${c.count ?? 0}</div><div class="l">Candidatures</div></div>
       </div>
       <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
     const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
