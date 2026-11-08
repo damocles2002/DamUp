@@ -81,7 +81,12 @@
     <span id="txt-bascule">Déjà un compte ?</span> <a id="lien-bascule">Se connecter</a>
   </div>
 
-  <div class="note">En vous inscrivant, vous acceptez nos <a href="cgu.html" style="color:var(--aubergine);font-weight:600">CGU</a> et notre <a href="confidentialite.html" style="color:var(--aubergine);font-weight:600">politique de confidentialité</a>.<br>Réservé aux personnes majeures (18 ans et +).</div>
+  <div id="bloc-cgu" style="margin-top:16px">
+    <label style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--gris);line-height:1.45;cursor:pointer">
+      <input type="checkbox" id="accept-cgu" style="margin-top:2px;accent-color:var(--aubergine)">
+      <span>J'ai lu et j'accepte les <a href="cgu.html" target="_blank" style="color:var(--aubergine);font-weight:600">CGU</a> et la <a href="confidentialite.html" target="_blank" style="color:var(--aubergine);font-weight:600">politique de confidentialité</a>, et je certifie avoir 18 ans ou plus.</span>
+    </label>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -148,6 +153,7 @@
       sousTitre.textContent = "Créez votre compte gratuitement";
       choixRole.style.display = "grid";
       champsRole.classList.add("visible");
+      document.getElementById("bloc-cgu").style.display = "block";
     } else {
       btn.textContent = "Se connecter";
       txtBascule.textContent = "Pas encore de compte ?";
@@ -155,6 +161,7 @@
       sousTitre.textContent = "Bon retour sur DamUp";
       choixRole.style.display = "none";
       champsRole.classList.remove("visible");
+      document.getElementById("bloc-cgu").style.display = "none";
     }
   }
   lienBascule.addEventListener("click", () => setMode(mode === "inscription" ? "connexion" : "inscription"));
@@ -194,6 +201,7 @@
         if (!document.getElementById("etab-nom").value) return afficherMsg("Le nom de l'établissement est obligatoire.", "err");
         if (!document.getElementById("etab-siret").value) return afficherMsg("Le SIRET est obligatoire.", "err");
       }
+      if (!document.getElementById("accept-cgu").checked) return afficherMsg("Tu dois accepter les CGU et la politique de confidentialité.", "err");
     }
 
     btn.disabled = true; btn.textContent = "Un instant…";
@@ -202,8 +210,8 @@
       if (mode === "inscription") {
         // les champs partent dans user_metadata → le trigger SQL crée les entrées automatiquement
         const meta = role === "hotesse"
-          ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null }
-          : { role: "etablissement", nom: document.getElementById("etab-nom").value, type_etab: document.getElementById("etab-type").value, ville: document.getElementById("etab-ville").value || null, adresse: document.getElementById("etab-adresse").value || null, siret: document.getElementById("etab-siret").value };
+          ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null, cgu_acceptees_le: new Date().toISOString(), cgu_version: "2026-11-08" }
+          : { role: "etablissement", nom: document.getElementById("etab-nom").value, type_etab: document.getElementById("etab-type").value, ville: document.getElementById("etab-ville").value || null, adresse: document.getElementById("etab-adresse").value || null, siret: document.getElementById("etab-siret").value, cgu_acceptees_le: new Date().toISOString(), cgu_version: "2026-11-08" };
 
         const { data, error } = await auth.signUp({ email, password: mdp, options: { data: meta } });
         if (error) throw error;
