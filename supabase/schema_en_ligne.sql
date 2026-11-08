@@ -124,7 +124,8 @@ create table public.missions (
   "repetable" boolean NOT NULL DEFAULT false,
   "statut" text NOT NULL DEFAULT 'ouverte'::text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-  "places_restantes" integer
+  "places_restantes" integer,
+  "note" text
 );
 
 -- TABLE notifications
@@ -214,7 +215,7 @@ AS $function$
 $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuaire_etablissements()
- RETURNS TABLE(id uuid, nom text, type text, ville text, adresse text, email text, siret text, verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, dernier_mode text)
+ RETURNS TABLE(id uuid, nom text, type text, ville text, adresse text, email text, siret text, verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, dernier_mode text, photos jsonb, videos jsonb)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -222,14 +223,15 @@ AS $function$
   select e.id, e.nom, e.type, e.ville, e.adresse, p.email, e.siret, e.verifie, p.suspendu,
          (select count(*) from public.missions m where m.etablissement_id = e.id),
          e.created_at, p.tarif, p.periode, p.actif_jusqu_a,
-         (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1)
+         (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1),
+         e.photos, e.videos
     from public.etablissements e join public.profiles p on p.id = e.id
    where public.is_admin()
    order by e.created_at desc;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuaire_hotesses()
- RETURNS TABLE(id uuid, prenom text, age integer, ville text, email text, instagram text, telephone text, verifie boolean, suspendu boolean, note_moyenne numeric, nb_avis integer, signes_negatifs integer, missions_honorees bigint, inscrite_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone)
+ RETURNS TABLE(id uuid, prenom text, age integer, ville text, email text, instagram text, telephone text, verifie boolean, suspendu boolean, note_moyenne numeric, nb_avis integer, signes_negatifs integer, missions_honorees bigint, inscrite_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, photos jsonb)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -237,7 +239,7 @@ AS $function$
   select h.id, h.prenom, h.age, h.ville, p.email, h.instagram, h.telephone,
          h.verifie, p.suspendu, h.note_moyenne, h.nb_avis, h.signes_negatifs,
          (select count(*) from public.candidatures c where c.hotesse_id = h.id and c.presente_a is not null),
-         h.created_at, p.tarif, p.periode, p.actif_jusqu_a
+         h.created_at, p.tarif, p.periode, p.actif_jusqu_a, h.photos
     from public.hotesses h join public.profiles p on p.id = h.id
    where public.is_admin()
    order by h.created_at desc;
@@ -325,6 +327,22 @@ begin
   get diagnostics n = row_count;
   return n;
 end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_recettes()
+ RETURNS TABLE(id uuid, numero_recu text, mode text, montant numeric, periode_debut timestamp with time zone, periode_fin timestamp with time zone, created_at timestamp with time zone, client text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select p.id, p.numero_recu, p.mode, p.montant, p.periode_debut, p.periode_fin, p.created_at,
+         coalesce(e.nom, h.prenom, pr.email) as client
+    from public.paiements p
+    join public.profiles pr on pr.id = p.profil_id
+    left join public.etablissements e on e.id = p.profil_id
+    left join public.hotesses h on h.id = p.profil_id
+   where public.is_admin()
+   order by p.created_at desc;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_refuser_profil(p_profil uuid, p_motif text)
  RETURNS void
@@ -803,6 +821,33 @@ begin
   return new;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.notifier_note_mission()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_lieu text;
+  v_date_m date;
+begin
+  if new.note is distinct from old.note and coalesce(new.note, '') <> '' then
+    select e.nom, m.date into v_lieu, v_date_m
+      from public.missions m join public.etablissements e on e.id = m.etablissement_id
+     where m.id = new.id;
+    insert into public.notifications (user_id, message, cle, params)
+    select c.hotesse_id,
+           public.traduire('notif.mission_note_modifiee', coalesce(p.langue, 'fr'),
+             jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, coalesce(p.langue, 'fr')))),
+           'notif.mission_note_modifiee',
+           jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, coalesce(p.langue, 'fr')))
+      from public.candidatures c
+      join public.profiles p on p.id = c.hotesse_id
+     where c.mission_id = new.id and c.statut in ('acceptee', 'confirmee') and not c.annulation;
+  end if;
+  return new;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.notifier_nouvelle_candidature()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -917,18 +962,15 @@ begin
       raise exception 'Modification non autorisée.';
     end if;
     if tg_op = 'INSERT' then
-      if public.est_suspendu() then raise exception 'Ton compte est suspendu. Contacte DamUp.'; end if;
-      if not exists (select 1 from public.etablissements e where e.id = auth.uid() and e.verifie) then
-        raise exception 'Ton établissement doit être validé par DamUp avant de publier.';
-      end if;
-      if not public.abonnement_ok(auth.uid()) then
-        raise exception 'Ton abonnement est terminé : renouvelle-le pour publier de nouvelles missions.';
-      end if;
       if new.date < current_date then raise exception 'La date de la mission est déjà passée.'; end if;
-      if new.nb_hotesses not between 1 and public.reglage_num('max_hotesses_mission', 50)::int then
-        raise exception 'Le nombre d''hôtesses doit être entre 1 et %.', public.reglage_num('max_hotesses_mission', 50)::int;
-      end if;
+      if new.nb_hotesses not between 1 and 50 then raise exception 'Le nombre d''hôtesses doit être entre 1 et 50.'; end if;
       new.statut := 'ouverte';
+    end if;
+    if coalesce(new.note, '') ~ '(\+33|0[1-9][ .\-]?[0-9]{2}[ .\-]?[0-9]{2}[ .\-]?[0-9]{2}[ .\-]?[0-9]{2})' then
+      raise exception 'Les numéros de téléphone ne sont pas autorisés dans la note.' using hint = 'note_coordonnees';
+    end if;
+    if coalesce(new.note, '') ~ '(instagram\.com|facebook\.com|snapchat|tiktok|@[a-zA-Z0-9_.]{2,})' then
+      raise exception 'Les comptes de réseaux sociaux ne sont pas autorisés dans la note.' using hint = 'note_coordonnees';
     end if;
   end if;
   return new;
@@ -1116,6 +1158,9 @@ CREATE TRIGGER bloque_infos_contact BEFORE INSERT OR UPDATE ON public.messages F
 
 -- missions: init_places_mission_trigger
 CREATE TRIGGER init_places_mission_trigger BEFORE INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION init_places_mission();
+
+-- missions: notifier_note_mission
+CREATE TRIGGER notifier_note_mission AFTER UPDATE ON public.missions FOR EACH ROW EXECUTE FUNCTION notifier_note_mission();
 
 -- missions: protege_mission
 CREATE TRIGGER protege_mission BEFORE INSERT OR UPDATE ON public.missions FOR EACH ROW EXECUTE FUNCTION protege_mission();
