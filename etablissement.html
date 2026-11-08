@@ -257,7 +257,7 @@
     const c = mes[i], h = c.hotesses;
     const photo = urlPhoto(h.photos && h.photos[0]) ? `<img src="${urlPhoto(h.photos && h.photos[0])}" style="width:100%;height:100%;object-fit:cover">` : `<span class="initiale">${esc((h.prenom||"?")[0].toUpperCase())}</span>`;
     zone.innerHTML = `
-      <div class="carte">
+      <div class="carte" onclick="ouvrirFicheCandidate('${c.id}')">
         <div class="photo">${photo}</div>
         <div class="gradient"></div>
         <div class="infos">
@@ -499,6 +499,56 @@
         </div>`).join("")
       : '<div class="vide">Aucune hôtesse à noter pour le moment.</div>'}
     </div>`;
+  }
+
+  async function deciderDepuisFiche(candId, statut) {
+    const { error } = await db.from("candidatures").update({ statut }).eq("id", candId);
+    const modal = document.getElementById("modal-fiche");
+    if (modal) modal.remove();
+    if (error) { alert(error.message); return; }
+    afficherSelection();
+  }
+
+  async function ouvrirFicheCandidate(candId) {
+    const { data: cand } = await db.from("candidatures")
+      .select("id, mission_id, hotesse_id, hotesses(prenom, age, ville, note_moyenne, nb_avis, photos), missions(date, heure_debut, heure_fin, etablissements(nom))")
+      .eq("id", candId).single();
+    if (!cand) return;
+    const c = cand, h = c.hotesses, m = c.missions;
+    const { data: avis } = await db.from("avis")
+      .select("note, criteres, commentaire, etablissements(nom)")
+      .eq("hotesse_id", c.hotesse_id).order("created_at", { ascending: false }).limit(5);
+    const galerie = (h?.photos || []).map(p => urlPhoto(p)).filter(Boolean);
+    const modal = document.createElement("div");
+    modal.id = "modal-fiche";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:998";
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="font-family:var(--font-titre);font-size:20px">${esc(h?.prenom || "?")}, ${h?.age || ""}</h3>
+          <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche').remove()">✕</button>
+        </div>
+        <div style="color:var(--gris);font-size:13px">📍 ${esc(h?.ville || "")} · ⭐ ${h?.note_moyenne ?? 5} (${h?.nb_avis ?? 0} avis)</div>
+        <div style="color:var(--gris);font-size:13px;margin-top:2px">Mission du ${formatDate(m?.date)} à ${formatHeure(m?.heure_debut)}</div>
+        <div style="display:flex;gap:6px;overflow-x:auto;margin:14px 0">
+          ${galerie.length ? galerie.map(p => `<img src="${p}" style="width:120px;height:160px;object-fit:cover;border-radius:10px;flex-shrink:0">`).join("") : '<div style="color:var(--gris);font-size:13px">Aucune photo.</div>'}
+        </div>
+        <div style="margin-top:14px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:8px">Avis récents</div>
+          ${(avis && avis.length) ? avis.map(a => `
+            <div style="background:#FBF6EE;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px"><b>${esc(a.etablissements?.nom || "")}</b><span style="color:var(--champagne-2)">${"★".repeat(a.note || 0)}</span></div>
+              ${a.criteres && a.criteres.length ? `<div style="font-size:11.5px;color:var(--gris);margin:4px 0">${(a.criteres||[]).map(esc).join(" · ")}</div>` : ""}
+              ${a.commentaire ? `<div style="font-size:12.5px;margin-top:4px">${esc(a.commentaire)}</div>` : ""}
+            </div>`).join("") : '<div style="color:var(--gris);font-size:12.5px">Aucun avis pour le moment.</div>'}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger)" onclick="deciderDepuisFiche('${c.id}','refusee')">Refuser</button>
+          <button class="btn btn-block btn-primaire" onclick="deciderDepuisFiche('${c.id}','acceptee')">Accepter</button>
+        </div>
+        <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('hotesse', '${c.hotesse_id}')">🚩 Signaler</button>
+      </div>`;
+    document.body.appendChild(modal);
   }
 
   init();
