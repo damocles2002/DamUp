@@ -25,3 +25,8 @@ Plateforme de mise en relation entre **hôtesses de table** et **établissements
 - Logo : « La Couronne »
 - Couleurs : aubergine `#2A1120`, champagne `#E7CFA8`, ivoire `#F4E8D6`
 - Polices : Bodoni Moda (titres), Jost (textes)
+
+## Application installable (PWA)
+- `manifest.webmanifest` + `sw.js` + icônes `assets/icon-*.png`
+- **À chaque mise en ligne, augmenter la `VERSION` dans `sw.js`** (pour que les
+  navigateurs rechargent le cache).

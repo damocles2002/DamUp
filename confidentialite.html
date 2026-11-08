@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DamUp — Politique de confidentialité</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2A1120">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DamUp">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="css/style.css">
 <style>
   body { background: var(--ivoire-2); padding: 20px; }
@@ -113,5 +119,6 @@
   <h2 id="s11">11. Modifications</h2>
   <p>Cette politique peut être mise à jour. La date de dernière mise à jour figure en haut de la page ; en cas de changement important, les utilisateurs sont prévenus par notification.</p>
 </div>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>
 </body>
 </html>

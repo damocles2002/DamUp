@@ -1,0 +1,15 @@
+{
+  "name": "DamUp",
+  "short_name": "DamUp",
+  "description": "Mise en relation entre hôtesses de table et établissements (bars, restaurants, clubs, lounges).",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FBF5EA",
+  "theme_color": "#2A1120",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
