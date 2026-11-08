@@ -92,6 +92,7 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
   const main = document.getElementById("main");
   let vue = "dashboard";
@@ -196,6 +197,80 @@
     if (j < 3) return '<span style="color:#E67E22">' + d + '</span>';
     return '<span style="color:#1E7A3C">' + d + '</span>';
   }
+
+  // ==== PHOTOS & MÉDIAS (A1) ====
+  let mediaListe = [];
+  let mediaIndex = 0;
+  let mediaModal = null;
+  let mediaNom = "";
+
+  function avatarPhoto(url, initial) {
+    const u = urlPhoto(url);
+    return u ? `<img src="${u}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`
+             : `<div class="av">${esc((initial || "?")[0])}</div>`;
+  }
+
+  function vignettesMedia(photos, videos, nom) {
+    const ph = (photos || []).map(p => urlPhoto(p)).filter(Boolean).map(u => ({ type: "img", u }));
+    const vi = (videos || []).map(v => urlPhoto(v)).filter(Boolean).map(u => ({ type: "video", u }));
+    mediaListe = ph.concat(vi);
+    mediaNom = nom;
+    if (!mediaListe.length) return '<div style="font-size:12.5px;color:var(--gris)">Aucun média.</div>';
+    return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">
+        ${mediaListe.map((m, i) => m.type === "img"
+          ? `<img src="${m.u}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="ouvrirMedia(${i})">`
+          : `<video src="${m.u}" muted style="width:72px;height:72px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="ouvrirMedia(${i})"></video>`).join("")}
+      </div>
+      <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="telechargerPhotos()">⬇️ Télécharger toutes les photos</button>`;
+  }
+
+  function ouvrirMedia(index) {
+    mediaIndex = index;
+    if (!mediaModal) {
+      mediaModal = document.createElement("div");
+      mediaModal.id = "modal-media";
+      mediaModal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:1000";
+      document.body.appendChild(mediaModal);
+    }
+    rendreMedia();
+  }
+  function rendreMedia() {
+    const m = mediaListe[mediaIndex];
+    if (!m) return;
+    mediaModal.innerHTML = `
+      <button onclick="fermerMedia()" style="position:absolute;top:18px;right:20px;background:none;border:none;color:#fff;font-size:26px;cursor:pointer">✕</button>
+      <button onclick="navMedia(-1)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.2);border:none;color:#fff;font-size:30px;cursor:pointer;border-radius:50%;width:44px;height:44px">‹</button>
+      <button onclick="navMedia(1)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.2);border:none;color:#fff;font-size:30px;cursor:pointer;border-radius:50%;width:44px;height:44px">›</button>
+      <div style="max-width:92vw;max-height:90vh;display:flex;align-items:center;justify-content:center">
+        ${m.type === "img" ? `<img src="${m.u}" style="max-width:92vw;max-height:88vh;border-radius:8px">` : `<video src="${m.u}" controls autoplay style="max-width:92vw;max-height:88vh;border-radius:8px"></video>`}
+      </div>`;
+  }
+  function navMedia(d) { mediaIndex = (mediaIndex + d + mediaListe.length) % mediaListe.length; rendreMedia(); }
+  function fermerMedia() { if (mediaModal) { mediaModal.remove(); mediaModal = null; } }
+
+  async function telechargerPhotos() {
+    const imgs = mediaListe.filter(m => m.type === "img");
+    if (!imgs.length) { toast("Aucune photo à télécharger."); return; }
+    toast("Préparation du ZIP…", "info");
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < imgs.length; i++) {
+        const res = await fetch(imgs[i].u);
+        const blob = await res.blob();
+        zip.file((i + 1) + ".jpg", blob);
+      }
+      const blobZip = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blobZip);
+      a.download = (mediaNom || "photos") + ".zip";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+    } catch (e) {
+      toast("Impossible de télécharger les photos.", "erreur");
+    }
+  }
+
   function filtreAnnuaire(x) {
     if (annuaireFiltre === "verifie") return x.verifie;
     if (annuaireFiltre === "en_attente") return !x.verifie;
@@ -216,7 +291,7 @@
       const f = annuaireData.filter(h => filtreAnnuaire(h) && chercheAnnuaire(h.prenom + " " + (h.email||"") + " " + (h.ville||"") + " " + (h.instagram||"")));
       zone.innerHTML = f.length ? `<table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th>Honorées</th><th>Note</th><th></th></tr>
         ${f.map(h => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('hotesse','${h.id}')">
-          <td><div class="cell"><div class="av">${esc((h.prenom||"?")[0])}</div>${esc(h.prenom)}, ${h.age}</div></td>
+          <td><div class="cell">${avatarPhoto(h.photos?.[0], h.prenom)}${esc(h.prenom)}, ${h.age}</div></td>
           <td>${esc(h.ville || "—")}</td>
           <td style="font-size:12.5px;color:var(--gris)"><a href="mailto:${esc(h.email||"")}">${esc(h.email||"")}</a>${h.instagram ? `<br><a href="https://instagram.com/${esc(h.instagram.replace(/[^a-zA-Z0-9._]/g,""))}" target="_blank">@${esc(h.instagram)}</a>` : ""}</td>
           <td>${statutBadge(h.verifie, h.suspendu)}</td>
@@ -230,7 +305,7 @@
       const f = annuaireData.filter(e => filtreAnnuaire(e) && chercheAnnuaire(e.nom + " " + (e.email||"") + " " + (e.ville||"")));
       zone.innerHTML = f.length ? `<table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>E-mail</th><th>Tarif</th><th>Actif jusqu'au</th><th></th></tr>
         ${f.map(e => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('etablissement','${e.id}')">
-          <td><div class="cell"><div class="av">${esc((e.nom||"?")[0])}</div>${esc(e.nom)}</div></td>
+          <td><div class="cell">${avatarPhoto(e.photos?.[0], e.nom)}${esc(e.nom)}</div></td>
           <td>${esc(e.type || "—")}</td>
           <td>${esc(e.ville || "—")}</td>
           <td style="font-size:12.5px"><a href="mailto:${esc(e.email||"")}">${esc(e.email||"")}</a></td>
@@ -277,6 +352,10 @@
           <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche-admin').remove()">✕</button>
         </div>
         <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(x.email || "")} · ${type === "hotesse" ? (x.ville || "") : (x.type || "") + " · " + (x.ville || "")} ${x.siret ? "· SIRET " + esc(x.siret) : ""}</div>
+        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Photos & médias</b>
+          ${vignettesMedia(x.photos, type === "etablissement" ? (x.videos || []) : [], (type === "hotesse" ? (x.prenom || "hotesse") + "-" + (x.ville || "ville") : (x.nom || "etablissement") + "-etablissement").replace(/\s+/g, "-"))}
+        </div>
+
         <div style="margin-bottom:14px">${statutBadge(estVerifie, estSuspendu)}</div>
 
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
@@ -301,7 +380,7 @@
         </div>
 
         <div style="border-top:1px solid #EEE;padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
-          ${!estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="valider('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
+          ${!estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="${type === "etablissement" ? "validerEtab" : "valider"}('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
           ${estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`}
         </div>
       </div>`;
@@ -609,22 +688,41 @@
   }
 
   // ============ MISSIONS ============
+  let missionsAdminListe = [];
   async function afficherMissions() {
     main.innerHTML = "<h1>Missions</h1><div class='panneau'><div class='tete'>À venir</div><div id='liste-missions' class='vide'>Chargement…</div></div>";
-    const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, etablissements(nom)").order("date", { ascending: true });
+    const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, medias, etablissements(nom)").order("date", { ascending: true });
     const aujourdhui = new Date().toISOString().slice(0, 10);
-    const aVenir = (data || []).filter(m => m.date >= aujourdhui && !["terminee", "annulee"].includes(m.statut));
-    document.getElementById("liste-missions").innerHTML = (aVenir.length) ? `
+    missionsAdminListe = (data || []).filter(m => m.date >= aujourdhui && !["terminee", "annulee"].includes(m.statut));
+    document.getElementById("liste-missions").innerHTML = (missionsAdminListe.length) ? `
       <table><tr><th>Établissement</th><th>Date</th><th>Horaires</th><th>Places</th><th>Statut</th><th></th></tr>
-      ${aVenir.map(m => `<tr>
+      ${missionsAdminListe.map(m => `<tr>
         <td>${esc(m.etablissements?.nom || "—")}</td>
         <td>${formatDate(m.date)}</td>
         <td>${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</td>
         <td>${m.places_restantes ?? m.nb_hotesses}/${m.nb_hotesses}</td>
         <td><span class="badge badge-aubergine">${esc(m.statut)}</span></td>
-        <td><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionAdmin('${m.id}')">Annuler</button></td>
+        <td><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="voirDetailMission('${m.id}')">📷 Détail</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionAdmin('${m.id}')">Annuler</button></td>
       </tr>`).join("")}
       </table>` : "Aucune mission à venir.";
+  }
+  function voirDetailMission(id) {
+    const m = missionsAdminListe.find(x => x.id === id);
+    if (!m) return;
+    const modal = document.createElement("div");
+    modal.id = "modal-mission-admin";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:997";
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="font-family:var(--font-titre);font-size:20px">${esc(m.etablissements?.nom || "Mission")}</h3>
+          <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-mission-admin').remove()">✕</button>
+        </div>
+        <div style="font-size:13px;color:var(--gris);margin-bottom:10px">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)} · ${m.places_restantes ?? m.nb_hotesses}/${m.nb_hotesses} places</div>
+        <b style="font-size:13px">Photos & vidéos du lieu</b>
+        ${vignettesMedia(m.medias, [], "mission-" + (m.etablissements?.nom || "x").replace(/\s+/g, "-"))}
+      </div>`;
+    document.body.appendChild(modal);
   }
   async function annulerMissionAdmin(id) {
     const motif = prompt("Motif de l'annulation (envoyé à l'établissement et aux hôtesses) :");
