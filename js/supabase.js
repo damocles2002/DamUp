@@ -9,9 +9,25 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 const auth = sb.auth;
 const db = sb;
 
-// --- Formatage partagé (affichage lisible) ---
-function formatHeure(t) { if (!t) return ""; const [h, m] = t.split(":"); return `${+h}h${m}`; }
-function formatDate(d) { return d ? new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : ""; }
+// --- Formatage partagé (affichage lisible, suit la langue courante) ---
+function langueLocale() {
+  const l = langueCourante();
+  return l === "en" ? "en-GB" : l === "es" ? "es-ES" : l === "zh" ? "zh-CN" : "fr-FR";
+}
+function formatHeure(t) { if (!t) return ""; const [h, m] = t.split(":"); return langueCourante() === "fr" ? `${+h}h${m}` : `${String(+h).padStart(2, "0")}:${m}`; }
+function formatDate(d) {
+  if (!d) return "";
+  const date = new Date(d + "T12:00:00");
+  const l = langueCourante();
+  if (l === "zh") { const j = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]; return `${date.getMonth() + 1}月${date.getDate()}日${j[date.getDay()]}`; }
+  return date.toLocaleDateString(langueLocale(), { weekday: "short", day: "numeric", month: "short" });
+}
+function formatMontant(n) {
+  if (n === null || n === undefined || n === "") return "";
+  const v = Number(n).toFixed(2);
+  const l = langueCourante();
+  return (l === "en" || l === "zh") ? "€" + v : v.replace(".", ",") + " €";
+}
 const LIBELLES_ARTICLES = { boisson: "Boisson", entree: "Entrée", plat: "Plat", dessert: "Dessert", chicha: "Chicha" };
 
 // Échappement HTML : empêche le code piégé dans les textes saisis (XSS)

@@ -15,27 +15,26 @@
   .brand { display: flex; align-items: center; gap: 11px; }
   .brand .crown { width: 34px; height: auto; }
   .brand .nom { font-family: var(--font-titre); font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+  .nav-droite { display: flex; align-items: center; gap: 14px; }
 
   .annonce { display: none; background: var(--champagne); color: var(--aubergine); text-align: center; padding: 9px 16px; font-size: 14px; font-weight: 500; }
 
   .hero { text-align: center; padding: 64px 0 30px; }
   .hero .crown { width: 120px; margin: 0 auto 20px; filter: drop-shadow(0 8px 30px rgba(0,0,0,.4)); }
-  .hero h1 { font-size: clamp(34px, 6vw, 56px); font-weight: 700; line-height: 1.08; }
-  .hero .tag { font-size: 18px; color: rgba(244,232,214,.78); margin: 16px auto 0; font-weight: 300; max-width: 620px; line-height: 1.5; }
+  .hero h1 { font-size: clamp(34px, 6vw, 56px); font-weight: 700; line-height: 1.12; }
+  .hero .tag { font-size: 18px; color: rgba(244,232,214,.78); margin: 16px auto 0; font-weight: 300; max-width: 640px; line-height: 1.5; }
   .cta { display: flex; gap: 14px; justify-content: center; margin: 34px 0 60px; flex-wrap: wrap; }
   .cta .btn { min-width: 230px; }
   @media (max-width: 560px) { .cta { flex-direction: column; align-items: stretch; } .cta .btn { min-width: 0; } }
 
-  /* Sections claires */
   section.claire { background: var(--ivoire-2); color: var(--encre); padding: 58px 0; }
-  section.claire .wrap { padding: 0 24px; }
   .section-titre { font-size: clamp(26px, 4.5vw, 36px); text-align: center; margin-bottom: 12px; line-height: 1.2; }
   .section-sous { text-align: center; color: var(--gris); font-size: 15.5px; max-width: 620px; margin: 0 auto 40px; }
 
   .points { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .point { background: var(--blanc); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow); }
   .point .ico { font-size: 26px; }
-  .point h3 { font-size: 17px; margin: 10px 0 6px; }
+  .point h3 { font-size: 17px; margin: 10px 0 6px; overflow-wrap: anywhere; }
   .point p { font-size: 14px; color: var(--gris); line-height: 1.5; }
   @media (max-width: 640px) { .points { grid-template-columns: 1fr; } }
 
@@ -75,7 +74,10 @@
 <header class="wrap">
   <nav>
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt="DamUp"><span class="nom">DamUp</span></div>
-    <a class="btn btn-ghost btn-sm" href="login.html">Connexion</a>
+    <div class="nav-droite">
+      <span id="selecteur-langue"></span>
+      <a class="btn btn-ghost btn-sm" href="login.html" data-i18n="commun.connexion">Connexion</a>
+    </div>
   </nav>
 </header>
 
@@ -83,23 +85,23 @@
   <!-- Section 1 — Accroche -->
   <section class="hero wrap">
     <img class="crown" src="assets/logo-couronne.png" alt="La Couronne DamUp">
-    <h1>Vos soirées méritent<br>les meilleures hôtesses.</h1>
-    <p class="tag">DamUp réunit les hôtesses de table et les bars, restaurants, clubs et lounges. Fini le bouche-à-oreille : les missions, les candidatures et les confirmations se gèrent au même endroit.</p>
+    <h1 data-i18n="accueil.titre">Vos soirées méritent les meilleures hôtesses.</h1>
+    <p class="tag" data-i18n="accueil.sous_titre">DamUp réunit les hôtesses de table et les bars, restaurants, clubs et lounges. Fini le bouche-à-oreille : les missions, les candidatures et les confirmations se gèrent au même endroit.</p>
     <div class="cta">
-      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement">Je suis un établissement</a>
-      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse">Je suis une hôtesse</a>
+      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement" data-i18n="accueil.btn_etablissement">Je suis un établissement</a>
+      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse" data-i18n="accueil.btn_hotesse">Je suis une hôtesse</a>
     </div>
   </section>
 
   <!-- Section 2 — Pour les établissements -->
   <section class="claire">
     <div class="wrap">
-      <h2 class="section-titre">Établissements : trouvez vos hôtesses en quelques minutes</h2>
+      <h2 class="section-titre" data-i18n="accueil.etab_titre">Établissements : trouvez vos hôtesses en quelques minutes</h2>
       <div class="points">
-        <div class="point"><div class="ico">📅</div><h3>Publiez une mission en 2 minutes</h3><p>Date, horaires, nombre d'hôtesses et avantages offerts (boissons, repas, chicha…).</p></div>
-        <div class="point"><div class="ico">✨</div><h3>Choisissez sur profil</h3><p>Photos, avis des autres établissements et fiabilité de chaque hôtesse.</p></div>
-        <div class="point"><div class="ico">✅</div><h3>Des venues confirmées</h3><p>Chaque hôtesse sélectionnée confirme sa présence ; sans confirmation, la place se libère pour une autre.</p></div>
-        <div class="point"><div class="ico">📷</div><h3>Contrôle à l'entrée</h3><p>Scannez le QR code de l'hôtesse à son arrivée, puis laissez un avis après la soirée.</p></div>
+        <div class="point"><div class="ico">📅</div><h3 data-i18n="accueil.etab_1_t">Publiez une mission en 2 minutes</h3><p data-i18n="accueil.etab_1_p">Date, horaires, nombre d'hôtesses et avantages offerts (boissons, repas, chicha…).</p></div>
+        <div class="point"><div class="ico">✨</div><h3 data-i18n="accueil.etab_2_t">Choisissez sur profil</h3><p data-i18n="accueil.etab_2_p">Photos, avis des autres établissements et fiabilité de chaque hôtesse.</p></div>
+        <div class="point"><div class="ico">✅</div><h3 data-i18n="accueil.etab_3_t">Des venues confirmées</h3><p data-i18n="accueil.etab_3_p">Chaque hôtesse sélectionnée confirme sa présence ; sans confirmation, la place se libère pour une autre.</p></div>
+        <div class="point"><div class="ico">📷</div><h3 data-i18n="accueil.etab_4_t">Contrôle à l'entrée</h3><p data-i18n="accueil.etab_4_p">Scannez le QR code de l'hôtesse à son arrivée, puis laissez un avis après la soirée.</p></div>
       </div>
     </div>
   </section>
@@ -107,12 +109,12 @@
   <!-- Section 3 — Pour les hôtesses -->
   <section class="claire" style="background:var(--ivoire);">
     <div class="wrap">
-      <h2 class="section-titre">Hôtesses : des missions près de chez vous, en toute confiance</h2>
+      <h2 class="section-titre" data-i18n="accueil.hot_titre">Hôtesses : des missions près de chez vous, en toute confiance</h2>
       <div class="points">
-        <div class="point"><div class="ico">🆓</div><h3>Gratuit</h3><p>Créez votre profil et postulez sans payer.</p></div>
-        <div class="point"><div class="ico">👀</div><h3>Toutes les conditions avant de postuler</h3><p>Lieu, horaires, avantages offerts et photos de l'établissement.</p></div>
-        <div class="point"><div class="ico">🔒</div><h3>Vos coordonnées restent privées</h3><p>Les établissements ne voient ni votre téléphone, ni votre Instagram, ni votre e-mail.</p></div>
-        <div class="point"><div class="ico">⭐</div><h3>Construisez votre réputation</h3><p>Chaque mission honorée renforce votre profil.</p></div>
+        <div class="point"><div class="ico">🆓</div><h3 data-i18n="accueil.hot_1_t">Gratuit</h3><p data-i18n="accueil.hot_1_p">Créez votre profil et postulez sans payer.</p></div>
+        <div class="point"><div class="ico">👀</div><h3 data-i18n="accueil.hot_2_t">Toutes les conditions avant de postuler</h3><p data-i18n="accueil.hot_2_p">Lieu, horaires, avantages offerts et photos de l'établissement.</p></div>
+        <div class="point"><div class="ico">🔒</div><h3 data-i18n="accueil.hot_3_t">Vos coordonnées restent privées</h3><p data-i18n="accueil.hot_3_p">Les établissements ne voient ni votre téléphone, ni votre Instagram, ni votre e-mail.</p></div>
+        <div class="point"><div class="ico">⭐</div><h3 data-i18n="accueil.hot_4_t">Construisez votre réputation</h3><p data-i18n="accueil.hot_4_p">Chaque mission honorée renforce votre profil.</p></div>
       </div>
     </div>
   </section>
@@ -120,12 +122,12 @@
   <!-- Section 4 — Comment ça marche -->
   <section class="claire">
     <div class="wrap">
-      <h2 class="section-titre">Comment ça marche</h2>
+      <h2 class="section-titre" data-i18n="accueil.frise_titre">Comment ça marche</h2>
       <div class="frise">
-        <div class="etape"><div class="num">1</div><h3>Inscription</h3><p>Créez votre compte, il est vérifié par l'équipe DamUp.</p></div>
-        <div class="etape"><div class="num">2</div><h3>Mission</h3><p>L'établissement publie, les hôtesses postulent.</p></div>
-        <div class="etape"><div class="num">3</div><h3>Sélection</h3><p>L'établissement choisit, l'hôtesse confirme sa venue.</p></div>
-        <div class="etape"><div class="num">4</div><h3>Soirée</h3><p>QR code à l'entrée, avis après la mission.</p></div>
+        <div class="etape"><div class="num">1</div><h3 data-i18n="accueil.frise_1_t">Inscription</h3><p data-i18n="accueil.frise_1_p">Créez votre compte, il est vérifié par l'équipe DamUp.</p></div>
+        <div class="etape"><div class="num">2</div><h3 data-i18n="accueil.frise_2_t">Mission</h3><p data-i18n="accueil.frise_2_p">L'établissement publie, les hôtesses postulent.</p></div>
+        <div class="etape"><div class="num">3</div><h3 data-i18n="accueil.frise_3_t">Sélection</h3><p data-i18n="accueil.frise_3_p">L'établissement choisit, l'hôtesse confirme sa venue.</p></div>
+        <div class="etape"><div class="num">4</div><h3 data-i18n="accueil.frise_4_t">Soirée</h3><p data-i18n="accueil.frise_4_p">QR code à l'entrée, avis après la mission.</p></div>
       </div>
     </div>
   </section>
@@ -134,9 +136,9 @@
   <section class="claire" style="background:var(--ivoire);">
     <div class="wrap">
       <div class="confiance">
-        <div class="encadre"><div class="ico">🛡️</div><h3>Comptes vérifiés</h3><p>Chaque hôtesse et chaque établissement est validé avant de pouvoir utiliser DamUp. Réservé aux 18 ans et plus.</p></div>
-        <div class="encadre"><div class="ico">🚩</div><h3>Signalements traités</h3><p>Un problème ? Signalez-le depuis l'application, l'équipe DamUp intervient.</p></div>
-        <div class="encadre"><div class="ico">📍</div><h3>Île-de-France</h3><p>Lancement à Paris et en région parisienne.</p></div>
+        <div class="encadre"><div class="ico">🛡️</div><h3 data-i18n="accueil.conf_1_t">Comptes vérifiés</h3><p data-i18n="accueil.conf_1_p">Chaque hôtesse et chaque établissement est validé avant de pouvoir utiliser DamUp. Réservé aux 18 ans et plus.</p></div>
+        <div class="encadre"><div class="ico">🚩</div><h3 data-i18n="accueil.conf_2_t">Signalements traités</h3><p data-i18n="accueil.conf_2_p">Un problème ? Signalez-le depuis l'application, l'équipe DamUp intervient.</p></div>
+        <div class="encadre"><div class="ico">📍</div><h3 data-i18n="accueil.conf_3_t">Île-de-France</h3><p data-i18n="accueil.conf_3_p">Lancement à Paris et en région parisienne.</p></div>
       </div>
     </div>
   </section>
@@ -144,37 +146,40 @@
   <!-- Section 6 — Questions fréquentes -->
   <section class="claire">
     <div class="wrap">
-      <h2 class="section-titre">Questions fréquentes</h2>
+      <h2 class="section-titre" data-i18n="accueil.faq_titre">Questions fréquentes</h2>
       <div class="faq">
-        <details><summary>DamUp est-il payant ?</summary><div class="rep">Gratuit pour les hôtesses. Les établissements souscrivent un abonnement pour publier des missions ; le tarif leur est communiqué avant tout paiement.</div></details>
-        <details><summary>Qui peut s'inscrire ?</summary><div class="rep">Les hôtesses de 18 ans et plus, et les établissements déclarés (bars, restaurants, clubs, lounges) avec un numéro SIRET.</div></details>
-        <details><summary>Pourquoi mon compte doit-il être validé ?</summary><div class="rep">Pour garantir la sécurité de tous : l'équipe DamUp vérifie chaque profil avant son activation.</div></details>
-        <details><summary>Que se passe-t-il si je ne confirme pas ma venue ?</summary><div class="rep">Après acceptation, vous avez 12 heures pour confirmer (3 heures si la mission a lieu dans moins de 24 heures). Sans confirmation, la place est proposée à une autre hôtesse.</div></details>
-        <details><summary>Et si je dois annuler ?</summary><div class="rep">Vous pouvez annuler depuis l'application jusqu'au début de la mission. Une annulation après confirmation laisse un signe négatif sur votre profil, retiré après 3 missions honorées.</div></details>
-        <details><summary>Qui voit mes informations ?</summary><div class="rep">Les établissements voient votre prénom, votre âge, votre ville, vos photos et vos avis, uniquement quand vous postulez à leurs missions. Vos coordonnées restent privées.</div></details>
-        <details><summary>Comment payer l'abonnement ?</summary><div class="rep">En espèces contre reçu, ou en ligne par carte ou prélèvement lorsque ce mode est proposé.</div></details>
+        <details><summary data-i18n="accueil.faq_1_q">DamUp est-il payant ?</summary><div class="rep" data-i18n="accueil.faq_1_r">Gratuit pour les hôtesses. Les établissements souscrivent un abonnement pour publier des missions ; le tarif leur est communiqué avant tout paiement.</div></details>
+        <details><summary data-i18n="accueil.faq_2_q">Qui peut s'inscrire ?</summary><div class="rep" data-i18n="accueil.faq_2_r">Les hôtesses de 18 ans et plus, et les établissements déclarés (bars, restaurants, clubs, lounges) avec un numéro SIRET.</div></details>
+        <details><summary data-i18n="accueil.faq_3_q">Pourquoi mon compte doit-il être validé ?</summary><div class="rep" data-i18n="accueil.faq_3_r">Pour garantir la sécurité de tous : l'équipe DamUp vérifie chaque profil avant son activation.</div></details>
+        <details><summary data-i18n="accueil.faq_4_q">Que se passe-t-il si je ne confirme pas ma venue ?</summary><div class="rep" data-i18n="accueil.faq_4_r">Après acceptation, vous avez 12 heures pour confirmer (3 heures si la mission a lieu dans moins de 24 heures). Sans confirmation, la place est proposée à une autre hôtesse.</div></details>
+        <details><summary data-i18n="accueil.faq_5_q">Et si je dois annuler ?</summary><div class="rep" data-i18n="accueil.faq_5_r">Vous pouvez annuler depuis l'application jusqu'au début de la mission. Une annulation après confirmation laisse un signe négatif sur votre profil, retiré après 3 missions honorées.</div></details>
+        <details><summary data-i18n="accueil.faq_6_q">Qui voit mes informations ?</summary><div class="rep" data-i18n="accueil.faq_6_r">Les établissements voient votre prénom, votre âge, votre ville, vos photos et vos avis, uniquement quand vous postulez à leurs missions. Vos coordonnées restent privées.</div></details>
+        <details><summary data-i18n="accueil.faq_7_q">Comment payer l'abonnement ?</summary><div class="rep" data-i18n="accueil.faq_7_r">En espèces contre reçu, ou en ligne par carte ou prélèvement lorsque ce mode est proposé.</div></details>
       </div>
     </div>
   </section>
 
   <!-- Section 7 — Dernier appel -->
   <section class="dernier wrap">
-    <h2>Prêt à rejoindre DamUp ?</h2>
+    <h2 data-i18n="accueil.dernier_titre">Prêt à rejoindre DamUp ?</h2>
     <div class="cta" style="margin:0">
-      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement">Je suis un établissement</a>
-      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse">Je suis une hôtesse</a>
+      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement" data-i18n="accueil.btn_etablissement">Je suis un établissement</a>
+      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse" data-i18n="accueil.btn_hotesse">Je suis une hôtesse</a>
     </div>
-    <div class="contact">Une question ? Écrivez-nous : <a id="contact-email" href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a></div>
+    <div class="contact"><span data-i18n="accueil.contact">Une question ? Écrivez-nous :</span> <a id="contact-email" href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a></div>
   </section>
 </main>
 
 <footer class="wrap">DamUp © 2026 — <a href="mentions-legales.html">Mentions légales</a> · <a href="cgu.html">CGU</a> · <a href="confidentialite.html">Confidentialité</a></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/i18n.js"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script>
+  initSelecteurLangue("selecteur-langue");
+
   // Bandeau d'annonce (réglage admin, affiché seulement s'il n'est pas vide)
   try {
     db.from("settings").select("value").eq("key", "annonce").single().then(({ data }) => {

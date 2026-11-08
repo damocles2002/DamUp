@@ -19,8 +19,8 @@
   --radius: 18px;
   --radius-sm: 12px;
   --shadow: 0 10px 40px rgba(42, 17, 32, .16);
-  --font-titre: 'Bodoni Moda', Georgia, 'Times New Roman', serif;
-  --font-texte: 'Jost', 'Segoe UI', sans-serif;
+  --font-titre: 'Bodoni Moda', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+  --font-texte: 'Jost', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
