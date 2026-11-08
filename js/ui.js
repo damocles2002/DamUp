@@ -49,3 +49,19 @@ function demander(question, libelleOui = "Oui") {
     overlay.addEventListener("click", (e) => { if (e.target === overlay) fin(false); });
   });
 }
+
+// Vérification de la maintenance (auto au chargement, sauf admin/login/reinitialiser)
+document.addEventListener("DOMContentLoaded", async () => {
+  if (/admin|login|reinitialiser/.test(location.pathname)) return;
+  try {
+    const { data: m } = await db.from("settings").select("value").eq("key", "maintenance").single();
+    if (!m || (m.value !== "true" && m.value !== true)) return;
+    const { data: u } = await auth.getUser();
+    if (u && u.user) {
+      const { data: p } = await db.from("profiles").select("type").eq("id", u.user.id).single();
+      if (p && p.type === "admin") return;
+    }
+    const { data: mm } = await db.from("settings").select("value").eq("key", "maintenance_message").single();
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;background:#F4E8D6"><div><div style="font-size:40px;margin-bottom:10px">🛠️</div><p style="font-size:16px;max-width:320px">${esc(mm?.value || "DamUp est en maintenance, reviens dans quelques minutes.")}</p></div></div>`;
+  } catch (e) {}
+});

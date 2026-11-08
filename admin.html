@@ -229,29 +229,69 @@
     chargerSignalements();
   }
 
-  // ============ RÉGLAGES (prix) ============
+  // ============ RÉGLAGES ============
+  const TITRES_SECTIONS = { abonnements: "Abonnements", missions: "Missions", inscriptions: "Inscriptions", informations: "Informations", recus: "Mentions sur les reçus", maintenance: "Maintenance" };
   async function afficherReglages() {
-    main.innerHTML = `<h1>Réglages</h1><div class='panneau'><div class='tete'>Prix des abonnements</div>
-      <div style="padding:20px">
-        <div class="champ-inline"><label>Hebdomadaire (€)</label><input class="field" id="prix-hebdo" type="number" style="max-width:140px"></div>
-        <div class="champ-inline"><label>Mensuel (€)</label><input class="field" id="prix-mensuel" type="number" style="max-width:140px"></div>
-        <button class="btn btn-primaire btn-sm" onclick="sauverPrix()">Enregistrer</button>
-        <div id="msg-prix" style="margin-top:10px;font-size:13px;color:var(--ok)"></div>
-      </div></div>`;
+    main.innerHTML = `<h1>Réglages</h1>` + Object.keys(TITRES_SECTIONS).map(sec =>
+      `<div class='panneau'><div class='tete'>${TITRES_SECTIONS[sec]}</div><div style="padding:20px" id="sec-${sec}">Chargement…</div></div>`).join("");
     const { data } = await db.from("settings").select("*");
     const s = Object.fromEntries((data || []).map(r => [r.key, r.value]));
-    document.getElementById("prix-hebdo").value = s.prix_hebdo || 25;
-    document.getElementById("prix-mensuel").value = s.prix_mensuel || 79;
+    const val = (k, d) => (s[k] !== undefined && s[k] !== null) ? s[k] : d;
+    const coche = (k) => (String(val(k, "false")) === "true") ? "checked" : "";
+    const villes = (() => { try { return JSON.parse(val("villes", "[]")); } catch (e) { return []; } })();
+
+    document.getElementById("sec-abonnements").innerHTML = `
+      <div class="champ-inline"><label>Faire payer les établissements</label><input type="checkbox" id="s-paiement_etablissements_actif" ${coche("paiement_etablissements_actif")}></div>
+      <div class="champ-inline"><label>Faire payer les hôtesses</label><input type="checkbox" id="s-paiement_hotesses_actif" ${coche("paiement_hotesses_actif")}></div>
+      <div class="champ-inline"><label>Paiement en ligne (Stripe)</label><input type="checkbox" id="s-paiement_en_ligne_actif" ${coche("paiement_en_ligne_actif")}></div>
+      <div class="champ-inline"><label>Prix par défaut établissement (€)</label><input class="field" id="s-prix_defaut_etablissement" type="number" value="${val("prix_defaut_etablissement", 79)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Durée de l'essai gratuit (jours)</label><input class="field" id="s-essai_jours" type="number" value="${val("essai_jours", 7)}" style="max-width:140px"></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('abonnements')">Enregistrer</button>`;
+
+    document.getElementById("sec-missions").innerHTML = `
+      <div class="champ-inline"><label>Délai de confirmation (heures)</label><input class="field" id="s-delai_confirmation_h" type="number" value="${val("delai_confirmation_h", 12)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Délai court si mission < 24 h (heures)</label><input class="field" id="s-delai_confirmation_court_h" type="number" value="${val("delai_confirmation_court_h", 3)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Hôtesses max par mission</label><input class="field" id="s-max_hotesses_mission" type="number" value="${val("max_hotesses_mission", 50)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Missions honorées pour retirer un signe</label><input class="field" id="s-missions_pour_retirer_signe" type="number" value="${val("missions_pour_retirer_signe", 3)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Signes avant suspension auto</label><input class="field" id="s-signes_avant_suspension" type="number" value="${val("signes_avant_suspension", 3)}" style="max-width:140px"></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('missions')">Enregistrer</button>`;
+
+    document.getElementById("sec-inscriptions").innerHTML = `
+      <div class="champ-inline"><label>Inscriptions ouvertes</label><input type="checkbox" id="s-inscriptions_ouvertes" ${coche("inscriptions_ouvertes")}></div>
+      <div class="champ-inline"><label>Villes disponibles (séparées par des virgules ; vide = toutes)</label><input class="field" id="s-villes" value="${villes.join(", ")}" placeholder="Paris, Lyon, Marseille"></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('inscriptions')">Enregistrer</button>`;
+
+    document.getElementById("sec-informations").innerHTML = `
+      <div class="champ-inline"><label>E-mail de contact</label><input class="field" id="s-contact_email" value="${val("contact_email", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>Annonce (affichée en haut de l'appli)</label><textarea class="field" id="s-annonce" rows="3" style="width:100%">${val("annonce", "")}</textarea></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('informations')">Enregistrer</button>`;
+
+    document.getElementById("sec-recus").innerHTML = `
+      <div class="champ-inline"><label>Nom du vendeur</label><input class="field" id="s-vendeur_nom" value="${val("vendeur_nom", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>SIRET du vendeur</label><input class="field" id="s-vendeur_siret" value="${val("vendeur_siret", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>Adresse du vendeur</label><input class="field" id="s-vendeur_adresse" value="${val("vendeur_adresse", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>Mention TVA</label><input class="field" id="s-mention_tva" value="${val("mention_tva", "")}" style="max-width:260px"></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('recus')">Enregistrer</button>`;
+
+    document.getElementById("sec-maintenance").innerHTML = `
+      <div class="champ-inline"><label>Mode maintenance</label><input type="checkbox" id="s-maintenance" ${coche("maintenance")}></div>
+      <div class="champ-inline"><label>Message de maintenance</label><input class="field" id="s-maintenance_message" value="${val("maintenance_message", "")}" style="max-width:260px"></div>
+      <button class="btn btn-primaire btn-sm" onclick="sauverSection('maintenance')">Enregistrer</button>`;
   }
-  async function sauverPrix() {
-    const hebdo = parseFloat(document.getElementById("prix-hebdo").value);
-    const mensuel = parseFloat(document.getElementById("prix-mensuel").value);
-    const msg = document.getElementById("msg-prix");
-    if (!(hebdo > 0) || !(mensuel > 0)) { msg.style.color = "var(--danger)"; msg.textContent = "Saisis deux prix valides (supérieurs à 0)."; return; }
-    const { error } = await db.from("settings").upsert([{ key: "prix_hebdo", value: hebdo }, { key: "prix_mensuel", value: mensuel }]);
-    if (error) { msg.style.color = "var(--danger)"; msg.textContent = "Erreur : " + error.message; return; }
-    msg.style.color = "var(--ok)";
-    msg.textContent = "Prix enregistrés ✅";
+
+  async function sauverSection(sec) {
+    const zone = document.getElementById("sec-" + sec);
+    const champs = [...zone.querySelectorAll("[id^='s-']")];
+    const upserts = champs.map(el => {
+      let v;
+      if (el.type === "checkbox") v = el.checked ? "true" : "false";
+      else if (el.id === "s-villes") v = JSON.stringify(el.value.split(",").map(x => x.trim()).filter(Boolean));
+      else v = el.value;
+      return { key: el.id.replace("s-", ""), value: v };
+    });
+    const { error } = await db.from("settings").upsert(upserts);
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Réglages enregistrés ✅", "ok");
   }
 
   // ============ ÉQUIPE & DROITS ============
