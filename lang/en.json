@@ -205,5 +205,9 @@
   "hotesse-profil.titre": "DamUp : My profile",
   "etablissement.titre": "DamUp : Venue area",
   "err.session": "Your session has expired, sign in again.",
-  "notif.message.nouveau": "💬 {nom} sent you a message."
+  "notif.message.nouveau": "💬 {nom} sent you a message.",
+  "copine.proposee": "👯 {prenom} invites you to join her at {lieu} on {date}.",
+  "copine.acceptee": "✅ {prenom} accepted your invitation at {lieu}.",
+  "copine.refusee": "{prenom} declined your invitation.",
+  "copine.candidate": "👯 {prenom}'s friend applied to your mission."
 }

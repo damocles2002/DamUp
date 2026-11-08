@@ -85,6 +85,7 @@
   <div class="photos" id="photos"></div>
 
   <div class="section"><h2><span data-i18n="profil.mon_profil">Mon profil</span> <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()" data-i18n="commun.modifier">✏️ Modifier</a></h2></div>
+  <div class="section"><h2>Mon code DamUp</h2><div id="code-damup" style="padding:4px 0 8px"></div></div>
   <div id="form-edit">
     <div class="champ"><label class="label" data-i18n="commun.prenom">Prénom</label><input class="field" id="e-prenom"></div>
     <div class="ligne">
@@ -137,6 +138,17 @@
     chargerQR();
     afficherBlocAbonnement("bloc-abonnement");
     chargerNotifications("notifications");
+    chargerCodeDamup();
+  }
+
+  async function chargerCodeDamup() {
+    const zone = document.getElementById("code-damup");
+    if (!zone) return;
+    const { data: h } = await db.from("hotesses").select("code_damup").eq("id", user.id).single();
+    const code = h?.code_damup || "";
+    zone.innerHTML = code
+      ? `<div style="display:flex;align-items:center;gap:10px"><b style="font-family:monospace;font-size:18px;letter-spacing:2px">${esc(code)}</b><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="navigator.clipboard.writeText('${code}')">Copier</button></div><div style="font-size:12px;color:var(--gris);margin-top:4px">Partage ce code à une amie pour qu'elle puisse se joindre à toi.</div>`
+      : '<div style="color:var(--gris);font-size:12.5px">Code indisponible.</div>';
   }
 
   async function chargerProfil() {

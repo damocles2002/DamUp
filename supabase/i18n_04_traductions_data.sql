@@ -130,6 +130,24 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.message.nouveau', 'es', '💬 {nom} te ha enviado un mensaje.'),
 ('notif.message.nouveau', 'zh', '💬 {nom} 给您发了一条消息。'),
 
+-- copine
+('copine.proposee', 'fr', '👯 {prenom} te propose de venir avec elle chez {lieu} le {date}.'),
+('copine.proposee', 'en', '👯 {prenom} invites you to join her at {lieu} on {date}.'),
+('copine.proposee', 'es', '👯 {prenom} te propone venir con ella a {lieu} el {date}.'),
+('copine.proposee', 'zh', '👯 {prenom} 邀请您于 {date} 和她一起去 {lieu}。'),
+('copine.acceptee', 'fr', '✅ {prenom} a accepté ton invitation chez {lieu}.'),
+('copine.acceptee', 'en', '✅ {prenom} accepted your invitation at {lieu}.'),
+('copine.acceptee', 'es', '✅ {prenom} aceptó tu invitación en {lieu}.'),
+('copine.acceptee', 'zh', '✅ {prenom} 已接受您关于 {lieu} 的邀请。'),
+('copine.refusee', 'fr', '{prenom} a refusé ton invitation.'),
+('copine.refusee', 'en', '{prenom} declined your invitation.'),
+('copine.refusee', 'es', '{prenom} rechazó tu invitación.'),
+('copine.refusee', 'zh', '{prenom} 已拒绝您的邀请。'),
+('copine.candidate', 'fr', '👯 La copine de {prenom} a postulé à ta mission.'),
+('copine.candidate', 'en', '👯 {prenom}''s friend applied to your mission.'),
+('copine.candidate', 'es', '👯 La amiga de {prenom} se postuló a tu misión.'),
+('copine.candidate', 'zh', '👯 {prenom} 的朋友应聘了您的任务。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

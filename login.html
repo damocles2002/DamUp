@@ -94,6 +94,7 @@
 <script>
   let mode = "connexion";
   let role = "hotesse";
+  let codeInvitation = null;
   const msg = document.getElementById("msg");
   const champsRole = document.getElementById("champs-role");
 
@@ -213,7 +214,7 @@
       if (mode === "inscription") {
         // les champs partent dans user_metadata → le trigger SQL crée les entrées automatiquement
         const meta = role === "hotesse"
-          ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null, cgu_acceptees_le: new Date().toISOString(), cgu_version: "2026-11-08" }
+          ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null, code_invitation: codeInvitation, cgu_acceptees_le: new Date().toISOString(), cgu_version: "2026-11-08" }
           : { role: "etablissement", nom: document.getElementById("etab-nom").value, type_etab: document.getElementById("etab-type").value, ville: document.getElementById("etab-ville").value || null, adresse: document.getElementById("etab-adresse").value || null, siret: document.getElementById("etab-siret").value, cgu_acceptees_le: new Date().toISOString(), cgu_version: "2026-11-08" };
 
         const { data, error } = await auth.signUp({ email, password: mdp, options: { data: meta } });
@@ -253,6 +254,8 @@
     const params = new URLSearchParams(location.search);
     const pm = params.get("mode");
     const pr = params.get("role");
+    const inv = params.get("invitation");
+    if (inv) codeInvitation = inv;
     if (pr === "etablissement" || pr === "hotesse") {
       role = pr;
       document.querySelectorAll("#choix-role .role").forEach(r => r.classList.toggle("on", r.dataset.role === pr));

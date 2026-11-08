@@ -140,6 +140,9 @@ begin
    where statut in ('ouverte', 'cloturee', 'en_cours')
      and ((date + heure_fin + case when heure_fin <= heure_debut then interval '1 day' else interval '0' end)
           at time zone 'Europe/Paris') < now();
+
+  -- invitations copine expirées
+  perform public.expirer_invitations_copine();
 end; $$;
 revoke execute on function public.taches_auto() from public, anon, authenticated;
 

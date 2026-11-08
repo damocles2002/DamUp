@@ -205,5 +205,9 @@
   "hotesse-profil.titre": "DamUp : Mon profil",
   "etablissement.titre": "DamUp : Espace établissement",
   "err.session": "Ta session a expiré, reconnecte-toi.",
-  "notif.message.nouveau": "💬 {nom} t'a écrit un message."
+  "notif.message.nouveau": "💬 {nom} t'a écrit un message.",
+  "copine.proposee": "👯 {prenom} te propose de venir avec elle chez {lieu} le {date}.",
+  "copine.acceptee": "✅ {prenom} a accepté ton invitation chez {lieu}.",
+  "copine.refusee": "{prenom} a refusé ton invitation.",
+  "copine.candidate": "👯 La copine de {prenom} a postulé à ta mission."
 }
