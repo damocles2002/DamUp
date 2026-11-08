@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
   .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
@@ -88,6 +89,7 @@
   <div class="tabs">
     <span class="tab on" data-vue="missions">📋 Missions</span>
     <span class="tab" data-vue="selection">✨ Sélection</span>
+    <span class="tab" data-vue="accueil">📷 Accueil</span>
     <span class="tab" data-vue="dashboard">📊 Dashboard</span>
     <span class="tab" data-vue="profil">👤 Profil</span>
   </div>
@@ -97,6 +99,7 @@
   <nav class="bottomnav">
     <a href="#" class="on" id="nav-missions"><span class="ico">📋</span>Missions</a>
     <a href="#" id="nav-selection"><span class="ico">✨</span>Sélection</a>
+    <a href="#" id="nav-accueil"><span class="ico">📷</span>Accueil</a>
     <a href="#" id="nav-dashboard"><span class="ico">📊</span>Dashboard</a>
     <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
   </nav>
@@ -130,6 +133,7 @@
     document.querySelectorAll(".tabs .tab").forEach(t => t.classList.toggle("on", t.dataset.vue === vue));
     if (vue === "missions") afficherMissions();
     else if (vue === "selection") afficherSelection();
+    else if (vue === "accueil") afficherAccueil();
     else if (vue === "dashboard") afficherDashboard();
     else if (vue === "profil") afficherProfil();
     }
@@ -363,6 +367,73 @@
     await db.from("etablissements").update({ photos }).eq("id", user.id);
     etab.photos = photos;
     chargerProfilEtab();
+  }
+
+  // ============ ACCUEIL (scan QR) ============
+  let scanner = null;
+  async function afficherAccueil() {
+    contenu.innerHTML = `
+      <div class="pub"><h3>📷 Accueil — présence du jour</h3>
+        <div id="liste-presences" class="vide">Chargement…</div>
+        <button class="btn btn-primaire btn-block btn-sm" onclick="demarrerScan()" style="margin-top:12px">📷 Scanner un QR code</button>
+        <div id="scan-zone" style="margin-top:12px"></div>
+        <div class="champ" style="margin-top:12px"><label class="label">Ou saisir le code</label><input class="field" id="code-manuel" placeholder="Code QR"><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:8px" onclick="validerCodeManuel()">Valider</button></div>
+        <div id="msg-scan" style="margin-top:12px;font-weight:600;text-align:center"></div>
+      </div>`;
+    chargerPresences();
+  }
+
+  async function chargerPresences() {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data: cands } = await db.from("candidatures")
+      .select("id, presente_a, hotesses(prenom, photos), missions(date)")
+      .eq("statut", "confirmee")
+      .eq("annulation", false);
+    const { data: mesMissions } = await db.from("missions").select("id").eq("etablissement_id", user.id);
+    const mesIds = new Set((mesMissions || []).map(m => m.id));
+    const liste = (cands || []).filter(c => mesIds.has(c.mission_id) && c.missions?.date === aujourdhui);
+    const zone = document.getElementById("liste-presences");
+    zone.innerHTML = liste.length
+      ? liste.map(c => {
+          const h = c.hotesses;
+          const photo = urlPhoto(h?.photos?.[0]);
+          return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F1E9DA">
+            <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--champagne)">
+              ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%">${esc((h?.prenom||"?")[0])}</span>`}
+            </div>
+            <div style="flex:1"><b>${esc(h?.prenom || "?")}</b></div>
+            <div>${c.presente_a ? "✅ arrivée" : "—"}</div>
+          </div>`;
+        }).join("")
+      : '<div style="color:var(--gris);font-size:13px">Aucune hôtesse confirmée pour aujourd\'hui.</div>';
+  }
+
+  async function demarrerScan() {
+    if (!window.Html5Qrcode) { alert("Lecteur QR indisponible."); return; }
+    if (scanner) { await scanner.stop(); scanner.clear(); scanner = null; }
+    const zone = document.getElementById("scan-zone");
+    zone.innerHTML = '<div id="reader" style="width:100%"></div>';
+    scanner = new Html5Qrcode("reader");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 220 },
+      async (texteLu) => { await validerPresenceCode(texteLu); },
+      () => {}
+    ).catch(() => { zone.innerHTML = '<div style="color:var(--danger)">Impossible d\'accéder à la caméra. Utilise le champ de secours.</div>'; });
+  }
+
+  async function validerCodeManuel() {
+    const code = document.getElementById("code-manuel").value.trim();
+    if (!code) { alert("Saisis un code."); return; }
+    await validerPresenceCode(code);
+  }
+
+  async function validerPresenceCode(code) {
+    const msg = document.getElementById("msg-scan");
+    const { data, error } = await db.rpc("valider_presence", { p_code: code });
+    if (error) { msg.style.color = "var(--danger)"; msg.textContent = error.message; }
+    else { msg.style.color = "var(--ok)"; msg.textContent = data; }
+    chargerPresences();
   }
 
   init();

@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
   .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
@@ -229,24 +230,72 @@
   }
 
   async function chargerQR() {
-    const { data } = await db.from("candidatures")
-      .select("*, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
-      .eq("hotesse_id", user.id).in("statut", ["acceptee","confirmee"])
-      .order("created_at", { ascending: false }).limit(1);
     const zone = document.getElementById("qr");
-    if (!data || !data.length) { zone.innerHTML = "Aucune mission à venir. Ton QR code apparaîtra ici une fois acceptée ✨"; return; }
-    const c = data[0], m = c.missions;
-    zone.innerHTML = `
-      <h2>${esc(m.etablissements?.nom || "Mission")}</h2>
-      <div class="sous">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</div>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+c.id)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
-      <div class="info"><div>👤 <b>${esc(user.email)}</b></div><div>📍 ${esc(m.adresse || "")}</div></div>
-      ${c.statut === "acceptee" ? `<button class="btn btn-primaire btn-block" onclick="confirmerMission('${c.id}')" style="margin-top:14px">Confirmer ma venue ✅</button>` : `<div style="margin-top:12px;color:var(--champagne);font-size:13px">✅ Présence confirmée</div>`}`;
+    const { data } = await db.from("candidatures")
+      .select("id, statut, confirme_a, annulation, qr_code, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
+      .eq("hotesse_id", user.id)
+      .in("statut", ["acceptee", "confirmee"])
+      .eq("annulation", false);
+    const maintenant = new Date();
+    const valides = (data || []).filter(c => {
+      const m = c.missions;
+      if (!m) return false;
+      const fin = new Date(m.date + "T" + (m.heure_fin || "23:59:00"));
+      return fin > maintenant;
+    }).sort((a, b) =>
+      new Date(a.missions.date + "T" + (a.missions.heure_debut || "00:00")) -
+      new Date(b.missions.date + "T" + (b.missions.heure_debut || "00:00")));
+    const c = valides[0];
+    if (!c) { zone.innerHTML = "Aucune mission à venir. Ton QR code apparaîtra ici une fois acceptée ✨"; return; }
+    const m = c.missions;
+    const limite = c.confirme_a ? new Date(c.confirme_a) : null;
+
+    let corps = "";
+    if (c.statut === "acceptee") {
+      const resteMin = limite ? Math.floor((limite - maintenant) / 60000) : null;
+      const txtLimite = limite
+        ? limite.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " à " + formatHeure(limite.toTimeString().slice(0, 5))
+        : "—";
+      const txtReste = resteMin === null ? "" :
+        resteMin <= 0 ? '<div class="sous" style="color:#E57373">Délai dépassé</div>' :
+        `<div class="sous" style="color:${resteMin < 60 ? "#E57373" : "var(--champagne)"}">Plus que ${Math.floor(resteMin/60)} h ${String(resteMin%60).padStart(2,"0")} pour confirmer</div>`;
+      corps = `
+        <div class="sous">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</div>
+        <div class="info" style="margin:10px 0">Confirme avant <b>${txtLimite}</b>, sinon ta place sera libérée.</div>
+        ${txtReste}
+        <button class="btn btn-primaire btn-block" onclick="confirmerMission('${c.id}')" style="margin-top:14px">Confirmer ma venue ✅</button>
+        <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="annulerMission('${c.id}')">Je ne peux plus venir</button>`;
+    } else {
+      corps = `
+        <div class="sous">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</div>
+        <div id="qrcode" style="background:#fff;border-radius:10px;padding:8px;width:200px;height:200px;margin:12px auto"></div>
+        <div class="info"><div>👤 <b>${esc(user.email)}</b></div><div>📍 ${esc(m.adresse || "")}</div></div>
+        <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:12px" onclick="annulerMission('${c.id}')">Je ne peux plus venir</button>`;
+    }
+
+    zone.innerHTML = `<h2>${esc(m.etablissements?.nom || "Mission")}</h2>${corps}`;
+
+    if (c.statut === "confirmee" && c.qr_code) {
+      setTimeout(() => { new QRCode(document.getElementById("qrcode"), { text: c.qr_code, width: 200, height: 200, colorDark: "#2A1120" }); }, 50);
+    }
   }
 
   async function confirmerMission(id) {
-    await db.from("candidatures").update({ statut: "confirmee" }).eq("id", id);
-    alert("Présence confirmée ✅");
+    const { error } = await db.from("candidatures").update({ statut: "confirmee" }).eq("id", id);
+    if (error) { alert(error.message); return; }
+    chargerQR();
+    chargerMesMissions();
+  }
+
+  async function annulerMission(id) {
+    const { data: c } = await db.from("candidatures").select("statut").eq("id", id).single();
+    const dejaConfirmee = c?.statut === "confirmee";
+    const msg = dejaConfirmee
+      ? "Annuler après avoir confirmé te donne un signe négatif. Continuer ?"
+      : "Annuler ta candidature pour cette mission ?";
+    if (!confirm(msg)) return;
+    const { error } = await db.from("candidatures").update({ annulation: true }).eq("id", id);
+    if (error) { alert(error.message); return; }
     chargerQR();
     chargerMesMissions();
   }
