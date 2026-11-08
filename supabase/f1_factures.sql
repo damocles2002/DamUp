@@ -107,11 +107,13 @@ begin
     'nom', (select value from public.settings where key = 'vendeur_nom'),
     'adresse', (select value from public.settings where key = 'vendeur_adresse'),
     'siret', (select value from public.settings where key = 'vendeur_siret'),
-    'mention_tva', coalesce((select value from public.settings where key = 'mention_tva'), 'TVA non applicable, art. 293 B du CGI')
+    'mention_tva', coalesce((select value from public.settings where key = 'mention_tva'), 'TVA non applicable, art. 293 B du CGI'),
+    'iban', (select value from public.settings where key = 'iban'),
+    'bic', (select value from public.settings where key = 'bic'),
+    'titulaire_iban', (select value from public.settings where key = 'titulaire_iban')
   );
   if v_vendeur->>'nom' is null or v_vendeur->>'nom' = ''
-     or v_vendeur->>'adresse' is null or v_vendeur->>'adresse' = ''
-     or v_vendeur->>'siret' is null or v_vendeur->>'siret' = '' then
+     or v_vendeur->>'adresse' is null or v_vendeur->>'adresse' = '' then
     raise exception 'Complète tes informations de vendeur dans Réglages → Mentions sur les factures avant d''encaisser';
   end if;
 
