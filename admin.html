@@ -65,6 +65,7 @@
       <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau de bord</a>
       <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
       <a data-vue="missions"><span class="ico">📅</span>Missions</a>
+      <a data-vue="recettes"><span class="ico">💰</span>Recettes</a>
       <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
       <a data-vue="equipe"><span class="ico">🛡️</span>Équipe & droits</a>
       <div class="sep"></div>
@@ -78,6 +79,7 @@
     <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau</a>
     <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
     <a data-vue="missions"><span class="ico">📅</span>Missions</a>
+    <a data-vue="recettes"><span class="ico">💰</span>Recettes</a>
     <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
     <a data-vue="equipe"><span class="ico">🛡️</span>Équipe</a>
     <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
@@ -114,6 +116,7 @@
     if (vue === "dashboard") return afficherDashboard();
     if (vue === "utilisateurs") return afficherUtilisateurs();
     if (vue === "missions") return afficherMissions();
+    if (vue === "recettes") return afficherRecettes();
     if (vue === "signalements") return afficherSignalements();
     if (vue === "reglages") return afficherReglages();
     if (vue === "equipe") return afficherEquipe();
@@ -128,12 +131,20 @@
       db.from("missions").select("id", { count: "exact", head: true }),
       db.from("candidatures").select("id", { count: "exact", head: true }),
     ]);
+    const { data: paiements } = await db.from("paiements").select("*");
+    const mois = new Date().toISOString().slice(0, 7);
+    const recettesMois = (paiements || []).filter(p => new Date(p.created_at).toISOString().slice(0, 7) === mois);
+    const totalRecettes = recettesMois.reduce((s, p) => s + Number(p.montant), 0);
+    const { data: profils } = await db.from("profiles").select("id, actif_jusqu_a");
+    const aRenouveler = (profils || []).filter(p => p.actif_jusqu_a && new Date(p.actif_jusqu_a) > Date.now() && new Date(p.actif_jusqu_a) - Date.now() < 7 * 86400000).length;
     main.innerHTML = `<h1>Tableau de bord</h1>
       <div class="stats">
         <div class="stat"><div class="v">${h.count ?? 0}</div><div class="l">Hôtesses inscrites</div></div>
         <div class="stat"><div class="v">${e.count ?? 0}</div><div class="l">Établissements</div></div>
         <div class="stat"><div class="v">${m.count ?? 0}</div><div class="l">Missions publiées</div></div>
         <div class="stat"><div class="v">${c.count ?? 0}</div><div class="l">Candidatures</div></div>
+        <div class="stat" style="cursor:pointer" onclick="vue='recettes';afficherRecettes()"><div class="v">${totalRecettes.toFixed(0)} €</div><div class="l">Recettes du mois</div></div>
+        <div class="stat" style="cursor:pointer" onclick="vue='utilisateurs';afficherUtilisateurs()"><div class="v">${aRenouveler}</div><div class="l">Abonnements à renouveler</div></div>
       </div>
       <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
     const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
@@ -143,46 +154,215 @@
   }
 
   // ============ UTILISATEURS ============
+  // ============ UTILISATEURS (annuaires) ============
+  let annuaireType = "hotesses";
+  let annuaireFiltre = "tous";
+  let annuaireRecherche = "";
+  let annuaireData = [];
+
   async function afficherUtilisateurs() {
-    main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste-hotesses' class='vide'>Chargement…</div></div><div class='panneau'><div class='tete'>Établissements</div><div id='liste-etabs' class='vide'>Chargement…</div></div>";
-    const { data } = await db.rpc("admin_hotesses");
-    document.getElementById("liste-hotesses").innerHTML = (data && data.length) ? `
-      <table><tr><th>Hôtesse</th><th>Photos</th><th>Ville</th><th>Contact</th><th>Statut</th><th></th></tr>
-      ${data.map(h => `<tr>
-        <td><div class="cell"><div class="av">${esc((h.prenom||"?")[0])}</div>${esc(h.prenom)}, ${h.age}</div></td>
-        <td>${(h.photos||[]).slice(0,3).map(p => urlPhoto(p) ? `<img src="${urlPhoto(p)}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;margin-right:2px">` : "").join("") || "—"}</td>
-        <td>${esc(h.ville || "—")}</td>
-        <td style="font-size:12.5px;color:var(--gris)">${h.instagram ? `<a href="https://instagram.com/${esc(h.instagram.replace(/[^a-zA-Z0-9._]/g, ""))}" target="_blank">@${esc(h.instagram)}</a>` : ""}<br>${esc(h.telephone || "")}</td>
-        <td>${h.verifie ? '<span class="badge badge-vert">Vérifiée</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
-        <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${h.id}','hotesse')">Refuser</button>`}</td>
-      </tr>`).join("")}
-      </table>` : "Aucune hôtesse.";
-    const { data: etabs } = await db.from("etablissements").select("id, nom, type, ville, siret, photos, verifie").order("created_at", { ascending: false });
-    document.getElementById("liste-etabs").innerHTML = (etabs && etabs.length) ? `
-      <table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>SIRET</th><th>Statut</th><th></th></tr>
-      ${etabs.map(e => `<tr>
-        <td><div class="cell"><div class="av">${esc((e.nom||"?")[0])}</div>${esc(e.nom)}</div></td>
-        <td>${esc(e.type || "—")}</td>
-        <td>${esc(e.ville || "—")}</td>
-        <td style="font-size:12.5px">${e.siret ? `<a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(String(e.siret).slice(0,9))}" target="_blank">${esc(e.siret)}</a>` : "—"}</td>
-        <td>${e.verifie ? '<span class="badge badge-vert">Vérifié</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
-        <td>${e.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="validerEtab('${e.id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${e.id}','etablissement')">Refuser</button>`}</td>
-      </tr>`).join("")}
-      </table>` : "Aucun établissement.";
+    main.innerHTML = `<h1>Utilisateurs</h1>
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button class="btn btn-sm ${annuaireType==='hotesses'?'btn-primaire':''}" onclick="setAnnuaireType('hotesses')">Hôtesses</button>
+        <button class="btn btn-sm ${annuaireType==='etablissements'?'btn-primaire':''}" onclick="setAnnuaireType('etablissements')">Établissements</button>
+      </div>
+      <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
+        <input class="field" id="a-recherche" placeholder="Rechercher…" oninput="annuaireRecherche=this.value;chargerAnnuaire()" style="max-width:240px">
+        <select class="field" id="a-filtre" onchange="annuaireFiltre=this.value;chargerAnnuaire()" style="max-width:180px">
+          <option value="tous">Tous</option>
+          <option value="verifie">Vérifié</option>
+          <option value="en_attente">En attente</option>
+          <option value="suspendu">Suspendu</option>
+        </select>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterAnnuaire()">Exporter CSV</button>
+      </div>
+      <div class='panneau'><div id='liste-annuaire' class='vide'>Chargement…</div></div>`;
+    document.getElementById("a-recherche").value = annuaireRecherche;
+    document.getElementById("a-filtre").value = annuaireFiltre;
+    chargerAnnuaire();
   }
+
+  function setAnnuaireType(t) { annuaireType = t; afficherUtilisateurs(); }
+
+  function statutBadge(verifie, suspendu) {
+    if (suspendu) return '<span class="badge badge-rouge">Suspendu</span>';
+    return verifie ? '<span class="badge badge-vert">Vérifié</span>' : '<span class="badge badge-champagne">En attente</span>';
+  }
+  function statutAbo(actif) {
+    if (!actif) return '<span style="color:var(--gris)">Jamais payé</span>';
+    const j = (new Date(actif) - Date.now()) / 86400000;
+    const d = new Date(actif).toLocaleDateString("fr-FR");
+    if (j < 0) return '<span style="color:#C0392B">Expiré</span>';
+    if (j < 3) return '<span style="color:#E67E22">' + d + '</span>';
+    return '<span style="color:#1E7A3C">' + d + '</span>';
+  }
+  function filtreAnnuaire(x) {
+    if (annuaireFiltre === "verifie") return x.verifie;
+    if (annuaireFiltre === "en_attente") return !x.verifie;
+    if (annuaireFiltre === "suspendu") return x.suspendu;
+    return true;
+  }
+  function chercheAnnuaire(txt) {
+    if (!annuaireRecherche) return true;
+    return (txt || "").toLowerCase().includes(annuaireRecherche.toLowerCase());
+  }
+
+  async function chargerAnnuaire() {
+    const zone = document.getElementById("liste-annuaire");
+    if (!zone) return;
+    if (annuaireType === "hotesses") {
+      const { data } = await db.rpc("admin_annuaire_hotesses");
+      annuaireData = data || [];
+      const f = annuaireData.filter(h => filtreAnnuaire(h) && chercheAnnuaire(h.prenom + " " + (h.email||"") + " " + (h.ville||"") + " " + (h.instagram||"")));
+      zone.innerHTML = f.length ? `<table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th>Honorées</th><th>Note</th><th></th></tr>
+        ${f.map(h => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('hotesse','${h.id}')">
+          <td><div class="cell"><div class="av">${esc((h.prenom||"?")[0])}</div>${esc(h.prenom)}, ${h.age}</div></td>
+          <td>${esc(h.ville || "—")}</td>
+          <td style="font-size:12.5px;color:var(--gris)"><a href="mailto:${esc(h.email||"")}">${esc(h.email||"")}</a>${h.instagram ? `<br><a href="https://instagram.com/${esc(h.instagram.replace(/[^a-zA-Z0-9._]/g,""))}" target="_blank">@${esc(h.instagram)}</a>` : ""}</td>
+          <td>${statutBadge(h.verifie, h.suspendu)}</td>
+          <td>${h.missions_honorees ?? 0}</td>
+          <td>${h.note_moyenne ?? 5} (${h.nb_avis ?? 0})</td>
+          <td><button class="btn btn-sm btn-primaire" onclick="event.stopPropagation();ouvrirFicheAdmin('hotesse','${h.id}')">Fiche</button></td>
+        </tr>`).join("")}</table>` : '<div class="vide">Aucun résultat.</div>';
+    } else {
+      const { data } = await db.rpc("admin_annuaire_etablissements");
+      annuaireData = data || [];
+      const f = annuaireData.filter(e => filtreAnnuaire(e) && chercheAnnuaire(e.nom + " " + (e.email||"") + " " + (e.ville||"")));
+      zone.innerHTML = f.length ? `<table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>E-mail</th><th>Tarif</th><th>Actif jusqu'au</th><th></th></tr>
+        ${f.map(e => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('etablissement','${e.id}')">
+          <td><div class="cell"><div class="av">${esc((e.nom||"?")[0])}</div>${esc(e.nom)}</div></td>
+          <td>${esc(e.type || "—")}</td>
+          <td>${esc(e.ville || "—")}</td>
+          <td style="font-size:12.5px"><a href="mailto:${esc(e.email||"")}">${esc(e.email||"")}</a></td>
+          <td>${e.tarif ?? "—"} €</td>
+          <td>${statutAbo(e.actif_jusqu_a)}</td>
+          <td><button class="btn btn-sm btn-primaire" onclick="event.stopPropagation();ouvrirFicheAdmin('etablissement','${e.id}')">Fiche</button></td>
+        </tr>`).join("")}</table>` : '<div class="vide">Aucun résultat.</div>';
+    }
+  }
+
+  function exporterAnnuaire() {
+    const sep = ";";
+    let lignes;
+    if (annuaireType === "hotesses") {
+      lignes = [["Prenom","Age","Ville","Email","Instagram","Telephone","Verifie","Suspendu","Note","Avis","Missions honorees","Inscrite le","Tarif","Actif jusqu'au"]];
+      annuaireData.forEach(h => lignes.push([h.prenom,h.age,h.ville,h.email,h.instagram,h.telephone,h.verifie?"oui":"non",h.suspendu?"oui":"non",h.note_moyenne,h.nb_avis,h.missions_honorees,h.inscrite_le?new Date(h.inscrite_le).toLocaleDateString("fr-FR"):"",h.tarif,h.actif_jusqu_a?new Date(h.actif_jusqu_a).toLocaleDateString("fr-FR"):""]));
+    } else {
+      lignes = [["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le","Tarif","Actif jusqu'au","Dernier mode"]];
+      annuaireData.forEach(e => lignes.push([e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):"",e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode]));
+    }
+    const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "annuaire-" + annuaireType + ".csv";
+    a.click();
+  }
+
+  // ============ FICHE ============
+  async function ouvrirFicheAdmin(type, id) {
+    const x = (annuaireData || []).find(r => r.id === id);
+    if (!x) return;
+    const { data: paiements } = await db.from("paiements").select("*").eq("profil_id", id).order("created_at", { ascending: false });
+    const nom = type === "hotesse" ? (x.prenom || "?") : (x.nom || "?");
+    const estVerifie = x.verifie;
+    const estSuspendu = x.suspendu;
+    const modal = document.createElement("div");
+    modal.id = "modal-fiche-admin";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:997";
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="font-family:var(--font-titre);font-size:20px">${esc(nom)}</h3>
+          <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche-admin').remove()">✕</button>
+        </div>
+        <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(x.email || "")} · ${type === "hotesse" ? (x.ville || "") : (x.type || "") + " · " + (x.ville || "")} ${x.siret ? "· SIRET " + esc(x.siret) : ""}</div>
+        <div style="margin-bottom:14px">${statutBadge(estVerifie, estSuspendu)}</div>
+
+        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
+          <div style="font-size:13px;margin:8px 0">Statut : ${x.actif_jusqu_a ? "Actif jusqu'au " + new Date(x.actif_jusqu_a).toLocaleDateString("fr-FR") : "Essai / jamais payé"}</div>
+          <div class="champ-inline"><label>Tarif (€)</label><input class="field" id="f-tarif" type="number" value="${x.tarif ?? ""}" style="max-width:120px"></div>
+          <div class="champ-inline"><label>Période</label><select class="field" id="f-periode" style="max-width:160px"><option value="mensuel" ${x.periode==="mensuel"?"selected":""}>Mensuel</option><option value="hebdomadaire" ${x.periode==="hebdomadaire"?"selected":""}>Hebdomadaire</option></select></div>
+          <button class="btn btn-sm btn-primaire" onclick="sauverTarif('${id}')">Enregistrer le tarif</button>
+        </div>
+
+        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Paiement</b>
+          <div class="champ-inline"><label>Mode</label><select class="field" id="f-mode" style="max-width:160px"><option value="especes">Espèces</option><option value="offert">Offert</option></select></div>
+          <div class="champ-inline"><label>Montant (€)</label><input class="field" id="f-montant" type="number" value="${x.tarif ?? ""}" style="max-width:120px"></div>
+          <div class="champ-inline"><label>Note</label><input class="field" id="f-note" style="max-width:240px"></div>
+          <button class="btn btn-sm btn-primaire" onclick="enregistrerPaiement('${id}')">Enregistrer le paiement</button>
+        </div>
+
+        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Historique des paiements</b>
+          ${(paiements && paiements.length) ? paiements.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA">
+            <span>${p.numero_recu} · ${p.mode} · ${Number(p.montant).toFixed(2)} €</span>
+            <span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a> ${(p.mode==="especes"||p.mode==="offert") ? `<a style="color:var(--danger);cursor:pointer" onclick="annulerPaiement('${p.id}','${id}')">Annuler</a>` : ""}</span>
+          </div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucun paiement.</div>'}
+        </div>
+
+        <div style="border-top:1px solid #EEE;padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
+          ${!estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="valider('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
+          ${estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`}
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  async function sauverTarif(id) {
+    const tarif = parseFloat(document.getElementById("f-tarif").value);
+    const periode = document.getElementById("f-periode").value;
+    const { error } = await db.from("profiles").update({ tarif: tarif || null, periode }).eq("id", id);
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Tarif enregistré ✅", "ok");
+  }
+  async function enregistrerPaiement(id) {
+    const mode = document.getElementById("f-mode").value;
+    const periode = document.getElementById("f-periode").value;
+    const montant = parseFloat(document.getElementById("f-montant").value) || 0;
+    const note = document.getElementById("f-note").value || null;
+    const { data, error } = await db.rpc("admin_enregistrer_paiement", { p_profil: id, p_mode: mode, p_periode: periode, p_montant: montant, p_note: note });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Paiement enregistré ✅", "ok");
+    document.getElementById("modal-fiche-admin")?.remove();
+  }
+  async function annulerPaiement(paiementId, profilId) {
+    if (!await demander("Annuler ce paiement ?", "Annuler")) return;
+    const { error } = await db.rpc("admin_annuler_paiement", { p_id: paiementId });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Paiement annulé ✅", "ok");
+    document.getElementById("modal-fiche-admin")?.remove();
+    ouvrirFicheAdmin(annuaireType === "hotesses" ? "hotesse" : "etablissement", profilId);
+  }
+  async function reactiver(id) {
+    await db.from("profiles").update({ suspendu: false }).eq("id", id);
+    toast("Compte réactivé ✅", "ok");
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
+  }
+  async function suspendreCompte(id) {
+    if (!await demander("Suspendre ce compte ?", "Suspendre")) return;
+    await db.from("profiles").update({ suspendu: true }).eq("id", id);
+    toast("Compte suspendu", "info");
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
+  }
+
   async function valider(id) {
     await db.from("hotesses").update({ verifie: true }).eq("id", id);
-    afficherUtilisateurs();
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
   }
   async function validerEtab(id) {
     await db.from("etablissements").update({ verifie: true }).eq("id", id);
-    afficherUtilisateurs();
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
   }
   async function refuser(id, type) {
     const motif = prompt("Motif du refus (envoyé à la personne) :");
     if (!motif) return;
     await db.from("notifications").insert({ user_id: id, message: "Ton profil n'a pas été validé : " + motif + ". Corrige-le puis contacte-nous." });
-    afficherUtilisateurs();
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
   }
 
   // ============ SIGNALEMENTS ============
@@ -439,6 +619,54 @@
       await db.from("notifications").insert({ user_id: c.hotesse_id, message: "Ta mission a été annulée par DamUp : " + motif + "." });
     }
     afficherMissions();
+  }
+
+  // ============ RECETTES ============
+  let recettesMois = new Date().toISOString().slice(0, 7);
+  let recettesMode = "tous";
+  let recettesData = [];
+  async function afficherRecettes() {
+    main.innerHTML = `<h1>Recettes</h1>
+      <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+        <input class="field" id="r-mois" type="month" value="${recettesMois}" onchange="recettesMois=this.value;chargerRecettes()" style="max-width:180px">
+        <select class="field" id="r-mode" onchange="recettesMode=this.value;chargerRecettes()" style="max-width:180px">
+          <option value="tous">Tous</option><option value="especes">Espèces</option><option value="carte">Carte</option><option value="prelevement">Prélèvement</option><option value="offert">Offert</option>
+        </select>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterRecettes()">Exporter CSV</button>
+      </div>
+      <div class='panneau'><div id='liste-recettes' class='vide'>Chargement…</div></div>
+      <div id="total-recettes" style="margin-top:12px;font-weight:600"></div>`;
+    document.getElementById("r-mode").value = recettesMode;
+    chargerRecettes();
+  }
+  async function chargerRecettes() {
+    const { data } = await db.from("paiements").select("*").order("created_at", { ascending: false });
+    recettesData = (data || []).filter(p => {
+      const mois = new Date(p.created_at).toISOString().slice(0, 7);
+      return (recettesMois ? mois === recettesMois : true) && (recettesMode === "tous" ? true : p.mode === recettesMode);
+    });
+    const total = recettesData.reduce((s, p) => s + Number(p.montant), 0);
+    document.getElementById("total-recettes").innerHTML = "Total : " + total.toFixed(2) + " € (" + recettesData.length + " paiement(s))";
+    document.getElementById("liste-recettes").innerHTML = recettesData.length ? `<table><tr><th>Date</th><th>Reçu</th><th>Mode</th><th>Montant</th><th>Période</th><th></th></tr>
+      ${recettesData.map(p => `<tr>
+        <td>${new Date(p.created_at).toLocaleDateString("fr-FR")}</td>
+        <td>${esc(p.numero_recu)}</td>
+        <td>${esc(p.mode)}</td>
+        <td>${Number(p.montant).toFixed(2)} €</td>
+        <td>${new Date(p.periode_debut).toLocaleDateString("fr-FR")} → ${new Date(p.periode_fin).toLocaleDateString("fr-FR")}</td>
+        <td><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a></td>
+      </tr>`).join("")}</table>` : '<div class="vide">Aucun paiement.</div>';
+  }
+  function exporterRecettes() {
+    const sep = ";";
+    const lignes = [["Date","Numero recu","Mode","Montant","Periode debut","Periode fin"]];
+    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, p.mode, Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
+    const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "recettes.csv";
+    a.click();
   }
 
   init();
