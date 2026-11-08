@@ -179,7 +179,11 @@
     const { error } = await db.from("candidatures").insert({
       mission_id: missionId, hotesse_id: user.id, statut: "en_attente"
     });
-    if (error) { alert("Impossible de postuler : " + error.message); return; }
+    if (error) {
+      if (error.code === "23505") { alert("Tu as déjà postulé à cette mission."); return; }
+      alert("Impossible de postuler : " + (error.message || "erreur inconnue"));
+      return;
+    }
     alert("Candidature envoyée ✅ Tu seras notifiée en cas de sélection.");
   }
 
