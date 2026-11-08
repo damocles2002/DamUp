@@ -183,7 +183,7 @@
   document.getElementById("lien-oubli").addEventListener("click", async () => {
     const email = document.getElementById("email").value.trim();
     if (!email) { afficherMsg(t("login.msg_saisis_email"), "err"); return; }
-    await auth.resetPasswordForEmail(email, { redirectTo: "https://damocles2002.github.io/DamUp/reinitialiser.html" });
+    await auth.resetPasswordForEmail(email, { redirectTo: SITE_URL + "/reinitialiser.html" });
     afficherMsg(t("login.msg_email_envoye"), "ok");
   });
 

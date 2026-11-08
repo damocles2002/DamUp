@@ -7,14 +7,20 @@
 import { PDFDocument, rgb } from "npm:pdf-lib@1.17.1";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "https://damocles2002.github.io",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const SITE_URL = "https://damup.fr";
+const ORIGINES = ["https://damup.fr", "https://www.damup.fr", "https://damocles2002.github.io"];
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": ORIGINES.includes(origin) ? origin : ORIGINES[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+const json = (req: Request, data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 
 const AUBERGINE = rgb(0.165, 0.067, 0.125); // #2A1120
 const CHAMPAGNE = rgb(0.906, 0.812, 0.659); // #E7CFA8
@@ -68,7 +74,7 @@ async function genererPdf(f: any, factureOrigineNumero: string | null, contactEm
   // logo couronne (si récupérable)
   let logo: any = null;
   try {
-    const r = await fetch("https://damocles2002.github.io/DamUp/assets/logo-couronne.png");
+    const r = await fetch(SITE_URL + "/assets/logo-couronne.png");
     if (r.ok) {
       const buf = await r.arrayBuffer();
       logo = await doc.embedPng(buf);
@@ -217,20 +223,20 @@ async function envoyerBrevo(f: any, pdf: Uint8Array, admin: any) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     const secret = req.headers.get("x-damup-secret") ?? "";
     const attendu = Deno.env.get("NOTIFIER_SECRET") ?? "";
-    if (!attendu || secret !== attendu) return json({ error: "Non autorisé" }, 401);
+    if (!attendu || secret !== attendu) return json(req, { error: "Non autorisé" }, 401);
 
-    const { facture_id } = await req.json();
-    if (!facture_id) return json({ error: "facture_id requis" }, 400);
+    const { facture_id } = await req.json(req, );
+    if (!facture_id) return json(req, { error: "facture_id requis" }, 400);
 
     const url = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: f, error } = await admin.from("factures").select("*").eq("id", facture_id).single();
-    if (error || !f) return json({ error: "Facture introuvable" }, 404);
+    if (error || !f) return json(req, { error: "Facture introuvable" }, 404);
 
     // numéro de la facture d'origine (pour un avoir)
     let factureOrigineNumero: string | null = null;
@@ -256,8 +262,8 @@ Deno.serve(async (req) => {
     await envoyerBrevo(f, pdf, admin);
     await admin.from("factures").update({ envoyee_le: new Date().toISOString(), envoi_erreur: null }).eq("id", facture_id);
 
-    return json({ ok: true });
+    return json(req, { ok: true });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, 500);
+    return json(req, { ok: false, error: (e as Error).message }, 500);
   }
 });

@@ -7,23 +7,28 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "https://damocles2002.github.io",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const ORIGINES = ["https://damup.fr", "https://www.damup.fr", "https://damocles2002.github.io"];
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": ORIGINES.includes(origin) ? origin : ORIGINES[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     const secret = req.headers.get("x-damup-secret") ?? "";
     const attendu = Deno.env.get("NOTIFIER_SECRET") ?? "";
     if (!attendu || secret !== attendu) {
-      return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401, headers: { ...CORS, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
     }
 
-    const { user_id, titre, texte, url } = await req.json();
-    if (!user_id || !texte) return new Response(JSON.stringify({ error: "paramètres requis" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+    const { user_id, titre, texte, url } = await req.json(req, );
+    if (!user_id || !texte) return new Response(JSON.stringify({ error: "paramètres requis" }), { status: 400, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: appareils } = await supabase.from("appareils_push").select("*").eq("user_id", user_id);
@@ -47,8 +52,8 @@ Deno.serve(async (req) => {
         }
       }
     }
-    return new Response(JSON.stringify({ ok: true, envoyes }), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: true, envoyes }), { status: 200, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: false, error: (e as Error).message }), { status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
   }
 });

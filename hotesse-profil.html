@@ -341,7 +341,7 @@
     zone.innerHTML = `<h2>${esc(m.etablissements?.nom || "Mission")}</h2>${m.note ? `<div style="background:var(--ivoire);border-radius:10px;padding:12px;margin:10px 0;font-size:13.5px;white-space:pre-line">📝 <b>Infos de l'établissement</b><br>${esc(m.note)}</div>` : ""}${corps}`;
 
     if (c.statut === "confirmee" && c.qr_code) {
-      setTimeout(() => { new QRCode(document.getElementById("qrcode"), { text: "https://damocles2002.github.io/DamUp/etablissement.html#scan=" + c.qr_code, width: 200, height: 200, colorDark: "#2A1120" }); }, 50);
+      setTimeout(() => { new QRCode(document.getElementById("qrcode"), { text: SITE_URL + "/etablissement.html#scan=" + c.qr_code, width: 200, height: 200, colorDark: "#2A1120" }); }, 50);
     }
   }
 

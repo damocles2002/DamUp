@@ -7,32 +7,37 @@ const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const SENDER_EMAIL = Deno.env.get("SENDER_EMAIL") ?? "";
 const SENDER_NAME = "DamUp";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "https://damocles2002.github.io",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const ORIGINES = ["https://damup.fr", "https://www.damup.fr", "https://damocles2002.github.io"];
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": ORIGINES.includes(origin) ? origin : ORIGINES[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-damup-secret",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
-const json = (data: unknown, status = 200) =>
+
+const json = (req: Request, data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...corsHeaders(req), "Content-Type": "application/json" },
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     // Secret partagé obligatoire : seul le déclencheur SQL (qui connaît le secret)
     // peut envoyer un email au nom de DamUp.
     const secret = req.headers.get("x-damup-secret") ?? "";
     const attendu = Deno.env.get("NOTIFIER_SECRET") ?? "";
     if (!attendu || secret !== attendu) {
-      return json({ error: "Non autorisé" }, 401);
+      return json(req, { error: "Non autorisé" }, 401);
     }
 
-    const { to, subject, html } = await req.json();
-    if (!to || !subject) return json({ error: "to et subject requis" }, 400);
-    if (!SENDER_EMAIL) return json({ error: "Expéditeur non configuré" }, 500);
+    const { to, subject, html } = await req.json(req, );
+    if (!to || !subject) return json(req, { error: "to et subject requis" }, 400);
+    if (!SENDER_EMAIL) return json(req, { error: "Expéditeur non configuré" }, 500);
 
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -45,8 +50,8 @@ Deno.serve(async (req) => {
       }),
     });
     const text = await res.text();
-    return json({ ok: res.ok, message: res.ok ? "envoyé" : text });
+    return json(req, { ok: res.ok, message: res.ok ? "envoyé" : text });
   } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+    return json(req, { error: (e as Error).message }, 500);
   }
 });

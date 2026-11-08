@@ -1269,9 +1269,9 @@ begin
 
   select type into v_type from public.profiles where id = p_user;
   if p_cle like 'notif.message.%' then
-    v_url := 'https://damocles2002.github.io/DamUp/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end || '#messages';
+    v_url := 'https://damup.fr/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end || '#messages';
   else
-    v_url := 'https://damocles2002.github.io/DamUp/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end;
+    v_url := 'https://damup.fr/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end;
   end if;
 
   select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;

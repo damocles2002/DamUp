@@ -5,29 +5,35 @@
 import Stripe from "npm:stripe@14";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const CORS = {
-  "Access-Control-Allow-Origin": "https://damocles2002.github.io",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+const SITE_URL = "https://damup.fr";
+const ORIGINES = ["https://damup.fr", "https://www.damup.fr", "https://damocles2002.github.io"];
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": ORIGINES.includes(origin) ? origin : ORIGINES[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+const json = (req: Request, data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const authHeader = req.headers.get("Authorization") ?? "";
     const caller = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
     const { data: { user } } = await caller.auth.getUser();
-    if (!user) return json({ error: "Non authentifié" }, 401);
+    if (!user) return json(req, { error: "Non authentifié" }, 401);
 
     const { data: reglages } = await admin.from("settings").select("value").eq("key", "paiement_en_ligne_actif").single();
-    if (!reglages || reglages.value !== "true") return json({ error: "Paiement en ligne désactivé." }, 400);
+    if (!reglages || reglages.value !== "true") return json(req, { error: "Paiement en ligne désactivé." }, 400);
 
     const { data: profil } = await admin.from("profiles").select("tarif, periode, stripe_customer_id, stripe_compte, email").eq("id", user.id).single();
-    if (!profil || !profil.tarif) return json({ error: "Aucun tarif défini. Contacte DamUp." }, 400);
+    if (!profil || !profil.tarif) return json(req, { error: "Aucun tarif défini. Contacte DamUp." }, 400);
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2023-10-16" });
     const compte = Deno.env.get("STRIPE_COMPTE") ?? "";
@@ -61,11 +67,11 @@ Deno.serve(async (req) => {
       }],
       metadata: { profil_id: user.id },
       subscription_data: { metadata: { profil_id: user.id } },
-      success_url: "https://damocles2002.github.io/DamUp/etablissement.html?paiement=ok",
-      cancel_url: "https://damocles2002.github.io/DamUp/etablissement.html?paiement=annule",
+      success_url: SITE_URL + "/etablissement.html?paiement=ok",
+      cancel_url: SITE_URL + "/etablissement.html?paiement=annule",
     });
-    return json({ url: session.url });
+    return json(req, { url: session.url });
   } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+    return json(req, { error: (e as Error).message }, 500);
   }
 });
