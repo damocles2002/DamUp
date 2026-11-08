@@ -193,22 +193,33 @@
 
   async function publierMission() {
     const articles = [...document.querySelectorAll(".offres-grid input:checked")].map(i => i.value);
+    const date = document.getElementById("m-date").value;
+    const debut = document.getElementById("m-debut").value;
+    const fin = document.getElementById("m-fin").value;
+    const nb = parseInt(document.getElementById("m-nb").value || "2");
+    const adresse = document.getElementById("m-adresse").value || (etab?.adresse || "");
+
+    if (!date) { alert("Choisis une date."); return; }
+    if (date < new Date().toISOString().slice(0, 10)) { alert("La date de la mission est déjà passée."); return; }
+    if (!debut || !fin) { alert("Renseigne l'heure de début et de fin."); return; }
+    if (debut === fin) { alert("L'heure de début doit être différente de l'heure de fin."); return; }
+    if (nb < 1 || nb > 50) { alert("Le nombre d'hôtesses doit être entre 1 et 50."); return; }
+    if (!adresse || !adresse.trim()) { alert("L'adresse est obligatoire pour publier."); return; }
+    if (!mediasEnCours.length) { alert("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
+    if (fin < debut) {
+      if (!confirm("La mission se termine le lendemain à " + formatHeure(fin) + ". Continuer ?")) return;
+    }
+
     const payload = {
       etablissement_id: user.id,
-      date: document.getElementById("m-date").value,
-      heure_debut: document.getElementById("m-debut").value,
-      heure_fin: document.getElementById("m-fin").value,
-      adresse: document.getElementById("m-adresse").value || (etab?.adresse || ""),
-      nb_hotesses: parseInt(document.getElementById("m-nb").value || "2"),
+      date, heure_debut: debut, heure_fin: fin,
+      adresse, nb_hotesses: nb,
       articles_offerts: articles,
       medias: mediasEnCours,
       statut: "ouverte"
-      };
-    if (!payload.date) { alert("Choisis une date."); return; }
-  if (!payload.adresse || !payload.adresse.trim()) { alert("L'adresse est obligatoire pour publier."); return; }
-  if (!mediasEnCours.length) { alert("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
+    };
     const { error } = await db.from("missions").insert(payload);
-    if (error) { alert("Erreur : " + error.message); return; }
+    if (error) { alert(error.message); return; }
     alert("Mission publiée ✅");
     afficherMissions();
   }
