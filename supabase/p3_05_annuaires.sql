@@ -1,5 +1,5 @@
 -- ============================================================
---  Q4 — Annuaires admin (listes complètes pour le back-office)
+--  Q4 : Annuaires admin (listes complètes pour le back-office)
 -- ============================================================
 create or replace function public.admin_annuaire_hotesses()
 returns table (id uuid, prenom text, age int, ville text, email text, instagram text, telephone text,

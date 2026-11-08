@@ -470,7 +470,7 @@
   let scanner = null;
   async function afficherAccueil() {
     contenu.innerHTML = `
-      <div class="pub"><h3>📷 Accueil — présence du jour</h3>
+      <div class="pub"><h3>📷 Accueil : présence du jour</h3>
         <div id="liste-presences" class="vide">Chargement…</div>
         <button class="btn btn-primaire btn-block btn-sm" onclick="demarrerScan()" style="margin-top:12px">📷 Scanner un QR code</button>
         <div id="scan-zone" style="margin-top:12px"></div>
@@ -499,7 +499,7 @@
               ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%">${esc((h?.prenom||"?")[0])}</span>`}
             </div>
             <div style="flex:1"><b>${esc(h?.prenom || "?")}</b></div>
-            <div>${c.presente_a ? "✅ arrivée" : "—"}</div>
+            <div>${c.presente_a ? "✅ arrivée" : ":"}</div>
           </div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune hôtesse confirmée pour aujourd\'hui.</div>';

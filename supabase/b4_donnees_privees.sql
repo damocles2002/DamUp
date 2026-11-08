@@ -1,5 +1,5 @@
 -- ============================================================
---  B4 — Les données privées des hôtesses ne sont plus lisibles
+--  B4 : Les données privées des hôtesses ne sont plus lisibles
 --  par tout le monde (on limite les colonnes lisibles)
 -- ============================================================
 revoke select on public.hotesses from anon, authenticated;

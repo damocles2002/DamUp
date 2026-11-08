@@ -1,4 +1,4 @@
--- ⚠️⚠️⚠️  ATTENTION — À NE PAS EXÉCUTER SANS RAISON  ⚠️⚠️⚠️
+-- ⚠️⚠️⚠️  ATTENTION : À NE PAS EXÉCUTER SANS RAISON  ⚠️⚠️⚠️
 --
 -- Ce script SUPPRIME TOUS les paiements de test et remet la
 -- numérotation des reçus à 1.

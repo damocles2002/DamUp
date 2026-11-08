@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — Schéma de la base EN LIGNE (export)
+--  DamUp : Schéma de la base EN LIGNE (export)
 --  Généré automatiquement depuis Supabase (projet bzoqpaldksrqixoxgsvf)
 -- ============================================================
 
@@ -624,7 +624,7 @@ begin
   select * into v_etab from public.etablissements where id = p.profil_id;
 
   v_numero := public.prochain_numero('facture');
-  v_designation := 'Abonnement DamUp — période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
+  v_designation := 'Abonnement DamUp : période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
                    || ' au ' || to_char(p.periode_fin at time zone 'Europe/Paris', 'DD/MM/YYYY');
 
   insert into public.factures (numero, type, paiement_id, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)
@@ -700,7 +700,7 @@ begin
       ),
       body := jsonb_build_object(
         'to', v_dest,
-        'subject', 'DamUp — Nouvelle notification',
+        'subject', 'DamUp : Nouvelle notification',
         'html', '<p style="font-family:sans-serif">' || v_msg || '</p>'
       )
     );

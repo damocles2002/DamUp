@@ -1,5 +1,5 @@
 -- ============================================================
---  P5 — Note moyenne de l'hôtesse recalculée après un avis
+--  P5 : Note moyenne de l'hôtesse recalculée après un avis
 -- ============================================================
 create or replace function public.maj_note_hotesse() returns trigger
 language plpgsql security definer set search_path = public as $$

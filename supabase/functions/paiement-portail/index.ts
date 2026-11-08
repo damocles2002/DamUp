@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "paiement-portail" (portail client Stripe)
+//  DamUp : Edge Function "paiement-portail" (portail client Stripe)
 // ============================================================
 import Stripe from "npm:stripe@14";
 import { createClient } from "npm:@supabase/supabase-js@2";

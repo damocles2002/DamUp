@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — schéma de base de données (Supabase / PostgreSQL)
+--  DamUp : schéma de base de données (Supabase / PostgreSQL)
 --  Rôles : hôtesses, établissements, administrateur + équipe
 --  Modèle SaaS : abonnement payé par les établissements.
 --  Chaque table est protégée par Row Level Security (RLS) :
@@ -131,7 +131,7 @@ create table if not exists public.messages (
 
 -- ---------- abonnements (établissements payants) ----------
 -- Prix modifiables par l'admin SANS développement. Deux processeurs :
--- Paddle (sans société) ou Stripe (avec société) — choix fait dans l'admin.
+-- Paddle (sans société) ou Stripe (avec société) : choix fait dans l'admin.
 create table if not exists public.abonnements (
   id               uuid primary key default gen_random_uuid(),
   etablissement_id uuid not null references public.etablissements(id) on delete cascade,

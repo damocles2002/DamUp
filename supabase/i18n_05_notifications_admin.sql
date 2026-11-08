@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — i18n tâche 0 : notifications traduites restantes
+--  DamUp : i18n tâche 0 : notifications traduites restantes
 --  1) notifier_nouvelle_candidature via notifier_utilisateur()
 --  2) admin_refuser_profil (refus de validation + notification)
 --  3) admin_annuler_mission (annulation admin + notifications)

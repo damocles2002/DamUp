@@ -41,7 +41,7 @@ begin
       ),
       body := jsonb_build_object(
         'to', v_dest,
-        'subject', 'DamUp — Nouvelle notification',
+        'subject', 'DamUp : Nouvelle notification',
         'html', '<p style="font-family:sans-serif">' || v_msg || '</p>'
       )
     );

@@ -1,5 +1,5 @@
 -- ============================================================
---  F1 — Factures : base de données
+--  F1 : Factures : base de données
 --  Compteurs, table factures, numérotation continue,
 --  création de facture (et avoir), envoi via Edge Function.
 -- ============================================================
@@ -121,7 +121,7 @@ begin
   select * into v_etab from public.etablissements where id = p.profil_id;
 
   v_numero := public.prochain_numero('facture');
-  v_designation := 'Abonnement DamUp — période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
+  v_designation := 'Abonnement DamUp, période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
                    || ' au ' || to_char(p.periode_fin at time zone 'Europe/Paris', 'DD/MM/YYYY');
 
   insert into public.factures (numero, type, paiement_id, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)

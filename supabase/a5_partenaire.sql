@@ -1,5 +1,5 @@
 -- ============================================================
---  A5 — Partenaire Instagram (réglages modifiables)
+--  A5 : Partenaire Instagram (réglages modifiables)
 -- ============================================================
 insert into public.settings (key, value) values
   ('partenaire_nom', '"Le Barreau des Barmans"'),

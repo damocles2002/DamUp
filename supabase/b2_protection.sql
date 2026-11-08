@@ -1,5 +1,5 @@
 -- ============================================================
---  B2 — Empêcher une hôtesse/établissement de modifier ses
+--  B2 : Empêcher une hôtesse/établissement de modifier ses
 --  champs "officiels" (verifie, note, abonnement, etc.)
 -- ============================================================
 create or replace function public.protege_hotesse() returns trigger language plpgsql as $$

@@ -1,5 +1,5 @@
 -- ============================================================
---  B7 — Avis et abonnements encadrés
+--  B7 : Avis et abonnements encadrés
 -- ============================================================
 -- un seul avis par hôtesse et par mission, seulement après une mission confirmée
 alter table public.avis drop constraint if exists avis_unique;

@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — i18n L5 : migration des notifications vers notifier_utilisateur()
+--  DamUp : i18n L5 : migration des notifications vers notifier_utilisateur()
 --  (messages produits dans la langue du destinataire)
 -- ============================================================
 

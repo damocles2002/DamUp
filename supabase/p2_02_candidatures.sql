@@ -1,5 +1,5 @@
 -- ============================================================
---  P2 — Candidatures : délai, QR, annulation, comptes validés
+--  P2 : Candidatures : délai, QR, annulation, comptes validés
 -- ============================================================
 
 -- 1) contrôle des candidatures (phase 1 + délai/QR/annulation/validation)

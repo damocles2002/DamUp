@@ -1,5 +1,5 @@
 -- ============================================================
---  Q3 — Abonnements et paiements
+--  Q3 : Abonnements et paiements
 -- ============================================================
 alter table public.profiles
   add column if not exists tarif numeric(8,2),

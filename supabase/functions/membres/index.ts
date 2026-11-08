@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "membres" (gestion de l'équipe admin)
+//  DamUp : Edge Function "membres" (gestion de l'équipe admin)
 //  Permet à l'ADMIN de créer/modifier/supprimer des comptes
 //  membres et de leur donner des droits, SANS toucher au code.
 // ============================================================
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     // ---- créer un membre (compte auth + équipe) ----
     // Le profil admin est créé par le déclencheur handle_new_user,
-    // grâce à app_metadata.role = "admin" (B1) — pas d'insertion manuelle.
+    // grâce à app_metadata.role = "admin" (B1) : pas d'insertion manuelle.
     if (action === "create") {
       const { email, password, nom, droits } = body;
       if (!email || !password) return json({ error: "E-mail et mot de passe requis" }, 400);

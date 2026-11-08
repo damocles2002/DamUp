@@ -1,5 +1,5 @@
 -- ============================================================
---  B9 — Compteur de places : recalcul à partir des candidatures
+--  B9 : Compteur de places : recalcul à partir des candidatures
 --  (plus de double décompte ; places rendues en cas de refus)
 -- ============================================================
 

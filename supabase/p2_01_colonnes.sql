@@ -1,5 +1,5 @@
 -- ============================================================
---  P1 — Colonnes et statuts
+--  P1 : Colonnes et statuts
 -- ============================================================
 alter table public.candidatures add column if not exists presente_a timestamptz;
 alter table public.candidatures add column if not exists rappel_envoye boolean not null default false;

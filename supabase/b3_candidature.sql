@@ -1,5 +1,5 @@
 -- ============================================================
---  B3 — Candidatures : chacun ne fait que ce que son rôle permet
+--  B3 : Candidatures : chacun ne fait que ce que son rôle permet
 -- ============================================================
 create or replace function public.controle_candidature() returns trigger language plpgsql as $$
 declare

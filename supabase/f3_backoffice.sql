@@ -1,5 +1,5 @@
 -- ============================================================
---  F3/F4 — Factures : renvoi admin + accès aux PDF (bucket privé)
+--  F3/F4 : Factures : renvoi admin + accès aux PDF (bucket privé)
 -- ============================================================
 
 -- renvoyer une facture (admin) : réinitialise l'état puis ré-envoie

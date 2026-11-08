@@ -1,5 +1,5 @@
 -- ============================================================
---  P3 — Tâches automatiques (toutes les 15 minutes)
+--  P3 : Tâches automatiques (toutes les 15 minutes)
 -- ============================================================
 create extension if not exists pg_cron;
 

@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "facture-envoyer"
+//  DamUp : Edge Function "facture-envoyer"
 //  Protégée par le secret partagé (x-damup-secret).
 //  Génère le PDF de la facture (pdf-lib), l'enregistre dans le
 //  bucket privé "factures", puis l'envoie par Brevo en pièce jointe.

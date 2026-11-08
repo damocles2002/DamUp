@@ -1,5 +1,5 @@
 -- ============================================================
---  G2 — Mode de paiement « Virement »
+--  G2 : Mode de paiement « Virement »
 -- ============================================================
 
 -- 1. contrainte de mode : ajoute 'virement'

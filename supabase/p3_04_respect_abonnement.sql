@@ -1,5 +1,5 @@
 -- ============================================================
---  Q3 — Faire respecter l'abonnement + rappels + tarif à l'inscription
+--  Q3 : Faire respecter l'abonnement + rappels + tarif à l'inscription
 -- ============================================================
 
 -- 1) publication bloquée si abonnement expiré

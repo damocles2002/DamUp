@@ -1,5 +1,5 @@
 -- ============================================================
---  P4 — Validation de présence (scan QR par l'établissement)
+--  P4 : Validation de présence (scan QR par l'établissement)
 -- ============================================================
 create or replace function public.valider_presence(p_code text) returns text
 language plpgsql security definer set search_path = public as $$

@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "notifier" (envoi d'emails via Brevo)
+//  DamUp : Edge Function "notifier" (envoi d'emails via Brevo)
 //  Fermée au public (B6) : exige l'en-tête x-damup-secret.
 // ============================================================
 

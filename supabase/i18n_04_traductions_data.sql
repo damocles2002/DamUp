@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — i18n L5 : remplissage de la table traductions
+--  DamUp : i18n L5 : remplissage de la table traductions
 --  (clés notif.* + email.* dans les 4 langues)
 -- ============================================================
 
@@ -125,10 +125,10 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.mission_note_modifiee', 'zh', '📝 {lieu} 更新了您 {date} 场次的信息。'),
 
 -- e-mail
-('email.sujet', 'fr', 'DamUp — Nouvelle notification'),
-('email.sujet', 'en', 'DamUp — New notification'),
-('email.sujet', 'es', 'DamUp — Nueva notificación'),
-('email.sujet', 'zh', 'DamUp — 新通知'),
+('email.sujet', 'fr', 'DamUp : nouvelle notification'),
+('email.sujet', 'en', 'DamUp : new notification'),
+('email.sujet', 'es', 'DamUp : nueva notificación'),
+('email.sujet', 'zh', 'DamUp : 新通知'),
 ('email.ouvrir', 'fr', 'Ouvrir DamUp'),
 ('email.ouvrir', 'en', 'Open DamUp'),
 ('email.ouvrir', 'es', 'Abrir DamUp'),

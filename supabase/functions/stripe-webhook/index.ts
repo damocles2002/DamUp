@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "stripe-webhook"
+//  DamUp : Edge Function "stripe-webhook"
 //  Signature Stripe obligatoire (STRIPE_WEBHOOK_SECRET).
 //  Corrigé : moyen de paiement réel, erreurs -> 500, admins prévenus.
 //  Notifications localisées via notifier_utilisateur() (clés notif.*).

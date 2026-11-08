@@ -1,5 +1,5 @@
 -- ============================================================
---  B6 — Déclencheur qui envoie un email via la fonction Edge
+--  B6 : Déclencheur qui envoie un email via la fonction Edge
 --  "notifier", avec l'en-tête x-damup-secret (secret du Vault).
 --  À exécuter une seule fois : activer pg_net et ranger le secret.
 -- ============================================================
@@ -31,7 +31,7 @@ begin
     ),
     body := jsonb_build_object(
       'to', v_dest,
-      'subject', 'DamUp — Nouvelle notification',
+      'subject', 'DamUp : Nouvelle notification',
       'html', '<p style="font-family:sans-serif">' || new.message || '</p>'
     )
   );

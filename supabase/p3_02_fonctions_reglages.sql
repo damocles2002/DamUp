@@ -1,5 +1,5 @@
 -- ============================================================
---  Q2 — Les fonctions lisent les réglages (plus de valeurs en dur)
+--  Q2 : Les fonctions lisent les réglages (plus de valeurs en dur)
 -- ============================================================
 
 -- 1) délais de confirmation lisibles depuis les réglages

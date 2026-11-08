@@ -1,5 +1,5 @@
 -- ============================================================
---  B8 — Notifications : RLS vérifiée/renforcée
+--  B8 : Notifications : RLS vérifiée/renforcée
 --  Chacun ne lit/modifie que SES notifications.
 --  Aucune policy INSERT : seuls les déclencheurs (security definer)
 --  peuvent en créer.

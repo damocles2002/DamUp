@@ -1,5 +1,5 @@
 -- ============================================================
---  Q2 — Réglages : lecture depuis le SQL + valeurs par défaut
+--  Q2 : Réglages : lecture depuis le SQL + valeurs par défaut
 -- ============================================================
 create or replace function public.reglage_num(p_cle text, p_defaut numeric) returns numeric
 language sql stable security definer set search_path = public as $$

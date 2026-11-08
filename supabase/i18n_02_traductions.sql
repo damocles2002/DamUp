@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — i18n L5 : traductions + notifications multilingues
+--  DamUp : i18n L5 : traductions + notifications multilingues
 -- ============================================================
 
 -- table des traductions (clé + langue → texte)

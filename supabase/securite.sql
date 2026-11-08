@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — renfort sécurité (RGPD + messagerie)
+--  DamUp : renfort sécurité (RGPD + messagerie)
 --  Deux axes : protéger les données personnelles (pièces
 --  d'identité) et empêcher les contacts hors plateforme.
 -- ============================================================

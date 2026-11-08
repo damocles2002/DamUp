@@ -1,5 +1,5 @@
 -- ============================================================
---  A4 — Recettes avec nom du client (établissement ou hôtesse)
+--  A4 : Recettes avec nom du client (établissement ou hôtesse)
 -- ============================================================
 create or replace function public.admin_recettes()
 returns table (id uuid, numero_recu text, mode text, montant numeric,

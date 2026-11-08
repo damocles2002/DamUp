@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — i18n L4 : langue enregistrée dans le compte
+--  DamUp : i18n L4 : langue enregistrée dans le compte
 -- ============================================================
 
 -- colonne langue sur profiles (valeur par défaut : français)

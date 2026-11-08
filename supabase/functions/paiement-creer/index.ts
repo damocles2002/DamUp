@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "paiement-creer" (Stripe Checkout)
+//  DamUp : Edge Function "paiement-creer" (Stripe Checkout)
 //  Appelée par l'utilisateur connecté. CORS comme les autres.
 // ============================================================
 import Stripe from "npm:stripe@14";

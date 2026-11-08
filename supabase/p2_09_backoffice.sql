@@ -1,5 +1,5 @@
 -- ============================================================
---  P9 — Suspension + validation imposées à la publication
+--  P9 : Suspension + validation imposées à la publication
 -- ============================================================
 create or replace function public.protege_mission() returns trigger language plpgsql as $$
 begin

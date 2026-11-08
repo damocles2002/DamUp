@@ -1,5 +1,5 @@
 -- ============================================================
---  P6 — Signalements contrôlés (type/identité du signalant imposés)
+--  P6 : Signalements contrôlés (type/identité du signalant imposés)
 -- ============================================================
 create or replace function public.controle_signalement() returns trigger
 language plpgsql security definer set search_path = public as $$

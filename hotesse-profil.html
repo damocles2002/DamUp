@@ -100,7 +100,7 @@
 
   <div class="section"><h2 data-i18n="profil.avis">Avis des établissements</h2><div id="avis"></div></div>
   <div class="section"><h2 data-i18n="profil.mes_missions">Mes missions</h2><div id="mes-missions"></div></div>
-  <div class="section"><h2 data-i18n="profil.ma_mission">Ma mission — à présenter à l'entrée</h2></div>
+  <div class="section"><h2 data-i18n="profil.ma_mission">Ma mission, à présenter à l'entrée</h2></div>
   <div class="qrcard" id="qr"></div>
 
   <div id="bloc-abonnement"></div>
@@ -161,7 +161,7 @@
     const compteur = document.getElementById("compteur-photos");
     if (compteur) {
       const nb = photos.length;
-      compteur.textContent = nb < 4 ? `(${nb}/7) — minimum 4 requis` : `(${nb}/7)`;
+      compteur.textContent = nb < 4 ? `(${nb}/7) : minimum 4 requis` : `(${nb}/7)`;
       compteur.style.color = nb < 4 ? "#C0392B" : "var(--gris)";
     }
     let html = photos.map((p, i) => `
@@ -274,7 +274,7 @@
       const resteMin = limite ? Math.floor((limite - maintenant) / 60000) : null;
       const txtLimite = limite
         ? limite.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " à " + formatHeure(limite.toTimeString().slice(0, 5))
-        : "—";
+        : ":";
       const txtReste = resteMin === null ? "" :
         resteMin <= 0 ? '<div class="sous" style="color:#E57373">Délai dépassé</div>' :
         `<div class="sous" style="color:${resteMin < 60 ? "#E57373" : "var(--champagne)"}">Plus que ${Math.floor(resteMin/60)} h ${String(resteMin%60).padStart(2,"0")} pour confirmer</div>`;

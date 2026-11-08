@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp — policies Row Level Security (RLS)
+--  DamUp : policies Row Level Security (RLS)
 --  Le schéma active RLS partout ; SANS ces règles, tout est
 --  bloqué. Ici on définit QUI peut lire/écrire QUOI.
 --  Règle générale : chacun accède à SES données ; l'admin à tout.

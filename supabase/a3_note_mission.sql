@@ -1,5 +1,5 @@
 -- ============================================================
---  A3 — Note libre sur les missions
+--  A3 : Note libre sur les missions
 --  Colonne note + blocage des coordonnées + notification
 --  quand la note change (hôtesses acceptées/confirmées).
 -- ============================================================

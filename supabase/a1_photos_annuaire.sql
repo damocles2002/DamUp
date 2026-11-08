@@ -1,5 +1,5 @@
 -- ============================================================
---  A1 — Photos dans le back-office : ajout des photos/vidéos
+--  A1 : Photos dans le back-office : ajout des photos/vidéos
 --  aux annuaires admin.
 -- ============================================================
 

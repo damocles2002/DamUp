@@ -1,5 +1,5 @@
 -- ============================================================
---  B1 — Le rôle 'admin' ne peut venir QUE de app_metadata
+--  B1 : Le rôle 'admin' ne peut venir QUE de app_metadata
 --  (posé côté serveur par la fonction Edge membres).
 --  Reprend la logique existante (notifications, photos, etc.)
 -- ============================================================
