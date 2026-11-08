@@ -1,5 +1,5 @@
 // ============================================================
-//  DamUp — Edge Function "envoyer-push"
+//  DamUp : Edge Function "envoyer-push"
 //  Protégée par le secret partagé (x-damup-secret).
 //  Envoie une notification push à tous les appareils de l'utilisateur.
 //  Supprime les abonnements expirés (404/410).
