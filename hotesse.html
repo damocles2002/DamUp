@@ -142,7 +142,7 @@
 
     liste.innerHTML = missions.map(m => {
       const e = m.etablissements;
-      const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
+      const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${LIBELLES_ARTICLES[a]||a}</span>`).join("");
       const couverture = `${TYPES[e?.type]||"📍"}`;
       return `
       <div class="mission" onclick="ouvrirMission('${m.id}')">
@@ -157,7 +157,7 @@
           </div>
           <div class="meta">
             <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
-            <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
+            <span class="badge badge-aubergine">🕗 ${formatHeure(m.heure_debut)} – ${formatHeure(m.heure_fin)}</span>
           </div>
           <div class="offres">${offres}</div>
           <button class="btn btn-primaire btn-block btn-sm" onclick="event.stopPropagation(); ouvrirMission('${m.id}')">Voir les photos 📸</button>
@@ -195,7 +195,7 @@
     const photos = e?.photos || [];
     const medias = (m.medias || []).filter(x => !photos.includes(x));
     const tous = [...photos, ...medias];
-    const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${a}</span>`).join("");
+    const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${LIBELLES_ARTICLES[a]||a}</span>`).join("");
     const sheet = document.getElementById("sheet-mission");
     sheet.innerHTML = `
       <div class="sheet-head">
@@ -208,7 +208,7 @@
       <div class="details">
         <div class="meta">
           <span class="badge badge-aubergine">📅 ${formaterDate(m.date)}</span>
-          <span class="badge badge-aubergine">🕗 ${m.heure_debut} – ${m.heure_fin}</span>
+          <span class="badge badge-aubergine">🕗 ${formatHeure(m.heure_debut)} – ${formatHeure(m.heure_fin)}</span>
           <span class="badge badge-champagne">👥 ${m.places_restantes ?? m.nb_hotesses} places restantes</span>
         </div>
         <div class="lieu" style="margin:10px 0">📍 ${m.adresse || e?.ville || ""}</div>

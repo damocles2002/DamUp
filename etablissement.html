@@ -155,7 +155,7 @@
         <div class="champ"><label class="label">📍 Adresse du lieu</label><input class="field" id="m-adresse" placeholder="12 rue Oberkampf, Paris"></div>
         <div class="champ"><label class="label">🍽️ Articles offerts</label>
           <div class="offres-grid">
-            ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${a}</label>`).join("")}
+            ${Object.keys(ICONES).map(a => `<label><input type="checkbox" value="${a}"> ${ICONES[a]} ${LIBELLES_ARTICLES[a]||a}</label>`).join("")}
           </div>
         </div>
         <div id="apercu-medias" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
@@ -216,9 +216,9 @@
     if (!data || !data.length) { zone.innerHTML = '<div class="vide">Aucune mission publiée pour l\'instant.</div>'; return; }
     zone.innerHTML = data.map(m => `
       <div class="mission">
-        <div class="t"><h4>📅 ${m.date} · ${m.heure_debut}–${m.heure_fin}</h4>
+        <div class="t"><h4>📅 ${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</h4>
           <span class="badge badge-aubergine">${m.statut}</span></div>
-        <div class="meta">📍 ${m.adresse} · ${m.nb_hotesses} hôtesse(s) · ${(m.articles_offerts||[]).map(a=>ICONES[a]||a).join(" ")}</div>
+        <div class="meta">📍 ${m.adresse} · ${m.nb_hotesses} hôtesse(s) · ${(m.articles_offerts||[]).map(a=>LIBELLES_ARTICLES[a]||a).join(", ")}</div>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="annulerMission('${m.id}')">Annuler</button>
       </div>`).join("");
   }
@@ -259,7 +259,7 @@
         <div class="infos">
           <h3>${h.prenom}, ${h.age}</h3>
           <div class="sous">📍 ${h.ville || ""} · ⭐ ${h.note_moyenne ?? 5} (${h.nb_avis ?? 0} avis)</div>
-          <div class="sous">Mission du ${c.missions?.date || "?"} à ${c.missions?.heure_debut || "?"}</div>
+          <div class="sous">Mission du ${formatDate(c.missions?.date)} à ${formatHeure(c.missions?.heure_debut)}</div>
         </div>
       </div>
       <div class="actions">
