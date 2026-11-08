@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
     // Secret partagé obligatoire : seul le déclencheur SQL (qui connaît le secret)
     // peut envoyer un email au nom de DamUp.
     const secret = req.headers.get("x-damup-secret") ?? "";
-    if (secret !== (Deno.env.get("NOTIFIER_SECRET") ?? "")) {
+    const attendu = Deno.env.get("NOTIFIER_SECRET") ?? "";
+    if (!attendu || secret !== attendu) {
       return json({ error: "Non autorisé" }, 401);
     }
 
