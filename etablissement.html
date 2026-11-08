@@ -120,6 +120,7 @@
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/install.js"></script>
+<script src="js/push.js"></script>
 <script src="js/notifications.js"></script>
 <script>
   const contenu = document.getElementById("contenu");
@@ -403,10 +404,12 @@
       </div>
       <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>
       <div style="text-align:center;margin:8px 0 14px"><a style="color:var(--aubergine);cursor:pointer;font-weight:600" onclick="demanderInstallation()">📲 Installer l'application</a></div>
-      <div class="pub"><h3>Mes factures</h3><div id="mes-factures" class="vide">Chargement…</div></div>`;
+      <div class="pub"><h3>Mes factures</h3><div id="mes-factures" class="vide">Chargement…</div></div>
+      <div id="notifications"></div>`;
     chargerProfilEtab();
     chargerPartenaire();
     chargerMesFactures();
+    chargerNotifications("notifications");
   }
 
   async function chargerProfilEtab() {

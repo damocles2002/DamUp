@@ -1,5 +1,5 @@
 -- ============================================================
---  DamUp : Schéma de la base EN LIGNE (export)
+--  DamUp — Schéma de la base EN LIGNE (export)
 --  Généré automatiquement depuis Supabase (projet bzoqpaldksrqixoxgsvf)
 -- ============================================================
 
@@ -13,6 +13,17 @@ create table public.abonnements (
   "statut" text NOT NULL DEFAULT 'essai'::text,
   "debut" timestamp with time zone NOT NULL DEFAULT now(),
   "fin" timestamp with time zone,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE appareils_push
+create table public.appareils_push (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "user_id" uuid NOT NULL,
+  "endpoint" text NOT NULL,
+  "p256dh" text NOT NULL,
+  "auth_cle" text NOT NULL,
+  "appareil" text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -180,6 +191,16 @@ create table public.paiements (
   "note" text,
   "enregistre_par" uuid,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE preferences_notif
+create table public.preferences_notif (
+  "user_id" uuid NOT NULL,
+  "push_actif" boolean NOT NULL DEFAULT true,
+  "email_missions" boolean NOT NULL DEFAULT true,
+  "email_messages" boolean NOT NULL DEFAULT false,
+  "email_compte" boolean NOT NULL DEFAULT true,
+  "updated_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 -- TABLE profiles
@@ -624,7 +645,7 @@ begin
   select * into v_etab from public.etablissements where id = p.profil_id;
 
   v_numero := public.prochain_numero('facture');
-  v_designation := 'Abonnement DamUp : période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
+  v_designation := 'Abonnement DamUp — période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
                    || ' au ' || to_char(p.periode_fin at time zone 'Europe/Paris', 'DD/MM/YYYY');
 
   insert into public.factures (numero, type, paiement_id, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)
@@ -671,45 +692,40 @@ CREATE OR REPLACE FUNCTION public.envoyer_email_notification()
 AS $function$
 declare
   v_secret text;
-  v_dest text;
-  v_msg text;
+  v_anon text;
+  v_cat text;
+  v_autorise boolean;
 begin
-  select decrypted_secret into v_secret
-  from vault.decrypted_secrets where name = 'NOTIFIER_SECRET'
-  order by created_at desc limit 1;
-  if v_secret is null then
-    insert into public.email_erreurs (user_id, raison) values (new.user_id, 'Secret NOTIFIER_SECRET introuvable');
-    return new;
+  if new.cle like 'notif.message.%' then v_cat := 'messages';
+  elsif new.cle in ('notif.validation_refusee', 'notif.suspension_hotesse', 'notif.suspension_admin',
+                    'notif.fin_abonnement', 'notif.fin_abonnement_admin', 'notif.paiement_recu',
+                    'notif.paiement_offert', 'notif.paiement_echoue', 'notif.paiement_echoue_admin') then v_cat := 'compte';
+  else v_cat := 'missions';
   end if;
 
-  select email into v_dest from auth.users where id = new.user_id;
-  if v_dest is null then
-    insert into public.email_erreurs (user_id, raison) values (new.user_id, 'Adresse email introuvable');
-    return new;
-  end if;
+  select case v_cat
+    when 'messages' then coalesce(email_messages, false)
+    when 'compte' then coalesce(email_compte, true)
+    else coalesce(email_missions, true) end
+    into v_autorise from public.preferences_notif where user_id = new.user_id;
+  if v_autorise is null then v_autorise := (v_cat <> 'messages'); end if;
+  if not v_autorise then return new; end if;
 
-  v_msg := replace(replace(replace(coalesce(new.message, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
+  if v_secret is null or v_secret = '' then return new; end if;
+  select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;
 
-  begin
-    perform net.http_post(
-      url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/notifier',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6b3FwYWxka3NycWl4b3hnc3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5Mjc0NTksImV4cCI6MjEwOTUwMzQ1OX0.9A8gTkadIdEdK0k3RQvBE3oGa107TIht4SIEGr76G4Q',
-        'x-damup-secret', v_secret
-      ),
-      body := jsonb_build_object(
-        'to', v_dest,
-        'subject', 'DamUp : Nouvelle notification',
-        'html', '<p style="font-family:sans-serif">' || v_msg || '</p>'
-      )
-    );
-  exception when others then
-    insert into public.email_erreurs (user_id, raison) values (new.user_id, sqlerrm);
-  end;
+  perform net.http_post(
+    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/notifier',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || coalesce(v_anon, ''),
+      'x-damup-secret', v_secret
+    ),
+    body := jsonb_build_object('user_id', new.user_id::text, 'message', new.message)
+  );
   return new;
-end;
-$function$;
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.envoyer_facture(p_facture_id uuid)
  RETURNS void
@@ -1015,17 +1031,58 @@ begin
   return new;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.notifier_push(p_user uuid, p_cle text, p_message text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_push boolean;
+  v_type text;
+  v_url text;
+  v_anon text;
+  v_secret text;
+begin
+  select coalesce(push_actif, true) into v_push from public.preferences_notif where user_id = p_user;
+  if v_push is null then v_push := true; end if;
+  if not v_push then return; end if;
+
+  select type into v_type from public.profiles where id = p_user;
+  if p_cle like 'notif.message.%' then
+    v_url := 'https://damocles2002.github.io/DamUp/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end || '#messages';
+  else
+    v_url := 'https://damocles2002.github.io/DamUp/' || case when v_type = 'etablissement' then 'etablissement.html' else 'hotesse.html' end;
+  end if;
+
+  select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
+  if v_secret is null or v_secret = '' then return; end if;
+
+  perform net.http_post(
+    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/envoyer-push',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || coalesce(v_anon, ''),
+      'x-damup-secret', v_secret
+    ),
+    body := jsonb_build_object('user_id', p_user::text, 'titre', 'DamUp', 'texte', p_message, 'url', v_url)
+  );
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.notifier_utilisateur(p_user uuid, p_cle text, p_params jsonb DEFAULT '{}'::jsonb)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare v_langue text;
+declare v_langue text; v_message text;
 begin
   select langue into v_langue from public.profiles where id = p_user;
+  v_message := public.traduire(p_cle, coalesce(v_langue, 'fr'), p_params);
   insert into public.notifications (user_id, message, cle, params)
-  values (p_user, public.traduire(p_cle, coalesce(v_langue, 'fr'), p_params), p_cle, p_params);
+  values (p_user, v_message, p_cle, p_params);
+  perform public.notifier_push(p_user, p_cle, v_message);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.prochain_numero(p_nom text)
@@ -1378,6 +1435,10 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- abonnements.abonnements_select_own (SELECT, to {)
   using (((etablissement_id = auth.uid()) OR is_admin()))
 
+-- appareils_push.appareils_push_perso (ALL, to {)
+  using ((user_id = auth.uid()))
+  with check ((user_id = auth.uid()))
+
 -- avis.avis_insert_etab (INSERT, to {)
   with check (((etablissement_id = auth.uid()) AND (EXISTS ( SELECT 1
    FROM (missions m
@@ -1457,6 +1518,10 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- paiements.paiements_select (SELECT, to {)
   using (((profil_id = auth.uid()) OR is_admin()))
+
+-- preferences_notif.preferences_notif_perso (ALL, to {)
+  using ((user_id = auth.uid()))
+  with check ((user_id = auth.uid()))
 
 -- profiles.profiles_select_own (SELECT, to {)
   using (((id = auth.uid()) OR is_admin()))

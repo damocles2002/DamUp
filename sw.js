@@ -2,7 +2,7 @@
 //  DamUp — Service worker (application installable)
 //  IMPORTANT : à chaque mise en ligne, augmenter VERSION.
 // ============================================================
-const VERSION = "damup-v1";
+const VERSION = "damup-v2";
 
 const ASSETS = [
   "./",
@@ -58,4 +58,32 @@ self.addEventListener("fetch", (e) => {
       })
     );
   }
+});
+
+// notifications push (bloc M2)
+self.addEventListener("push", (event) => {
+  let data = { titre: "DamUp", texte: "", url: "" };
+  try { data = event.data ? event.data.json() : data; } catch (e) {}
+  const options = {
+    body: data.texte || "",
+    icon: "assets/icon-192.png",
+    badge: "assets/icon-192.png",
+    data: { url: data.url || "" },
+  };
+  event.waitUntil(self.registration.showNotification(data.titre || "DamUp", options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "./";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        c.focus();
+        c.navigate(url);
+        return;
+      }
+      return clients.openWindow(url);
+    })
+  );
 });
