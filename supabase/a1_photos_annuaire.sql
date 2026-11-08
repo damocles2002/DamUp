@@ -24,13 +24,13 @@ create or replace function public.admin_annuaire_etablissements()
 returns table (id uuid, nom text, type text, ville text, adresse text, email text, siret text,
                verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamptz,
                tarif numeric, periode text, actif_jusqu_a timestamptz, dernier_mode text,
-               photos jsonb, videos jsonb)
+               reference_virement text, photos jsonb, videos jsonb)
 language sql stable security definer set search_path = public as $$
   select e.id, e.nom, e.type, e.ville, e.adresse, p.email, e.siret, e.verifie, p.suspendu,
          (select count(*) from public.missions m where m.etablissement_id = e.id),
          e.created_at, p.tarif, p.periode, p.actif_jusqu_a,
          (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1),
-         e.photos, e.videos
+         p.reference_virement, e.photos, e.videos
     from public.etablissements e join public.profiles p on p.id = e.id
    where public.is_admin()
    order by e.created_at desc;

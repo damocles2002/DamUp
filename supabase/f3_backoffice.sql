@@ -13,12 +13,4 @@ end; $$;
 revoke execute on function public.admin_renvoyer_facture(uuid) from public, anon;
 grant execute on function public.admin_renvoyer_facture(uuid) to authenticated;
 
--- lecture du PDF : admin ou titulaire (dossier profil_id/)
-drop policy if exists "factures_read_admin" on storage.objects;
-create policy "factures_read_admin" on storage.objects for select
-  using (bucket_id = 'factures' and auth.role() = 'authenticated' and public.is_admin());
-
-drop policy if exists "factures_read_owner" on storage.objects;
-create policy "factures_read_owner" on storage.objects for select
-  using (bucket_id = 'factures' and auth.role() = 'authenticated'
-         and (storage.foldername(name))[1] = auth.uid()::text);
+-- (accès Storage aux PDF : voir f1_factures.sql, règle "factures_lecture_storage")

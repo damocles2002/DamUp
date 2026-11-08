@@ -301,7 +301,7 @@
   }
 
   function libelleMode(mode) {
-    return { especes: "Espèces", carte: "Carte", prelevement: "Prélèvement", offert: "Offert" }[mode] || mode;
+    return { especes: "Espèces", virement: "Virement", carte: "Carte", prelevement: "Prélèvement", offert: "Offert" }[mode] || mode;
   }
   function montantFormat(v) {
     return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(v || 0));
@@ -338,7 +338,7 @@
     } else {
       const { data } = await db.rpc("admin_annuaire_etablissements");
       annuaireData = data || [];
-      const f = annuaireData.filter(e => filtreAnnuaire(e) && chercheAnnuaire(e.nom + " " + (e.email||"") + " " + (e.ville||"")));
+      const f = annuaireData.filter(e => filtreAnnuaire(e) && chercheAnnuaire(e.nom + " " + (e.email||"") + " " + (e.ville||"") + " " + (e.reference_virement||"")));
       zone.innerHTML = f.length ? `<table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>E-mail</th><th>Tarif</th><th>Actif jusqu'au</th><th></th></tr>
         ${f.map(e => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('etablissement','${e.id}')">
           <td><div class="cell">${avatarPhoto(e.photos?.[0], e.nom)}${esc(e.nom)}</div></td>
@@ -379,6 +379,11 @@
     const x = (annuaireData || []).find(r => r.id === id);
     if (!x) return;
     const { data: paiements } = await db.from("paiements").select("*").eq("profil_id", id).order("created_at", { ascending: false });
+    let reference = "";
+    if (type === "etablissement") {
+      const { data: r } = await db.rpc("reference_virement", { p_uid: id });
+      reference = r || "";
+    }
     const nom = type === "hotesse" ? (x.prenom || "?") : (x.nom || "?");
     const estVerifie = x.verifie;
     const estSuspendu = x.suspendu;
@@ -406,7 +411,8 @@
         </div>
 
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Paiement</b>
-          <div class="champ-inline"><label>Mode</label><select class="field" id="f-mode" style="max-width:160px"><option value="especes">Espèces</option><option value="offert">Offert</option></select></div>
+          ${reference ? `<div style="font-size:12.5px;margin:8px 0;display:flex;justify-content:space-between;align-items:center"><span>Référence virement : <b style="font-family:monospace">${esc(reference)}</b></span><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="navigator.clipboard.writeText('${reference}')">Copier</button></div>` : ""}
+          <div class="champ-inline"><label>Mode</label><select class="field" id="f-mode" style="max-width:160px"><option value="especes">Espèces</option><option value="virement">Virement</option><option value="offert">Offert</option></select></div>
           <div class="champ-inline"><label>Montant (€)</label><input class="field" id="f-montant" type="number" value="${x.tarif ?? ""}" style="max-width:120px"></div>
           <div class="champ-inline"><label>Note</label><input class="field" id="f-note" style="max-width:240px"></div>
           <button class="btn btn-sm btn-primaire" onclick="enregistrerPaiement('${id}')">Enregistrer le paiement</button>
@@ -415,7 +421,7 @@
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Historique des paiements</b>
           ${(paiements && paiements.length) ? paiements.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA">
             <span>${p.numero_recu} · ${libelleMode(p.mode)} · ${montantFormat(p.montant)}</span>
-            <span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a> ${(p.mode==="especes"||p.mode==="offert") ? `<a style="color:var(--danger);cursor:pointer" onclick="annulerPaiement('${p.id}','${id}')">Annuler</a>` : ""}</span>
+            <span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a> ${(p.mode==="especes"||p.mode==="virement"||p.mode==="offert") ? `<a style="color:var(--danger);cursor:pointer" onclick="annulerPaiement('${p.id}','${id}')">Annuler</a>` : ""}</span>
           </div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucun paiement.</div>'}
         </div>
 
@@ -588,8 +594,13 @@
     document.getElementById("sec-recus").innerHTML = `
       <div class="champ-inline"><label>Nom du vendeur</label><input class="field" id="s-vendeur_nom" value="${val("vendeur_nom", "")}" style="max-width:260px"></div>
       <div class="champ-inline"><label>SIRET du vendeur</label><input class="field" id="s-vendeur_siret" value="${val("vendeur_siret", "")}" style="max-width:260px"></div>
+      <div style="font-size:12px;color:var(--gris);margin:-6px 0 8px">Laisse vide tant que tu n'as pas de numéro. Il sera ajouté automatiquement aux prochaines factures dès que tu le saisis.</div>
       <div class="champ-inline"><label>Adresse du vendeur</label><input class="field" id="s-vendeur_adresse" value="${val("vendeur_adresse", "")}" style="max-width:260px"></div>
       <div class="champ-inline"><label>Mention TVA</label><input class="field" id="s-mention_tva" value="${val("mention_tva", "")}" style="max-width:260px"></div>
+      <div style="margin:16px 0 8px;font-weight:600;font-size:14px">Coordonnées bancaires (pour le paiement par virement)</div>
+      <div class="champ-inline"><label>Titulaire du compte</label><input class="field" id="s-titulaire_iban" value="${val("titulaire_iban", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>IBAN</label><input class="field" id="s-iban" value="${val("iban", "")}" style="max-width:320px" placeholder="FR76 3000 6000 0012 3456 7890 189"></div>
+      <div class="champ-inline"><label>BIC</label><input class="field" id="s-bic" value="${val("bic", "")}" style="max-width:160px"></div>
       <button class="btn btn-primaire btn-sm" onclick="sauverSection('recus')">Enregistrer</button>`;
 
     document.getElementById("sec-maintenance").innerHTML = `
@@ -603,6 +614,12 @@
     const champs = [...zone.querySelectorAll("[id^='s-']")];
     const { data: actuel } = await db.from("settings").select("key, value").in("key", ["paiement_etablissements_actif", "paiement_hotesses_actif", "paiement_en_ligne_actif"]);
     const avant = Object.fromEntries((actuel || []).map(r => [r.key, String(r.value)]));
+    // validation de l'IBAN (doit commencer par FR)
+    const elIban = zone.querySelector("#s-iban");
+    if (elIban && elIban.value.trim()) {
+      const iban = elIban.value.replace(/[\s.]/g, "").toUpperCase();
+      if (!/^FR[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) { toast("IBAN invalide (doit commencer par FR).", "erreur"); return; }
+    }
     const upserts = champs.map(el => {
       let v;
       if (el.type === "checkbox") v = el.checked ? "true" : "false";
@@ -804,7 +821,7 @@
       <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
         <input class="field" id="r-mois" type="month" value="${recettesMois}" onchange="recettesMois=this.value;chargerRecettes()" style="max-width:180px">
         <select class="field" id="r-mode" onchange="recettesMode=this.value;chargerRecettes()" style="max-width:180px">
-          <option value="tous">Tous</option><option value="especes">Espèces</option><option value="carte">Carte</option><option value="prelevement">Prélèvement</option><option value="offert">Offert</option>
+          <option value="tous">Tous</option><option value="especes">Espèces</option><option value="virement">Virement</option><option value="carte">Carte</option><option value="prelevement">Prélèvement</option><option value="offert">Offert</option>
         </select>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterRecettes()">Exporter CSV</button>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterRecettesXlsx()">Excel (.xlsx)</button>

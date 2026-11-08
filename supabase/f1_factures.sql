@@ -179,3 +179,9 @@ grant execute on function public.admin_annuler_paiement(uuid) to authenticated;
 -- bucket Storage privé pour les PDF de factures
 insert into storage.buckets (id, name, public) values ('factures', 'factures', false)
 on conflict (id) do nothing;
+
+-- accès Storage aux PDF : admin ou titulaire du dossier <profil_id>/
+drop policy if exists "factures_lecture_storage" on storage.objects;
+create policy "factures_lecture_storage" on storage.objects for select to authenticated
+  using (bucket_id = 'factures'
+         and (public.is_admin() or (storage.foldername(name))[1] = auth.uid()::text));

@@ -98,7 +98,7 @@ async function genererPdf(f: any): Promise<Uint8Array> {
   y -= 26;
 
   // paiement / acquittée
-  const modes: Record<string, string> = { especes: "espèces", carte: "carte bancaire", prelevement: "prélèvement SEPA" };
+  const modes: Record<string, string> = { especes: "espèces", virement: "virement bancaire", carte: "carte bancaire", prelevement: "prélèvement SEPA" };
   if (f.acquittee_le) {
     page.drawText("Facture acquittée le " + fmtDate(f.acquittee_le) + " par " + (modes[f.mode_paiement] || f.mode_paiement || ""), { x: 48, y, size: 9, font: helv, color: AUBERGINE });
     y -= 14;

@@ -106,6 +106,20 @@ async function afficherBlocAbonnement(conteneurId) {
   const actifOk = actif && actif > new Date();
   const periode = profil?.periode === "hebdomadaire" ? "semaine" : "mois";
   const dejaClient = !!profil?.stripe_customer_id;
+  // coordonnées bancaires pour le virement (établissement seulement)
+  let virement = null;
+  if (type === "etablissement") {
+    const [rIban, rBic, rTit] = await Promise.all([
+      db.from("settings").select("value").eq("key", "iban").single(),
+      db.from("settings").select("value").eq("key", "bic").single(),
+      db.from("settings").select("value").eq("key", "titulaire_iban").single(),
+    ]);
+    const iban = (rIban.data?.value || "").trim();
+    if (iban) {
+      const { data: ref } = await db.rpc("reference_virement", { p_uid: user.id });
+      virement = { iban, bic: (rBic.data?.value || "").trim(), titulaire: (rTit.data?.value || "").trim(), reference: ref || "" };
+    }
+  }
   conteneur.innerHTML = `
     <div class="panneau" style="margin:14px 18px">
       <div class="tete">Mon abonnement</div>
@@ -119,6 +133,17 @@ async function afficherBlocAbonnement(conteneurId) {
         ${(paiements && paiements.length) ? `<div style="margin-top:12px;border-top:1px solid #EEE;padding-top:10px">
           <div style="font-size:12.5px;color:var(--gris);margin-bottom:6px">Mes reçus :</div>
           ${paiements.slice(0, 5).map(p => `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0"><span>${esc(p.numero_recu)} · ${Number(p.montant).toFixed(2)} €</span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a></div>`).join("")}
+        </div>` : ""}
+        ${virement ? `<div style="margin-top:12px;border-top:1px solid #EEE;padding-top:10px">
+          <div style="font-weight:600;font-size:13.5px;margin-bottom:8px">🏦 Payer par virement</div>
+          <div style="font-size:12.5px;line-height:1.9">
+            ${virement.titulaire ? `Titulaire : <b>${esc(virement.titulaire)}</b><br>` : ""}
+            IBAN : <b>${esc(virement.iban)}</b> <a style="color:var(--aubergine);cursor:pointer;font-size:11.5px" onclick="navigator.clipboard.writeText('${esc(virement.iban)}')">Copier</a><br>
+            ${virement.bic ? `BIC : <b>${esc(virement.bic)}</b> <a style="color:var(--aubergine);cursor:pointer;font-size:11.5px" onclick="navigator.clipboard.writeText('${esc(virement.bic)}')">Copier</a><br>` : ""}
+            Montant : <b>${profil?.tarif ? Number(profil.tarif).toFixed(2).replace(".", ",") + " €" : "—"}</b><br>
+            Référence à indiquer : <b>${esc(virement.reference)}</b> <a style="color:var(--aubergine);cursor:pointer;font-size:11.5px" onclick="navigator.clipboard.writeText('${esc(virement.reference)}')">Copier</a>
+          </div>
+          <div style="font-size:11.5px;color:var(--gris);margin-top:6px">Ton abonnement est prolongé dès réception du virement (1 à 2 jours ouvrés).</div>
         </div>` : ""}
       </div>
     </div>`;
