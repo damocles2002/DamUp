@@ -31,10 +31,12 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:50"></div>
 <div class="legal">
   <a class="retour" href="index.html">← Retour</a>
   <h1>Politique de confidentialité</h1>
   <div class="maj">Dernière mise à jour : 8 novembre 2026</div>
+  <p id="note-traduction" style="font-size:12.5px;color:var(--gris);font-style:italic;margin-bottom:18px"></p>
 
   <p>DamUp accorde une grande importance à la protection de vos données personnelles. Cette politique explique quelles données sont collectées, pourquoi, combien de temps elles sont conservées et quels sont vos droits, conformément au Règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés.</p>
 
@@ -120,5 +122,14 @@
   <p>Cette politique peut être mise à jour. La date de dernière mise à jour figure en haut de la page ; en cas de changement important, les utilisateurs sont prévenus par notification.</p>
 </div>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>
+<script src="js/i18n.js"></script>
+<script>
+  chargerDicts().then(() => {
+    var n = document.getElementById("note-traduction");
+    if (n) n.textContent = t("legal.traduction_note");
+    initSelecteurLangue("sel-langue");
+    appliquerLangueDOM();
+  });
+</script>
 </body>
 </html>

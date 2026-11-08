@@ -3,6 +3,22 @@
 //  Remplace toast() et await demander() du navigateur.
 // ============================================================
 
+// Message d'erreur lisible (traduit si possible) — à utiliser partout où une erreur remonte
+function messageErreur(error) {
+  const msg = (error?.message || error?.error_description || error?.hint || "").toString().trim();
+  if (!msg) return (typeof t === "function" ? t("login.msg_erreur") : "Une erreur est survenue.");
+  const map = [
+    ["Invalid login credentials", "login.msg_email_incorrect"],
+    ["User already registered", "login.msg_deja_compte"],
+    ["Email not confirmed", "login.msg_confirme"],
+    ["JWT", "err.session"],
+  ];
+  for (const [frag, cle] of map) {
+    if (msg.includes(frag)) { if (typeof t === "function") return t(cle); return msg; }
+  }
+  return msg;
+}
+
 // Bandeau de notification en bas de l'écran (4 s)
 function toast(message, type = "info") {
   const couleurs = { ok: "#1E7A3C", erreur: "#C0392B", info: "#2A1120" };

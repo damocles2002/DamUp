@@ -203,5 +203,6 @@
   "commun.type_lounge": "Salón",
   "hotesse.titre": "DamUp — Área azafata",
   "hotesse-profil.titre": "DamUp — Mi perfil",
-  "etablissement.titre": "DamUp — Área establecimiento"
+  "etablissement.titre": "DamUp — Área establecimiento",
+  "err.session": "Tu sesión ha caducado, inicia sesión de nuevo."
 }

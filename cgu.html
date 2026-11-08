@@ -33,10 +33,12 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:50"></div>
 <div class="legal">
   <a class="retour" href="index.html">← Retour</a>
   <h1>Conditions générales d'utilisation (CGU)</h1>
   <div class="maj">Version du 8 novembre 2026</div>
+  <p id="note-traduction" style="font-size:12.5px;color:var(--gris);font-style:italic;margin-bottom:18px"></p>
 
   <div class="resume">
     <div class="resume-titre">L'essentiel en 6 points</div>
@@ -165,5 +167,14 @@
   <p>Les présentes CGU sont soumises au droit français. En cas de difficulté, contactez d'abord DamUp à damotrader2025@gmail.com pour rechercher une solution amiable. À défaut, le litige sera porté devant les tribunaux compétents.</p>
 </div>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>
+<script src="js/i18n.js"></script>
+<script>
+  chargerDicts().then(() => {
+    var n = document.getElementById("note-traduction");
+    if (n) n.textContent = t("legal.traduction_note");
+    initSelecteurLangue("sel-langue");
+    appliquerLangueDOM();
+  });
+</script>
 </body>
 </html>

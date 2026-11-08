@@ -203,5 +203,6 @@
   "commun.type_lounge": "酒廊",
   "hotesse.titre": "DamUp — 女招待专区",
   "hotesse-profil.titre": "DamUp — 我的资料",
-  "etablissement.titre": "DamUp — 场所专区"
+  "etablissement.titre": "DamUp — 场所专区",
+  "err.session": "会话已过期，请重新登录。"
 }
