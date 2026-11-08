@@ -43,6 +43,13 @@ create table public.candidatures (
   "rappel_envoye" boolean NOT NULL DEFAULT false
 );
 
+-- TABLE compteurs
+create table public.compteurs (
+  "nom" text NOT NULL,
+  "annee" integer NOT NULL,
+  "valeur" integer NOT NULL DEFAULT 0
+);
+
 -- TABLE email_erreurs
 create table public.email_erreurs (
   "id" bigint NOT NULL,
@@ -75,6 +82,27 @@ create table public.etablissements (
   "videos" jsonb NOT NULL DEFAULT '[]'::jsonb,
   "verifie" boolean NOT NULL DEFAULT false,
   "abonnement_actif" boolean NOT NULL DEFAULT false,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE factures
+create table public.factures (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "numero" text NOT NULL,
+  "type" text NOT NULL DEFAULT 'facture'::text,
+  "paiement_id" uuid,
+  "facture_origine" uuid,
+  "profil_id" uuid NOT NULL,
+  "date_emission" timestamp with time zone NOT NULL DEFAULT now(),
+  "vendeur" jsonb NOT NULL,
+  "client" jsonb NOT NULL,
+  "lignes" jsonb NOT NULL,
+  "total" numeric NOT NULL,
+  "mode_paiement" text NOT NULL,
+  "acquittee_le" timestamp with time zone,
+  "pdf_chemin" text,
+  "envoyee_le" timestamp with time zone,
+  "envoi_erreur" text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -275,14 +303,25 @@ CREATE OR REPLACE FUNCTION public.admin_annuler_paiement(p_id uuid)
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare v_profil uuid;
+declare
+  v_p public.paiements%rowtype;
+  v_facture public.factures%rowtype;
+  v_avoir_id uuid;
 begin
   if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
-  delete from public.paiements where id = p_id and mode in ('especes', 'offert') returning profil_id into v_profil;
-  if v_profil is null then raise exception 'Paiement introuvable (les paiements en ligne s''annulent dans Stripe).'; end if;
-  update public.profiles
-     set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_profil)
-   where id = v_profil;
+  select * into v_p from public.paiements where id = p_id and mode in ('especes', 'offert');
+  if v_p.id is null then raise exception 'Paiement introuvable (les paiements en ligne s''annulent dans Stripe).'; end if;
+
+  select * into v_facture from public.factures where paiement_id = p_id and type = 'facture';
+  if v_facture.id is not null then
+    insert into public.factures (numero, type, facture_origine, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)
+    values (public.prochain_numero('avoir'), 'avoir', v_facture.id, v_p.profil_id, v_facture.vendeur, v_facture.client, v_facture.lignes, -v_facture.total, v_facture.mode_paiement, now())
+    returning id into v_avoir_id;
+    perform public.envoyer_facture(v_avoir_id);
+  end if;
+
+  delete from public.paiements where id = p_id;
+  update public.profiles set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_p.profil_id) where id = v_p.profil_id;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mode text, p_periode text, p_montant numeric, p_date date DEFAULT NULL::date, p_note text DEFAULT NULL::text)
@@ -363,6 +402,18 @@ begin
   end if;
   perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee',
     jsonb_build_object('motif', coalesce(p_motif, '')));
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_renvoyer_facture(p_facture_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  update public.factures set envoyee_le = null, envoi_erreur = null where id = p_facture_id;
+  perform public.envoyer_facture(p_facture_id);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.apres_annulation()
@@ -536,6 +587,71 @@ begin
   return new;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.creer_facture(p_paiement uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  p public.paiements%rowtype;
+  v_numero text;
+  v_facture_id uuid;
+  v_vendeur jsonb;
+  v_etab public.etablissements%rowtype;
+  v_profil public.profiles%rowtype;
+  v_designation text;
+begin
+  select * into p from public.paiements where id = p_paiement;
+  if not found then return; end if;
+  if p.mode = 'offert' then return; end if;
+
+  -- vendeur : réglages obligatoires (sinon on bloque l'encaissement)
+  v_vendeur := jsonb_build_object(
+    'nom', (select value from public.settings where key = 'vendeur_nom'),
+    'adresse', (select value from public.settings where key = 'vendeur_adresse'),
+    'siret', (select value from public.settings where key = 'vendeur_siret'),
+    'mention_tva', coalesce((select value from public.settings where key = 'mention_tva'), 'TVA non applicable, art. 293 B du CGI')
+  );
+  if v_vendeur->>'nom' is null or v_vendeur->>'nom' = ''
+     or v_vendeur->>'adresse' is null or v_vendeur->>'adresse' = ''
+     or v_vendeur->>'siret' is null or v_vendeur->>'siret' = '' then
+    raise exception 'Complète tes informations de vendeur dans Réglages → Mentions sur les factures avant d''encaisser';
+  end if;
+
+  select * into v_profil from public.profiles where id = p.profil_id;
+  select * into v_etab from public.etablissements where id = p.profil_id;
+
+  v_numero := public.prochain_numero('facture');
+  v_designation := 'Abonnement DamUp — période du ' || to_char(p.periode_debut at time zone 'Europe/Paris', 'DD/MM/YYYY')
+                   || ' au ' || to_char(p.periode_fin at time zone 'Europe/Paris', 'DD/MM/YYYY');
+
+  insert into public.factures (numero, type, paiement_id, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)
+  values (
+    v_numero, 'facture', p.id, p.profil_id,
+    v_vendeur,
+    jsonb_build_object('nom', v_etab.nom, 'adresse', v_etab.adresse, 'siret', v_etab.siret, 'email', v_profil.email),
+    jsonb_build_array(jsonb_build_object('designation', v_designation, 'periode', v_designation, 'quantite', 1, 'prix_unitaire', p.montant, 'total', p.montant)),
+    p.montant, p.mode, p.created_at
+  )
+  returning id into v_facture_id;
+
+  perform public.envoyer_facture(v_facture_id);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.creer_facture_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.mode <> 'offert' then
+    perform public.creer_facture(new.id);
+  end if;
+  return new;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.date_courte(p_d date, p_langue text)
  RETURNS text
  LANGUAGE sql
@@ -593,6 +709,33 @@ begin
   return new;
 end;
 $function$;
+
+CREATE OR REPLACE FUNCTION public.envoyer_facture(p_facture_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_secret text;
+  v_anon text;
+begin
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
+  select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;
+  if v_secret is null then
+    update public.factures set envoi_erreur = 'Secret NOTIFIER_SECRET introuvable' where id = p_facture_id;
+    return;
+  end if;
+  perform net.http_post(
+    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/facture-envoyer',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || coalesce(v_anon, ''),
+      'x-damup-secret', v_secret
+    ),
+    body := jsonb_build_object('facture_id', p_facture_id::text)
+  );
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.est_suspendu()
  RETURNS boolean
@@ -884,6 +1027,31 @@ begin
   values (p_user, public.traduire(p_cle, coalesce(v_langue, 'fr'), p_params), p_cle, p_params);
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.prochain_numero(p_nom text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_annee int := extract(year from now())::int;
+  v_prefix text := case when p_nom = 'facture' then 'F' else 'A' end;
+  v_annee_c int;
+  v_val int;
+begin
+  select annee, valeur into v_annee_c, v_val from public.compteurs where nom = p_nom for update;
+  if v_val is null then
+    insert into public.compteurs (nom, annee, valeur) values (p_nom, v_annee, 1);
+    v_val := 1;
+  elsif v_annee_c <> v_annee then
+    update public.compteurs set annee = v_annee, valeur = 1 where nom = p_nom;
+    v_val := 1;
+  else
+    update public.compteurs set valeur = valeur + 1 where nom = p_nom returning valeur into v_val;
+  end if;
+  return v_prefix || '-' || v_annee || '-' || lpad(v_val::text, 5, '0');
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.prolonger_abonnement(p_profil uuid, p_montant numeric, p_mode text, p_periode text, p_date timestamp with time zone, p_ref text, p_note text)
  RETURNS paiements
  LANGUAGE plpgsql
@@ -1171,6 +1339,9 @@ CREATE TRIGGER verifie_medias_mission_trigger BEFORE INSERT ON public.missions F
 -- notifications: envoyer_email_notification
 CREATE TRIGGER envoyer_email_notification AFTER INSERT ON public.notifications FOR EACH ROW EXECUTE FUNCTION envoyer_email_notification();
 
+-- paiements: creer_facture_trigger
+CREATE TRIGGER creer_facture_trigger AFTER INSERT ON public.paiements FOR EACH ROW EXECUTE FUNCTION creer_facture_trigger();
+
 -- signalements: controle_signalement
 CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EACH ROW EXECUTE FUNCTION controle_signalement();
 
@@ -1220,6 +1391,9 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- etablissements.etablissements_update_own (UPDATE, to {)
   using (((id = auth.uid()) OR is_admin()))
+
+-- factures.factures_lecture (SELECT, to {)
+  using (((profil_id = auth.uid()) OR is_admin()))
 
 -- hotesses.hotesses_insert_own (INSERT, to {)
   with check ((id = auth.uid()))
