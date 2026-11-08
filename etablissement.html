@@ -127,16 +127,38 @@
   const ICONES = { boisson:"🍸", entree:"🥗", plat:"🍴", dessert:"🍰", chicha:"💨" };
 
   async function init() {
+    const codeScan = (location.hash.match(/#scan=([a-zA-Z0-9]+)/) || [])[1] || null;
     const { data } = await auth.getUser();
-    if (!data.user) { location.href = "login.html"; return; }
+    if (!data.user) {
+      if (codeScan) { try { localStorage.setItem("damup_scan_pending", codeScan); } catch (e) {} }
+      location.href = "login.html";
+      return;
+    }
     user = data.user;
     const { data: p } = await db.from("profiles").select("type").eq("id", user.id).single();
-    if (!p || p.type !== "etablissement") { location.href = "hotesse.html"; return; } // un établissement seulement
+    if (!p || p.type !== "etablissement") {
+      if (codeScan) {
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Jost,sans-serif;color:#2A1120;text-align:center;padding:20px"><div style="font-size:16px">⚠️<br><b>Ce QR code doit être scanné par l\'établissement à ton arrivée.</b></div></div>';
+        return;
+      }
+      location.href = "hotesse.html";
+      return;
+    }
     const { data: e } = await db.from("etablissements").select("id, nom, type, adresse, ville, siret, photos, videos, verifie, abonnement_actif, created_at").eq("id", user.id).single();
     etab = e;
     document.getElementById("avatar").textContent = (e?.nom || "?")[0].toUpperCase();
     afficher();
     initCloche("cloche", user.id);
+
+    // validation de présence si un code arrive (scan direct ou reconnexion)
+    let codeAValider = codeScan;
+    if (!codeAValider) { try { codeAValider = localStorage.getItem("damup_scan_pending"); if (codeAValider) localStorage.removeItem("damup_scan_pending"); } catch (e) {} }
+    if (codeAValider) {
+      vue = "accueil";
+      afficher();
+      validerPresenceCode(codeAValider);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
   }
 
   function afficher() {
@@ -502,7 +524,9 @@
 
   async function validerPresenceCode(code) {
     const msg = document.getElementById("msg-scan");
-    const { data, error } = await db.rpc("valider_presence", { p_code: code });
+    const t = (code || "").trim();
+    const vraiCode = (t.match(/#scan=([a-zA-Z0-9]+)/) || [])[1] || t;
+    const { data, error } = await db.rpc("valider_presence", { p_code: vraiCode });
     if (error) { msg.style.color = "var(--danger)"; msg.textContent = error.message; }
     else { msg.style.color = "var(--ok)"; msg.textContent = data; }
     chargerPresences();
