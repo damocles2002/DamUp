@@ -194,7 +194,7 @@
     const e = m.etablissements;
     const photos = e?.photos || [];
     const medias = (m.medias || []).filter(x => !photos.includes(x));
-    const tous = [...photos, ...medias];
+    const tous = [...photos, ...medias].map(p => urlPhoto(p)).filter(Boolean);
     const offres = (m.articles_offerts || []).map(a => `<span>${ICONES[a]||"•"} ${LIBELLES_ARTICLES[a]||a}</span>`).join("");
     const sheet = document.getElementById("sheet-mission");
     sheet.innerHTML = `

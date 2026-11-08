@@ -19,3 +19,8 @@ function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// URL de photo sécurisée : uniquement les URLs du bucket photos, échappées
+function urlPhoto(p) {
+  const ok = typeof p === "string" && p.startsWith(SB_URL + "/storage/v1/object/public/photos/");
+  return ok ? esc(p) : "";
+}

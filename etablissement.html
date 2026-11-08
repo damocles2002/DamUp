@@ -184,7 +184,7 @@
   function afficherApercuMedias() {
     const zone = document.getElementById("apercu-medias");
     if (!zone) return;
-    zone.innerHTML = mediasEnCours.map(m => `<div style="width:60px;height:60px;border-radius:10px;background-image:url('${m}');background-size:cover;background-position:center"></div>`).join("");
+    zone.innerHTML = mediasEnCours.map(m => `<div style="width:60px;height:60px;border-radius:10px;background-image:url('${urlPhoto(m)}');background-size:cover;background-position:center"></div>`).join("");
   }
 
   async function publierMission() {
@@ -251,7 +251,7 @@
     const zone = document.getElementById("swipe-zone");
     if (i >= mes.length) { zone.innerHTML = '<div class="vide">Toutes les candidates ont été vues 🎉</div>'; return; }
     const c = mes[i], h = c.hotesses;
-    const photo = (h.photos && h.photos[0]) ? `<img src="${h.photos[0]}" style="width:100%;height:100%;object-fit:cover">` : `<span class="initiale">${(h.prenom||"?")[0].toUpperCase()}</span>`;
+    const photo = urlPhoto(h.photos && h.photos[0]) ? `<img src="${urlPhoto(h.photos && h.photos[0])}" style="width:100%;height:100%;object-fit:cover">` : `<span class="initiale">${esc((h.prenom||"?")[0].toUpperCase())}</span>`;
     zone.innerHTML = `
       <div class="carte">
         <div class="photo">${photo}</div>
@@ -321,7 +321,7 @@
     document.getElementById("p-siret").value = e?.siret || "";
     const photos = e?.photos || [];
     document.getElementById("photos-etab").innerHTML = photos.length
-      ? photos.map((p, i) => `<div style="aspect-ratio:4/3;border-radius:10px;background-image:url('${p}');background-size:cover;background-position:center;position:relative"><span onclick="supprimerPhotoEtab(${i})" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.5);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer">✕</span></div>`).join("")
+      ? photos.map((p, i) => `<div style="aspect-ratio:4/3;border-radius:10px;background-image:url('${urlPhoto(p)}');background-size:cover;background-position:center;position:relative"><span onclick="supprimerPhotoEtab(${i})" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.5);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer">✕</span></div>`).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune photo pour le moment.</div>';
   }
 

@@ -123,10 +123,10 @@
     const { data: priv } = await db.rpc("hotesse_prive", { p_id: user.id });
     if (priv && priv.length) { h.telephone = priv[0].telephone; h.instagram = priv[0].instagram; h.signes_negatifs = priv[0].signes_negatifs; }
     profil = h;
-    const avatarUrl = (h?.photos && h.photos[0]) || "";
+    const avatarUrl = urlPhoto(h?.photos && h.photos[0]);
     document.getElementById("head").innerHTML = `
-      <div class="avatar">${avatarUrl ? `<img src="${avatarUrl}">` : (h?.prenom || "?")[0]}</div>
-      <div><h1>${h?.prenom || "Complète ton profil"}, ${h?.age || ""}</h1><div class="sub">${h?.ville || ""} · ${h?.instagram || ""}</div></div>
+      <div class="avatar">${avatarUrl ? `<img src="${avatarUrl}">` : esc((h?.prenom || "?")[0])}</div>
+      <div><h1>${esc(h?.prenom || "Complète ton profil")}, ${h?.age || ""}</h1><div class="sub">${esc(h?.ville || "")} · ${esc(h?.instagram || "")}</div></div>
       <div class="note"><div class="n">${h?.note_moyenne ?? 5}</div><div class="s">★★★★★</div><div class="c">${h?.nb_avis ?? 0} avis</div></div>`;
     // formulaire d'édition pré-rempli
     document.getElementById("e-prenom").value = h?.prenom || "";
@@ -147,7 +147,7 @@
       compteur.style.color = nb < 4 ? "#C0392B" : "var(--gris)";
     }
     let html = photos.map((p, i) => `
-      <div class="p" style="background-image:url('${p}')">
+      <div class="p" style="background-image:url('${urlPhoto(p)}')">
         <span class="del" onclick="supprimerPhoto(${i})">✕</span>
       </div>`).join("");
     // bouton ajouter (max 7 photos, comme le cahier des charges)
@@ -213,7 +213,7 @@
     document.getElementById("mes-missions").innerHTML = (data && data.length)
       ? data.map(c => {
           const m = c.missions;
-          return `<div class="avis"><div class="t"><span class="e">${m?.etablissements?.nom || ""}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${m?.adresse || ""}</div></div>`;
+          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div></div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
   }
@@ -237,10 +237,10 @@
     if (!data || !data.length) { zone.innerHTML = "Aucune mission à venir. Ton QR code apparaîtra ici une fois acceptée ✨"; return; }
     const c = data[0], m = c.missions;
     zone.innerHTML = `
-      <h2>${m.etablissements?.nom || "Mission"}</h2>
+      <h2>${esc(m.etablissements?.nom || "Mission")}</h2>
       <div class="sous">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</div>
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('DamUp:'+c.id)}&color=2A1120&bgcolor=FFFFFF" alt="QR">
-      <div class="info"><div>👤 <b>${user.email}</b></div><div>📍 ${m.adresse || ""}</div></div>
+      <div class="info"><div>👤 <b>${esc(user.email)}</b></div><div>📍 ${esc(m.adresse || "")}</div></div>
       ${c.statut === "acceptee" ? `<button class="btn btn-primaire btn-block" onclick="confirmerMission('${c.id}')" style="margin-top:14px">Confirmer ma venue ✅</button>` : `<div style="margin-top:12px;color:var(--champagne);font-size:13px">✅ Présence confirmée</div>`}`;
   }
 
