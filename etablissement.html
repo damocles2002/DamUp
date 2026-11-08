@@ -369,9 +369,11 @@
         <div id="bloc-abonnement"></div>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterPhotoEtab()">＋ Ajouter des photos</button>
       </div>
-      <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>`;
+      <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>
+      <div class="pub"><h3>Mes factures</h3><div id="mes-factures" class="vide">Chargement…</div></div>`;
     chargerProfilEtab();
     chargerPartenaire();
+    chargerMesFactures();
   }
 
   async function chargerProfilEtab() {
@@ -622,6 +624,22 @@
         zone.innerHTML = `<a href="${esc(lien)}" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:600">📸 Suivre notre partenaire</a>`;
       });
     } catch (e) {}
+  }
+  async function chargerMesFactures() {
+    const zone = document.getElementById("mes-factures");
+    if (!zone) return;
+    const { data } = await db.from("factures").select("*").eq("profil_id", user.id).order("date_emission", { ascending: false });
+    if (!data || !data.length) { zone.innerHTML = '<div style="color:var(--gris);font-size:12.5px">Aucune facture.</div>'; return; }
+    zone.innerHTML = data.map(f => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA">
+      <span>${esc(f.numero)} · ${new Date(f.date_emission).toLocaleDateString("fr-FR")} · ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(f.total))}</span>
+      <a style="color:var(--aubergine);cursor:pointer" onclick="telechargerFactureEtab('${(f.pdf_chemin || "").replace(/'/g, "")}')">Télécharger</a>
+    </div>`).join("");
+  }
+  async function telechargerFactureEtab(chemin) {
+    if (!chemin) { toast("PDF pas encore généré."); return; }
+    const { data, error } = await sb.storage.from("factures").createSignedUrl(chemin, 3600);
+    if (error) { toast(error.message, "erreur"); return; }
+    window.open(data.signedUrl, "_blank");
   }
 
   init();

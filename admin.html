@@ -433,8 +433,18 @@
     const periode = document.getElementById("f-periode").value;
     const montant = parseFloat(document.getElementById("f-montant").value) || 0;
     const note = document.getElementById("f-note").value || null;
-    const { data, error } = await db.rpc("admin_enregistrer_paiement", { p_profil: id, p_mode: mode, p_periode: periode, p_montant: montant, p_note: note });
+    const { data: paiement, error } = await db.rpc("admin_enregistrer_paiement", { p_profil: id, p_mode: mode, p_periode: periode, p_montant: montant, p_note: note });
     if (error) { toast(error.message, "erreur"); return; }
+    if (paiement && mode !== "offert") {
+      const { data: facture } = await db.from("factures").select("numero, envoyee_le, envoi_erreur, client").eq("paiement_id", paiement.id).eq("type", "facture").single();
+      if (facture) {
+        const email = facture.client?.email || "";
+        if (facture.envoi_erreur) toast("Paiement enregistré — facture " + facture.numero + " (envoi en échec)", "info");
+        else toast("Paiement enregistré — facture " + facture.numero + " envoyée" + (email ? " à " + email : ""), "ok");
+        document.getElementById("modal-fiche-admin")?.remove();
+        return;
+      }
+    }
     toast("Paiement enregistré ✅", "ok");
     document.getElementById("modal-fiche-admin")?.remove();
   }
@@ -529,7 +539,7 @@
   }
 
   // ============ RÉGLAGES ============
-  const TITRES_SECTIONS = { abonnements: "Abonnements", missions: "Missions", inscriptions: "Inscriptions", informations: "Informations", recus: "Mentions sur les reçus", maintenance: "Maintenance" };
+  const TITRES_SECTIONS = { abonnements: "Abonnements", missions: "Missions", inscriptions: "Inscriptions", informations: "Informations", recus: "Mentions sur les factures", maintenance: "Maintenance" };
   async function afficherReglages() {
     main.innerHTML = `<h1>Réglages</h1>` + Object.keys(TITRES_SECTIONS).map(sec =>
       `<div class='panneau'><div class='tete'>${TITRES_SECTIONS[sec]}</div><div style="padding:20px" id="sec-${sec}">Chargement…</div></div>`).join("");
@@ -776,9 +786,16 @@
   let recettesMois = new Date().toISOString().slice(0, 7);
   let recettesMode = "tous";
   let recettesData = [];
+  let recettesOnglet = "paiements";
+  function setRecettesOnglet(o) { recettesOnglet = o; afficherRecettes(); }
   async function afficherRecettes() {
+    if (recettesOnglet === "factures") return afficherFactures();
     main.innerHTML = `<h1>Recettes</h1>
-      <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button class="btn btn-sm btn-primaire" onclick="setRecettesOnglet('paiements')">Paiements</button>
+        <button class="btn btn-sm" onclick="setRecettesOnglet('factures')">Factures</button>
+      </div>
+      <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap">
         <input class="field" id="r-mois" type="month" value="${recettesMois}" onchange="recettesMois=this.value;chargerRecettes()" style="max-width:180px">
         <select class="field" id="r-mode" onchange="recettesMode=this.value;chargerRecettes()" style="max-width:180px">
           <option value="tous">Tous</option><option value="especes">Espèces</option><option value="carte">Carte</option><option value="prelevement">Prélèvement</option><option value="offert">Offert</option>
@@ -790,6 +807,44 @@
       <div id="total-recettes" style="margin-top:12px;font-weight:600"></div>`;
     document.getElementById("r-mode").value = recettesMode;
     chargerRecettes();
+  }
+
+  async function afficherFactures() {
+    main.innerHTML = `<h1>Recettes — Factures</h1>
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button class="btn btn-sm" onclick="setRecettesOnglet('paiements')">Paiements</button>
+        <button class="btn btn-sm btn-primaire" onclick="setRecettesOnglet('factures')">Factures</button>
+      </div>
+      <div class='panneau'><div id='liste-factures' class='vide'>Chargement…</div></div>`;
+    chargerFactures();
+  }
+  async function chargerFactures() {
+    const { data } = await db.from("factures").select("*").order("date_emission", { ascending: false });
+    const zone = document.getElementById("liste-factures");
+    if (!zone) return;
+    if (!data || !data.length) { zone.innerHTML = '<div class="vide">Aucune facture.</div>'; return; }
+    zone.innerHTML = `<table><tr><th>Numéro</th><th>Date</th><th>Client</th><th>Montant</th><th>Mode</th><th>Envoi</th><th></th></tr>
+      ${data.map(f => `<tr>
+        <td>${esc(f.numero)} ${f.type === "avoir" ? '<span class="badge badge-rouge">Avoir</span>' : ""}</td>
+        <td>${new Date(f.date_emission).toLocaleDateString("fr-FR")}</td>
+        <td>${esc(f.client?.nom || "—")}</td>
+        <td>${montantFormat(f.total)}</td>
+        <td>${libelleMode(f.mode_paiement)}</td>
+        <td>${f.envoyee_le ? '<span style="color:#1E7A3C">Envoyée</span>' : (f.envoi_erreur ? '<span style="color:#E67E22">Échec</span>' : '<span style="color:var(--gris)">En attente</span>')}</td>
+        <td><button class="btn btn-sm" onclick="telechargerFacture('${f.id}','${(f.pdf_chemin||"").replace(/'/g,"")}')">PDF</button> <button class="btn btn-sm" onclick="renvoyerFacture('${f.id}')">Renvoyer</button></td>
+      </tr>`).join("")}</table>`;
+  }
+  async function telechargerFacture(id, chemin) {
+    if (!chemin) { toast("PDF pas encore généré."); return; }
+    const { data, error } = await sb.storage.from("factures").createSignedUrl(chemin, 3600);
+    if (error) { toast(error.message, "erreur"); return; }
+    window.open(data.signedUrl, "_blank");
+  }
+  async function renvoyerFacture(id) {
+    const { error } = await db.rpc("admin_renvoyer_facture", { p_facture_id: id });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Envoi relancé ✅", "ok");
+    setTimeout(chargerFactures, 2000);
   }
   async function chargerRecettes() {
     const { data } = await db.rpc("admin_recettes");

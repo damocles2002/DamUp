@@ -53,3 +53,23 @@ Une fois `paiement_en_ligne_actif` activé dans les Réglages :
 3. Les abonnés en ligne verront « Réactive ton paiement » et referont une fois le paiement
    (leurs anciennes autorisations restent liées à l'ancien compte).
 4. Les paiements **en espèces** ne sont pas concernés.
+
+## 7. Factures automatiques
+
+À chaque paiement (espèces, carte ou prélèvement), une **facture DamUp** est créée, numérotée
+(`F-2026-00001`…), enregistrée en PDF et envoyée automatiquement par e-mail. Un **avoir**
+(`A-2026-00001`…) remplace la facture en cas d'annulation.
+
+- **Dans Stripe, désactive l'envoi des factures Stripe** aux clients (garde seulement les reçus de
+  paiement si besoin) : seule la facture DamUp fait foi, pour éviter deux numérotations.
+  (Stripe → Réglages → E-mails clients → Factures → désactiver.)
+
+- **Les factures exigent ton SIRET** : remplis Réglages → Mentions sur les factures dès la création de
+  ta micro-entreprise. Avant cela, l'encaissement est bloqué avec un message clair.
+
+- **Facturation électronique** : elle devient progressivement obligatoire en France entre entreprises,
+  via des plateformes agréées. Les factures étant enregistrées de façon structurée, il sera possible
+  de les y transmettre ; vérifie le calendrier qui s'applique à toi avec ton comptable.
+
+- **Avant le premier vrai paiement** : lance le script `supabase/remise_a_zero_paiements.sql`
+  (paiements de test, compteurs de reçus et de factures remis à zéro).
