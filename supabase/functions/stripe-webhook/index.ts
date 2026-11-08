@@ -1,6 +1,7 @@
 // ============================================================
 //  DamUp — Edge Function "stripe-webhook"
 //  Signature Stripe obligatoire (STRIPE_WEBHOOK_SECRET).
+//  Corrigé : moyen de paiement réel, erreurs -> 500, admins prévenus.
 // ============================================================
 import Stripe from "npm:stripe@14";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -21,50 +22,85 @@ Deno.serve(async (req) => {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  try {
-    const obj = event.data.object as any;
+  const obj = event.data.object as any;
 
+  async function profilParCustomer(customerId: string) {
+    if (!customerId) return null;
+    const { data } = await admin.from("profiles").select("id, periode").eq("stripe_customer_id", customerId).single();
+    return data ?? null;
+  }
+  async function prevenirAdmins(message: string) {
+    const { data: admins } = await admin.from("profiles").select("id").eq("type", "admin");
+    for (const a of admins || []) {
+      await admin.from("notifications").insert({ user_id: a.id, message });
+    }
+  }
+  // détermine le moyen de paiement réel d'un PaymentIntent (carte / sepa_debit)
+  async function typePaiement(paymentIntentId: string): Promise<string> {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (pi.payment_method) {
+        const pm = await stripe.paymentMethods.retrieve(pi.payment_method as string);
+        return pm.type === "sepa_debit" ? "prelevement" : "carte";
+      }
+      if (pi.payment_method_types?.length === 1 && pi.payment_method_types[0] === "sepa_debit") return "prelevement";
+    } catch (e) { /* ignore */ }
+    return "carte";
+  }
+
+  try {
     if (event.type === "invoice.paid") {
-      const customerId = obj.customer;
-      if (customerId) {
-        const { data: prof } = await admin.from("profiles").select("id, periode").eq("stripe_customer_id", customerId).single();
-        if (prof?.id) {
-          const mode = obj.payment_intent?.payment_method_types?.includes("sepa_debit") ? "prelevement" : "carte";
-          const montant = obj.amount_paid / 100;
-          await admin.rpc("prolonger_abonnement", {
-            p_profil: prof.id, p_montant: montant, p_mode: mode,
-            p_periode: prof.periode || "mensuel", p_date: new Date().toISOString(),
-            p_ref: obj.id, p_note: null,
-          });
-        }
-      }
+      // obj.payment_intent est un ID, pas un objet ; le récupérer via l'API pour
+      // distinguer carte et prélèvement.
+      const prof = await profilParCustomer(obj.customer);
+      if (!prof) throw new Error("Profil introuvable pour la facture " + obj.id);
+      let mode = "carte";
+      if (obj.payment_intent) mode = await typePaiement(obj.payment_intent);
+      const montant = obj.amount_paid / 100;
+      const { error } = await admin.rpc("prolonger_abonnement", {
+        p_profil: prof.id, p_montant: montant, p_mode: mode,
+        p_periode: prof.periode || "mensuel", p_date: new Date().toISOString(),
+        p_ref: obj.id, p_note: null,
+      });
+      if (error) throw new Error("prolonger_abonnement: " + error.message);
+
     } else if (event.type === "checkout.session.completed") {
-      // prélèvement SEPA : délai de grâce de 7 jours (confirmation lente)
-      if (obj.payment_method_types?.includes("sepa_debit")) {
-        const profilId = obj.metadata?.profil_id;
-        if (profilId) {
-          const { data: prof } = await admin.from("profiles").select("actif_jusqu_a").eq("id", profilId).single();
-          const grace = new Date(Math.max(new Date(prof?.actif_jusqu_a || 0).getTime(), Date.now() + 7 * 86400000)).toISOString();
-          await admin.from("profiles").update({ actif_jusqu_a: grace }).eq("id", profilId);
+      // délai de grâce SEPA seulement si l'abonnement utilise réellement sepa_debit
+      const profilId = obj.metadata?.profil_id;
+      const subscriptionId = obj.subscription;
+      if (!profilId || !subscriptionId) return new Response("ok", { status: 200 });
+      let sepa = false;
+      try {
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        if (sub.default_payment_method) {
+          const pm = await stripe.paymentMethods.retrieve(sub.default_payment_method as string);
+          sepa = pm.type === "sepa_debit";
+        } else if (obj.payment_method_types?.length === 1 && obj.payment_method_types[0] === "sepa_debit") {
+          sepa = true;
         }
+      } catch (e) { sepa = false; }
+      if (sepa) {
+        const { data: prof } = await admin.from("profiles").select("actif_jusqu_a").eq("id", profilId).single();
+        const grace = new Date(Math.max(new Date(prof?.actif_jusqu_a || 0).getTime(), Date.now() + 7 * 86400000)).toISOString();
+        const { error } = await admin.from("profiles").update({ actif_jusqu_a: grace }).eq("id", profilId);
+        if (error) throw new Error("délai de grâce: " + error.message);
       }
+
     } else if (event.type === "invoice.payment_failed") {
-      const email = obj.customer_email;
-      if (email) {
-        const { data: prof } = await admin.from("profiles").select("id").eq("email", email).single();
-        if (prof?.id) {
-          await admin.from("notifications").insert({ user_id: prof.id, message: "⚠️ Ton paiement n'est pas passé, mets à jour ton moyen de paiement." });
-        }
+      const prof = await profilParCustomer(obj.customer);
+      if (prof) {
+        const { error } = await admin.from("notifications").insert({ user_id: prof.id, message: "⚠️ Ton paiement n'est pas passé, mets à jour ton moyen de paiement." });
+        if (error) throw new Error("notification client: " + error.message);
       }
+      await prevenirAdmins("⚠️ Un paiement Stripe a échoué (facture " + obj.id + ").");
+
     } else if (event.type === "charge.dispute.created") {
-      const { data: admins } = await admin.from("profiles").select("id").eq("type", "admin");
-      for (const a of admins || []) {
-        await admin.from("notifications").insert({ user_id: a.id, message: "⚠️ Contestation Stripe détectée. Consulte ton tableau de bord Stripe." });
-      }
+      await prevenirAdmins("⚠️ Contestation Stripe détectée. Consulte ton tableau de bord Stripe.");
     }
 
     return new Response("ok", { status: 200 });
   } catch (e) {
-    return new Response("error", { status: 200 });
+    console.error("stripe-webhook error:", (e as Error).message);
+    return new Response("error: " + (e as Error).message, { status: 500 });
   }
 });
