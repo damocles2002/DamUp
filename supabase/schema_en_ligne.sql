@@ -93,7 +93,10 @@ create table public.etablissements (
   "videos" jsonb NOT NULL DEFAULT '[]'::jsonb,
   "verifie" boolean NOT NULL DEFAULT false,
   "abonnement_actif" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "id_document" jsonb,
+  "verifie_le" timestamp with time zone,
+  "verifie_par" uuid
 );
 
 -- TABLE factures
@@ -133,7 +136,9 @@ create table public.hotesses (
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   "telephone" text,
   "missions_honorees" integer NOT NULL DEFAULT 0,
-  "code_damup" text
+  "code_damup" text,
+  "verifie_le" timestamp with time zone,
+  "verifie_par" uuid
 );
 
 -- TABLE invitations_copine
@@ -483,6 +488,26 @@ begin
   if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
   update public.factures set envoyee_le = null, envoi_erreur = null where id = p_facture_id;
   perform public.envoyer_facture(p_facture_id);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_valider_identite(p_profil uuid, p_type text, p_valide boolean, p_motif text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if p_type = 'hotesse' then
+    update public.hotesses set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null
+     where id = p_profil;
+  else
+    update public.etablissements set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null
+     where id = p_profil;
+  end if;
+  if not p_valide then
+    perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee', jsonb_build_object('motif', coalesce(p_motif, '')));
+  end if;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.apres_annulation()
@@ -1444,6 +1469,22 @@ begin
     end if;
   end if;
   return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.rappeler_verification()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.notifications (user_id, message, cle, params)
+  select h.id, public.traduire('verif.rappel', coalesce(p.langue, 'fr')), 'verif.rappel', '{}'::jsonb
+    from public.hotesses h join public.profiles p on p.id = h.id
+   where h.id_document is null and not h.verifie
+     and h.created_at < now() - interval '48 hours'
+     and not exists (select 1 from public.notifications n
+                      where n.user_id = h.id and n.cle = 'verif.rappel');
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.reference_virement(p_uid uuid)
