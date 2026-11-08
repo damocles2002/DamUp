@@ -211,7 +211,13 @@
         const { error } = await auth.signInWithPassword({ email, password: mdp });
         if (error) throw error;
         afficherMsg("Connecté ! Redirection…", "ok");
-        const { data: p } = await db.from("profiles").select("type").eq("id", (await auth.getUser()).data.user.id).single();
+        const { data: u } = await auth.getUser();
+        const { data: p } = await db.from("profiles").select("type, suspendu").eq("id", u.user.id).single();
+        if (p && p.suspendu) {
+          await auth.signOut();
+          afficherMsg("Ton compte est suspendu. Contacte DamUp.", "err");
+          return;
+        }
         const type = p && p.type;
         setTimeout(() => location.href = type === "etablissement" ? "etablissement.html" : (type === "admin" ? "admin.html" : "hotesse.html"), 600);
       }

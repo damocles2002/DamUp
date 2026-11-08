@@ -64,6 +64,7 @@
     <nav class="menu">
       <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau de bord</a>
       <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
+      <a data-vue="missions"><span class="ico">📅</span>Missions</a>
       <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
       <a data-vue="equipe"><span class="ico">🛡️</span>Équipe & droits</a>
       <div class="sep"></div>
@@ -75,6 +76,7 @@
   <div class="menu-mobile">
     <a class="on" data-vue="dashboard"><span class="ico">📊</span>Tableau</a>
     <a data-vue="utilisateurs"><span class="ico">👥</span>Utilisateurs</a>
+    <a data-vue="missions"><span class="ico">📅</span>Missions</a>
     <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
     <a data-vue="equipe"><span class="ico">🛡️</span>Équipe</a>
     <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
@@ -105,6 +107,7 @@
   function afficher() {
     if (vue === "dashboard") return afficherDashboard();
     if (vue === "utilisateurs") return afficherUtilisateurs();
+    if (vue === "missions") return afficherMissions();
     if (vue === "signalements") return afficherSignalements();
     if (vue === "reglages") return afficherReglages();
     if (vue === "equipe") return afficherEquipe();
@@ -138,25 +141,26 @@
     main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste-hotesses' class='vide'>Chargement…</div></div><div class='panneau'><div class='tete'>Établissements</div><div id='liste-etabs' class='vide'>Chargement…</div></div>";
     const { data } = await db.rpc("admin_hotesses");
     document.getElementById("liste-hotesses").innerHTML = (data && data.length) ? `
-      <table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th></th></tr>
+      <table><tr><th>Hôtesse</th><th>Photos</th><th>Ville</th><th>Contact</th><th>Statut</th><th></th></tr>
       ${data.map(h => `<tr>
         <td><div class="cell"><div class="av">${esc((h.prenom||"?")[0])}</div>${esc(h.prenom)}, ${h.age}</div></td>
+        <td>${(h.photos||[]).slice(0,3).map(p => urlPhoto(p) ? `<img src="${urlPhoto(p)}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;margin-right:2px">` : "").join("") || "—"}</td>
         <td>${esc(h.ville || "—")}</td>
-        <td style="font-size:12.5px;color:var(--gris)">${esc(h.instagram || "")}<br>${esc(h.telephone || "")}</td>
+        <td style="font-size:12.5px;color:var(--gris)">${h.instagram ? `<a href="https://instagram.com/${esc(h.instagram.replace(/[^a-zA-Z0-9._]/g, ""))}" target="_blank">@${esc(h.instagram)}</a>` : ""}<br>${esc(h.telephone || "")}</td>
         <td>${h.verifie ? '<span class="badge badge-vert">Vérifiée</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
-        <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button>`}</td>
+        <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${h.id}','hotesse')">Refuser</button>`}</td>
       </tr>`).join("")}
       </table>` : "Aucune hôtesse.";
-    const { data: etabs } = await db.from("etablissements").select("id, nom, type, ville, siret, verifie").order("created_at", { ascending: false });
+    const { data: etabs } = await db.from("etablissements").select("id, nom, type, ville, siret, photos, verifie").order("created_at", { ascending: false });
     document.getElementById("liste-etabs").innerHTML = (etabs && etabs.length) ? `
       <table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>SIRET</th><th>Statut</th><th></th></tr>
       ${etabs.map(e => `<tr>
         <td><div class="cell"><div class="av">${esc((e.nom||"?")[0])}</div>${esc(e.nom)}</div></td>
         <td>${esc(e.type || "—")}</td>
         <td>${esc(e.ville || "—")}</td>
-        <td>${esc(e.siret || "—")}</td>
+        <td style="font-size:12.5px">${e.siret ? `<a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(String(e.siret).slice(0,9))}" target="_blank">${esc(e.siret)}</a>` : "—"}</td>
         <td>${e.verifie ? '<span class="badge badge-vert">Vérifié</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
-        <td>${e.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="validerEtab('${e.id}')">Valider</button>`}</td>
+        <td>${e.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="validerEtab('${e.id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${e.id}','etablissement')">Refuser</button>`}</td>
       </tr>`).join("")}
       </table>` : "Aucun établissement.";
   }
@@ -168,16 +172,55 @@
     await db.from("etablissements").update({ verifie: true }).eq("id", id);
     afficherUtilisateurs();
   }
+  async function refuser(id, type) {
+    const motif = prompt("Motif du refus (envoyé à la personne) :");
+    if (!motif) return;
+    await db.from("notifications").insert({ user_id: id, message: "Ton profil n'a pas été validé : " + motif + ". Corrige-le puis contacte-nous." });
+    afficherUtilisateurs();
+  }
 
   // ============ SIGNALEMENTS ============
+  let signalementsFiltre = "nouveau";
   async function afficherSignalements() {
-    main.innerHTML = "<h1>Signalements</h1><div class='panneau'><div class='tete'>Reçus</div><div id='liste' class='vide'>Chargement…</div></div>";
+    main.innerHTML = "<h1>Signalements</h1><div style='margin:10px 0'><button class='btn btn-sm' onclick='filtrerSignalements(\"nouveau\")'>Nouveaux</button> <button class='btn btn-sm' onclick='filtrerSignalements(\"traite\")'>Traités</button> <button class='btn btn-sm' onclick='filtrerSignalements(\"tous\")'>Tous</button></div><div class='panneau'><div class='tete'>Reçus</div><div id='liste' class='vide'>Chargement…</div></div>";
+    signalementsFiltre = "nouveau";
+    chargerSignalements();
+  }
+  async function chargerSignalements() {
     const { data } = await db.from("signalements").select("*").order("created_at", { ascending: false });
-    document.getElementById("liste").innerHTML = (data && data.length) ? data.map(s => `
+    const liste = (data || []).filter(s => signalementsFiltre === "tous" ? true : (signalementsFiltre === "nouveau" ? s.statut === "nouveau" : s.statut === "traite"));
+    document.getElementById("liste").innerHTML = (liste.length) ? liste.map(s => `
       <div style="padding:13px 20px;border-top:1px solid #F5EEE2">
-        <b>${esc(s.signalant_type)} → ${esc(s.cible_type)}</b> <span style="color:var(--gris)">${esc(s.motif || "")}</span>
-        <span class="badge ${s.statut==='nouveau' ? 'badge-rouge' : 'badge-aubergine'}">${s.statut}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>${esc(s.signalant_type)} → ${esc(s.cible_type)}</b>
+          <span class="badge ${s.statut==='nouveau' ? 'badge-rouge' : 'badge-aubergine'}">${s.statut}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--gris);margin-top:4px">${esc(s.motif || "")}</div>
+        <div style="font-size:12px;color:var(--gris);margin-top:4px">Le ${new Date(s.created_at).toLocaleString("fr-FR")} · ${esc(s.cible_id || "")}</div>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+          <button class="btn btn-sm btn-primaire" onclick="traiterSignalement('${s.id}')">Marquer traité</button>
+          <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCible('${s.id}','${s.cible_id}')">Suspendre</button>
+          ${s.cible_type === 'mission' ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionSignalement('${s.cible_id}')">Annuler la mission</button>` : ""}
+        </div>
       </div>`).join("") : "Aucun signalement.";
+  }
+  function filtrerSignalements(f) { signalementsFiltre = f; chargerSignalements(); }
+  async function traiterSignalement(id) {
+    const decision = prompt("Décision (affichée en interne) :");
+    if (!decision) return;
+    await db.from("signalements").update({ statut: "traite", decision }).eq("id", id);
+    chargerSignalements();
+  }
+  async function suspendreCible(id, cibleId) {
+    if (!confirm("Suspendre le compte visé ? Il ne pourra plus postuler ni publier.")) return;
+    await db.from("profiles").update({ suspendu: true }).eq("id", cibleId);
+    await db.from("signalements").update({ statut: "traite" }).eq("id", id);
+    chargerSignalements();
+  }
+  async function annulerMissionSignalement(missionId) {
+    if (!confirm("Annuler cette mission ?")) return;
+    await db.from("missions").update({ statut: "annulee" }).eq("id", missionId);
+    chargerSignalements();
   }
 
   // ============ RÉGLAGES (prix) ============
@@ -319,6 +362,37 @@
     if (!confirm("Retirer le rôle administrateur de ce compte ?")) return;
     await db.from("profiles").update({ type: "hotesse" }).eq("id", id);
     chargerAdmins();
+  }
+
+  // ============ MISSIONS ============
+  async function afficherMissions() {
+    main.innerHTML = "<h1>Missions</h1><div class='panneau'><div class='tete'>À venir</div><div id='liste-missions' class='vide'>Chargement…</div></div>";
+    const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, etablissements(nom)").order("date", { ascending: true });
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const aVenir = (data || []).filter(m => m.date >= aujourdhui && !["terminee", "annulee"].includes(m.statut));
+    document.getElementById("liste-missions").innerHTML = (aVenir.length) ? `
+      <table><tr><th>Établissement</th><th>Date</th><th>Horaires</th><th>Places</th><th>Statut</th><th></th></tr>
+      ${aVenir.map(m => `<tr>
+        <td>${esc(m.etablissements?.nom || "—")}</td>
+        <td>${formatDate(m.date)}</td>
+        <td>${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</td>
+        <td>${m.places_restantes ?? m.nb_hotesses}/${m.nb_hotesses}</td>
+        <td><span class="badge badge-aubergine">${esc(m.statut)}</span></td>
+        <td><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionAdmin('${m.id}')">Annuler</button></td>
+      </tr>`).join("")}
+      </table>` : "Aucune mission à venir.";
+  }
+  async function annulerMissionAdmin(id) {
+    const motif = prompt("Motif de l'annulation (envoyé à l'établissement et aux hôtesses) :");
+    if (!motif) return;
+    await db.from("missions").update({ statut: "annulee" }).eq("id", id);
+    const { data: m } = await db.from("missions").select("etablissement_id").eq("id", id).single();
+    if (m) await db.from("notifications").insert({ user_id: m.etablissement_id, message: "Ta mission a été annulée par DamUp : " + motif + "." });
+    const { data: cands } = await db.from("candidatures").select("hotesse_id").eq("mission_id", id).in("statut", ["acceptee", "confirmee"]);
+    for (const c of (cands || [])) {
+      await db.from("notifications").insert({ user_id: c.hotesse_id, message: "Ta mission a été annulée par DamUp : " + motif + "." });
+    }
+    afficherMissions();
   }
 
   init();
