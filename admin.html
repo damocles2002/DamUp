@@ -145,7 +145,7 @@
         <div class="stat"><div class="v">${e.count ?? 0}</div><div class="l">Établissements</div></div>
         <div class="stat"><div class="v">${m.count ?? 0}</div><div class="l">Missions publiées</div></div>
         <div class="stat"><div class="v">${c.count ?? 0}</div><div class="l">Candidatures</div></div>
-        <div class="stat" style="cursor:pointer" onclick="vue='recettes';afficherRecettes()"><div class="v">${totalRecettes.toFixed(0)} €</div><div class="l">Recettes du mois</div></div>
+        <div class="stat" style="cursor:pointer" onclick="vue='recettes';afficherRecettes()"><div class="v">${montantFormat(totalRecettes)}</div><div class="l">Recettes du mois</div></div>
         <div class="stat" style="cursor:pointer" onclick="vue='utilisateurs';afficherUtilisateurs()"><div class="v">${aRenouveler}</div><div class="l">Abonnements à renouveler</div></div>
       </div>
       <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
@@ -294,6 +294,13 @@
     telechargerOuPartager(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), nom, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
 
+  function libelleMode(mode) {
+    return { especes: "Espèces", carte: "Carte", prelevement: "Prélèvement", offert: "Offert" }[mode] || mode;
+  }
+  function montantFormat(v) {
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(v || 0));
+  }
+
   function filtreAnnuaire(x) {
     if (annuaireFiltre === "verifie") return x.verifie;
     if (annuaireFiltre === "en_attente") return !x.verifie;
@@ -401,7 +408,7 @@
 
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Historique des paiements</b>
           ${(paiements && paiements.length) ? paiements.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA">
-            <span>${p.numero_recu} · ${p.mode} · ${Number(p.montant).toFixed(2)} €</span>
+            <span>${p.numero_recu} · ${libelleMode(p.mode)} · ${montantFormat(p.montant)}</span>
             <span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a> ${(p.mode==="especes"||p.mode==="offert") ? `<a style="color:var(--danger);cursor:pointer" onclick="annulerPaiement('${p.id}','${id}')">Annuler</a>` : ""}</span>
           </div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucun paiement.</div>'}
         </div>
@@ -781,19 +788,20 @@
     chargerRecettes();
   }
   async function chargerRecettes() {
-    const { data } = await db.from("paiements").select("*").order("created_at", { ascending: false });
+    const { data } = await db.rpc("admin_recettes");
     recettesData = (data || []).filter(p => {
       const mois = new Date(p.created_at).toISOString().slice(0, 7);
       return (recettesMois ? mois === recettesMois : true) && (recettesMode === "tous" ? true : p.mode === recettesMode);
     });
     const total = recettesData.reduce((s, p) => s + Number(p.montant), 0);
-    document.getElementById("total-recettes").innerHTML = "Total : " + total.toFixed(2) + " € (" + recettesData.length + " paiement(s))";
-    document.getElementById("liste-recettes").innerHTML = recettesData.length ? `<table><tr><th>Date</th><th>Reçu</th><th>Mode</th><th>Montant</th><th>Période</th><th></th></tr>
+    document.getElementById("total-recettes").innerHTML = "Total : " + montantFormat(total) + " (" + recettesData.length + " paiement(s))";
+    document.getElementById("liste-recettes").innerHTML = recettesData.length ? `<table><tr><th>Date</th><th>Reçu</th><th>Client</th><th>Mode</th><th>Montant</th><th>Période</th><th></th></tr>
       ${recettesData.map(p => `<tr>
         <td>${new Date(p.created_at).toLocaleDateString("fr-FR")}</td>
         <td>${esc(p.numero_recu)}</td>
-        <td>${esc(p.mode)}</td>
-        <td>${Number(p.montant).toFixed(2)} €</td>
+        <td>${esc(p.client || "—")}</td>
+        <td>${libelleMode(p.mode)}</td>
+        <td>${montantFormat(p.montant)}</td>
         <td>${new Date(p.periode_debut).toLocaleDateString("fr-FR")} → ${new Date(p.periode_fin).toLocaleDateString("fr-FR")}</td>
         <td><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a></td>
       </tr>`).join("")}</table>` : '<div class="vide">Aucun paiement.</div>';
@@ -801,7 +809,7 @@
   function exporterRecettes() {
     const sep = ";";
     const lignes = [["Date","Numero recu","Mode","Montant","Periode debut","Periode fin"]];
-    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, p.mode, Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
+    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, libelleMode(p.mode), Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
     const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     telechargerOuPartager(blob, "recettes.csv", "text/csv;charset=utf-8");
@@ -809,7 +817,7 @@
 
   function exporterRecettesXlsx() {
     const lignes = [["Date","Numero recu","Mode","Montant","Periode debut","Periode fin"]];
-    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, p.mode, Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
+    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, libelleMode(p.mode), Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
     exporterXlsx(lignes, "recettes.xlsx");
   }
 
