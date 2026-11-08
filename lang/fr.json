@@ -110,5 +110,9 @@
   "erreurs.email_non_confirme": "Confirme d'abord ton e-mail (vérifie ta boîte mail).",
   "erreurs.generique": "Une erreur est survenue.",
 
+  "notif.nouvelle_candidature": "📩 {prenom} a postulé à ta mission du {date}.",
+  "notif.validation_refusee": "Ton profil n'a pas été validé : {motif}. Corrige-le puis contacte-nous.",
+  "notif.mission_annulee_admin": "Ta mission a été annulée par DamUp : {motif}.",
+
   "legal.traduction_note": "Traduction fournie pour faciliter la lecture. En cas de différence, la version française fait foi."
 }

@@ -100,6 +100,24 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.contestation_admin', 'es', '⚠️ Se ha detectado una disputa en Stripe. Revisa tu panel de Stripe.'),
 ('notif.contestation_admin', 'zh', '⚠️ 检测到 Stripe 争议。请查看您的 Stripe 后台。'),
 
+-- nouvelle candidature
+('notif.nouvelle_candidature', 'fr', '📩 {prenom} a postulé à ta mission du {date}.'),
+('notif.nouvelle_candidature', 'en', '📩 {prenom} applied to your mission on {date}.'),
+('notif.nouvelle_candidature', 'es', '📩 {prenom} se inscribió a tu evento del {date}.'),
+('notif.nouvelle_candidature', 'zh', '📩 {prenom} 报名了您 {date} 的场次。'),
+
+-- refus de validation
+('notif.validation_refusee', 'fr', 'Ton profil n''a pas été validé : {motif}. Corrige-le puis contacte-nous.'),
+('notif.validation_refusee', 'en', 'Your profile was not approved: {motif}. Please fix it and contact us.'),
+('notif.validation_refusee', 'es', 'Tu perfil no fue aprobado: {motif}. Corrígelo y contáctanos.'),
+('notif.validation_refusee', 'zh', '您的资料未通过审核：{motif}。请修改后联系我们。'),
+
+-- annulation de mission par l'admin
+('notif.mission_annulee_admin', 'fr', 'Ta mission a été annulée par DamUp : {motif}.'),
+('notif.mission_annulee_admin', 'en', 'Your mission was cancelled by DamUp: {motif}.'),
+('notif.mission_annulee_admin', 'es', 'Tu evento fue cancelado por DamUp: {motif}.'),
+('notif.mission_annulee_admin', 'zh', '您的场次已被 DamUp 取消：{motif}。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp — Nouvelle notification'),
 ('email.sujet', 'en', 'DamUp — New notification'),

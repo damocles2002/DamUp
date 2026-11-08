@@ -360,7 +360,9 @@
   async function refuser(id, type) {
     const motif = prompt("Motif du refus (envoyé à la personne) :");
     if (!motif) return;
-    await db.from("notifications").insert({ user_id: id, message: "Ton profil n'a pas été validé : " + motif + ". Corrige-le puis contacte-nous." });
+    const { error } = await db.rpc("admin_refuser_profil", { p_profil: id, p_motif: motif });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Profil refusé ✅");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }
@@ -405,7 +407,11 @@
   }
   async function annulerMissionSignalement(missionId) {
     if (!await demander("Annuler cette mission ?")) return;
-    await db.from("missions").update({ statut: "annulee" }).eq("id", missionId);
+    const motif = prompt("Motif de l'annulation (envoyé à l'établissement et aux hôtesses) :");
+    if (!motif) return;
+    const { error } = await db.rpc("admin_annuler_mission", { p_mission: missionId, p_motif: motif });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Mission annulée ✅");
     chargerSignalements();
   }
 
@@ -623,13 +629,9 @@
   async function annulerMissionAdmin(id) {
     const motif = prompt("Motif de l'annulation (envoyé à l'établissement et aux hôtesses) :");
     if (!motif) return;
-    await db.from("missions").update({ statut: "annulee" }).eq("id", id);
-    const { data: m } = await db.from("missions").select("etablissement_id").eq("id", id).single();
-    if (m) await db.from("notifications").insert({ user_id: m.etablissement_id, message: "Ta mission a été annulée par DamUp : " + motif + "." });
-    const { data: cands } = await db.from("candidatures").select("hotesse_id").eq("mission_id", id).in("statut", ["acceptee", "confirmee"]);
-    for (const c of (cands || [])) {
-      await db.from("notifications").insert({ user_id: c.hotesse_id, message: "Ta mission a été annulée par DamUp : " + motif + "." });
-    }
+    const { error } = await db.rpc("admin_annuler_mission", { p_mission: id, p_motif: motif });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Mission annulée ✅");
     afficherMissions();
   }
 

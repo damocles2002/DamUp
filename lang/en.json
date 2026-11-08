@@ -110,5 +110,9 @@
   "erreurs.email_non_confirme": "Please confirm your email first (check your inbox).",
   "erreurs.generique": "Something went wrong.",
 
+  "notif.nouvelle_candidature": "📩 {prenom} applied to your mission on {date}.",
+  "notif.validation_refusee": "Your profile was not approved: {motif}. Please fix it and contact us.",
+  "notif.mission_annulee_admin": "Your mission was cancelled by DamUp: {motif}.",
+
   "legal.traduction_note": "Translation provided for convenience. In case of any difference, the French version prevails."
 }

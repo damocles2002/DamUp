@@ -43,6 +43,14 @@ create table public.candidatures (
   "rappel_envoye" boolean NOT NULL DEFAULT false
 );
 
+-- TABLE email_erreurs
+create table public.email_erreurs (
+  "id" bigint NOT NULL,
+  "date" timestamp with time zone NOT NULL DEFAULT now(),
+  "user_id" uuid,
+  "raison" text
+);
+
 -- TABLE equipe
 create table public.equipe (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -125,7 +133,9 @@ create table public.notifications (
   "user_id" uuid NOT NULL,
   "message" text NOT NULL,
   "lu" boolean NOT NULL DEFAULT false,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "cle" text,
+  "params" jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
 -- TABLE paiements
@@ -155,7 +165,8 @@ create table public.profiles (
   "actif_jusqu_a" timestamp with time zone,
   "rappel_fin_envoye_pour" timestamp with time zone,
   "stripe_customer_id" text,
-  "stripe_compte" text
+  "stripe_compte" text,
+  "langue" text NOT NULL DEFAULT 'fr'::text
 );
 
 -- TABLE settings
@@ -175,6 +186,13 @@ create table public.signalements (
   "statut" text NOT NULL DEFAULT 'nouveau'::text,
   "decision" text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE traductions
+create table public.traductions (
+  "cle" text NOT NULL,
+  "langue" text NOT NULL,
+  "texte" text NOT NULL
 );
 
 
@@ -224,6 +242,30 @@ AS $function$
    where public.is_admin()
    order by h.created_at desc;
 $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_annuler_mission(p_mission uuid, p_motif text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_etab uuid;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  update public.missions set statut = 'annulee' where id = p_mission;
+  select etablissement_id into v_etab from public.missions where id = p_mission;
+  if v_etab is null then raise exception 'Mission introuvable.'; end if;
+  perform public.notifier_utilisateur(v_etab, 'notif.mission_annulee_admin',
+    jsonb_build_object('motif', coalesce(p_motif, '')));
+  insert into public.notifications (user_id, message, cle, params)
+  select c.hotesse_id,
+         public.traduire('notif.mission_annulee_admin', coalesce(p.langue, 'fr'),
+           jsonb_build_object('motif', coalesce(p_motif, ''))),
+         'notif.mission_annulee_admin', jsonb_build_object('motif', coalesce(p_motif, ''))
+    from public.candidatures c
+    join public.profiles p on p.id = c.hotesse_id
+   where c.mission_id = p_mission and c.statut in ('acceptee', 'confirmee') and not c.annulation;
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuler_paiement(p_id uuid)
  RETURNS void
@@ -284,6 +326,27 @@ begin
   return n;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_refuser_profil(p_profil uuid, p_motif text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_type text;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  select type into v_type from public.profiles where id = p_profil;
+  if v_type = 'hotesse' then
+    update public.hotesses set verifie = false where id = p_profil;
+  elsif v_type = 'etablissement' then
+    update public.etablissements set verifie = false where id = p_profil;
+  else
+    raise exception 'Profil introuvable.';
+  end if;
+  perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee',
+    jsonb_build_object('motif', coalesce(p_motif, '')));
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.apres_annulation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -292,6 +355,9 @@ CREATE OR REPLACE FUNCTION public.apres_annulation()
 AS $function$
 declare
   v_signes int;
+  v_etab uuid;
+  v_date_m date;
+  v_langue text;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
@@ -300,17 +366,19 @@ begin
        returning signes_negatifs into v_signes;
       if v_signes >= public.reglage_num('signes_avant_suspension', 3)::int then
         update public.profiles set suspendu = true where id = new.hotesse_id;
-        insert into public.notifications (user_id, message) values (new.hotesse_id,
-          '🚫 Compte suspendu automatiquement après ' || v_signes || ' annulations. Contacte DamUp.');
-        insert into public.notifications (user_id, message)
-        select p.id, '🚫 Une hôtesse a été suspendue automatiquement (' || v_signes || ' annulations).'
+        perform public.notifier_utilisateur(new.hotesse_id, 'notif.suspension_hotesse',
+          jsonb_build_object('n', v_signes));
+        insert into public.notifications (user_id, message, cle, params)
+        select p.id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes)),
+               'notif.suspension_admin', jsonb_build_object('n', v_signes)
           from public.profiles p where p.type = 'admin';
       end if;
     end if;
-    insert into public.notifications (user_id, message)
-    select m.etablissement_id, '⚠️ Une hôtesse a annulé sa venue : une place se libère sur ta mission du '
-           || to_char(m.date, 'DD/MM') || '.'
-      from public.missions m where m.id = new.mission_id;
+    select m.etablissement_id, m.date, coalesce(p.langue, 'fr') into v_etab, v_date_m, v_langue
+      from public.missions m join public.profiles p on p.id = m.etablissement_id
+     where m.id = new.mission_id;
+    perform public.notifier_utilisateur(v_etab, 'notif.annulation_etab',
+      jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
   end if;
   return new;
 end; $function$;
@@ -329,6 +397,19 @@ begin
   return new;
 end;
 $function$;
+
+CREATE OR REPLACE FUNCTION public.changer_langue(p_langue text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_langue not in ('fr', 'en', 'es', 'zh') then
+    raise exception 'Langue non disponible.';
+  end if;
+  update public.profiles set langue = p_langue where id = auth.uid();
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.controle_candidature()
  RETURNS trigger
@@ -418,7 +499,6 @@ CREATE OR REPLACE FUNCTION public.controle_signalement()
  SET search_path TO 'public'
 AS $function$
 begin
-  -- le type du signalant vient du profil, pas du navigateur
   select p.type into new.signalant_type from public.profiles p where p.id = auth.uid();
   if new.signalant_type is null or new.signalant_type not in ('hotesse', 'etablissement') then
     raise exception 'Signalement non autorisé.';
@@ -431,10 +511,22 @@ begin
        where signalant_id = auth.uid() and created_at > now() - interval '1 day') >= 10 then
     raise exception 'Trop de signalements aujourd''hui. Contacte DamUp directement.';
   end if;
-  insert into public.notifications (user_id, message)
-  select p.id, '🚩 Nouveau signalement à traiter.' from public.profiles p where p.type = 'admin';
+  insert into public.notifications (user_id, message, cle, params)
+  select p.id, public.traduire('notif.signalement_admin', 'fr', '{}'::jsonb),
+         'notif.signalement_admin', '{}'::jsonb
+    from public.profiles p where p.type = 'admin';
   return new;
 end; $function$;
+
+CREATE OR REPLACE FUNCTION public.date_courte(p_d date, p_langue text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case p_langue
+    when 'zh' then to_char(p_d, 'FMMM') || '月' || to_char(p_d, 'FMDD') || '日'
+    else to_char(p_d, 'DD/MM') end;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.envoyer_email_notification()
  RETURNS trigger
@@ -445,28 +537,41 @@ AS $function$
 declare
   v_secret text;
   v_dest text;
+  v_msg text;
 begin
-  -- secret lu dans le Vault Supabase
   select decrypted_secret into v_secret
   from vault.decrypted_secrets where name = 'NOTIFIER_SECRET'
   order by created_at desc limit 1;
-  if v_secret is null then return new; end if;
+  if v_secret is null then
+    insert into public.email_erreurs (user_id, raison) values (new.user_id, 'Secret NOTIFIER_SECRET introuvable');
+    return new;
+  end if;
 
   select email into v_dest from auth.users where id = new.user_id;
-  if v_dest is null then return new; end if;
+  if v_dest is null then
+    insert into public.email_erreurs (user_id, raison) values (new.user_id, 'Adresse email introuvable');
+    return new;
+  end if;
 
-  perform net.http_post(
-    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/notifier',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-damup-secret', v_secret
-    ),
-    body := jsonb_build_object(
-      'to', v_dest,
-      'subject', 'DamUp — Nouvelle notification',
-      'html', '<p style="font-family:sans-serif">' || new.message || '</p>'
-    )
-  );
+  v_msg := replace(replace(replace(coalesce(new.message, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+
+  begin
+    perform net.http_post(
+      url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/notifier',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6b3FwYWxka3NycWl4b3hnc3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM5Mjc0NTksImV4cCI6MjEwOTUwMzQ1OX0.9A8gTkadIdEdK0k3RQvBE3oGa107TIht4SIEGr76G4Q',
+        'x-damup-secret', v_secret
+      ),
+      body := jsonb_build_object(
+        'to', v_dest,
+        'subject', 'DamUp — Nouvelle notification',
+        'html', '<p style="font-family:sans-serif">' || v_msg || '</p>'
+      )
+    );
+  exception when others then
+    insert into public.email_erreurs (user_id, raison) values (new.user_id, sqlerrm);
+  end;
   return new;
 end;
 $function$;
@@ -501,19 +606,30 @@ begin
   else r := 'hotesse';
   end if;
 
-  insert into public.profiles (id, type, email, tarif, periode, actif_jusqu_a)
+  insert into public.profiles (id, type, email, tarif, periode, actif_jusqu_a, langue)
   values (new.id, r, new.email,
     case when r = 'etablissement' then public.reglage_num('prix_defaut_etablissement', 79)
          when r = 'hotesse' then public.reglage_num('prix_defaut_hotesse', 0)
          else null end,
     case when r = 'admin' then null else 'mensuel' end,
-    now() + make_interval(days => public.reglage_num('essai_jours', 7)::int))
+    now() + make_interval(days => public.reglage_num('essai_jours', 7)::int),
+    case when m->>'langue' in ('fr', 'en', 'es', 'zh') then m->>'langue' else 'fr' end)
   on conflict (id) do nothing;
 
   if r = 'hotesse' then
+    -- champs obligatoires : prénom, ville, Instagram
+    if coalesce(nullif(trim(m->>'prenom'), ''), '') = '' then
+      raise exception 'Le prénom est obligatoire.';
+    end if;
     v_age := nullif(m->>'age', '')::int;
     if v_age is null or v_age < 18 then
       raise exception 'Inscription réservée aux personnes de 18 ans et plus.';
+    end if;
+    if coalesce(nullif(trim(m->>'ville'), ''), '') = '' then
+      raise exception 'La ville est obligatoire.';
+    end if;
+    if coalesce(nullif(trim(m->>'instagram'), ''), '') = '' then
+      raise exception 'Le compte Instagram est obligatoire.';
     end if;
     v_villes := (select value from public.settings where key = 'villes');
     if v_villes is not null and jsonb_array_length(v_villes) > 0
@@ -521,12 +637,18 @@ begin
       raise exception 'Cette ville n''est pas encore ouverte aux inscriptions.';
     end if;
     insert into public.hotesses (id, prenom, age, ville, instagram, telephone, photos)
-    values (new.id, left(coalesce(nullif(trim(m->>'prenom'), ''), '?'), 50), v_age,
+    values (new.id, left(nullif(trim(m->>'prenom'), ''), 50), v_age,
             left(m->>'ville', 80), left(m->>'instagram', 60), left(m->>'telephone', 20), '[]'::jsonb)
     on conflict (id) do nothing;
   elsif r = 'etablissement' then
+    if coalesce(nullif(trim(m->>'nom'), ''), '') = '' then
+      raise exception 'Le nom de l''établissement est obligatoire.';
+    end if;
+    if coalesce(nullif(trim(m->>'siret'), ''), '') = '' then
+      raise exception 'Le SIRET est obligatoire.';
+    end if;
     insert into public.etablissements (id, nom, type, ville, adresse, siret, photos, videos)
-    values (new.id, left(coalesce(nullif(trim(m->>'nom'), ''), '?'), 100),
+    values (new.id, left(nullif(trim(m->>'nom'), ''), 100),
             case when m->>'type_etab' in ('bar','restaurant','club','lounge') then m->>'type_etab' end,
             left(m->>'ville', 80), left(m->>'adresse', 200),
             left(regexp_replace(coalesce(m->>'siret', ''), '\s', '', 'g'), 14), '[]'::jsonb, '[]'::jsonb)
@@ -534,6 +656,16 @@ begin
   end if;
   return new;
 end; $function$;
+
+CREATE OR REPLACE FUNCTION public.heure_courte(p_t timestamp with time zone, p_langue text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select case p_langue
+    when 'fr' then to_char(p_t at time zone 'Europe/Paris', 'HH24"h"MI')
+    else to_char(p_t at time zone 'Europe/Paris', 'HH24:MI') end;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.hotesse_prive(p_id uuid)
  RETURNS TABLE(telephone text, instagram text, signes_negatifs integer, missions_honorees integer)
@@ -630,30 +762,43 @@ CREATE OR REPLACE FUNCTION public.notifier_candidature()
 AS $function$
 declare
   v_lieu text;
-  v_date text;
+  v_date_m date;
+  v_langue text;
 begin
   if old.statut is not distinct from new.statut then return new; end if;
-  select e.nom, to_char(m.date, 'DD/MM') into v_lieu, v_date
-    from public.missions m join public.etablissements e on e.id = m.etablissement_id
-   where m.id = new.mission_id;
 
   if new.statut = 'acceptee' then
-    insert into public.notifications (user_id, message) values (new.hotesse_id,
-      '🎉 Tu as été acceptée chez ' || v_lieu || ' pour le ' || v_date
-      || ' ! Confirme ta venue avant le '
-      || to_char(new.confirme_a at time zone 'Europe/Paris', 'DD/MM à HH24"h"MI')
-      || ', sinon ta place sera libérée.');
+    select e.nom, m.date, coalesce(p.langue, 'fr') into v_lieu, v_date_m, v_langue
+      from public.missions m
+      join public.etablissements e on e.id = m.etablissement_id
+      join public.profiles p on p.id = new.hotesse_id
+     where m.id = new.mission_id;
+    perform public.notifier_utilisateur(new.hotesse_id, 'notif.acceptee',
+      jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, v_langue),
+                         'heure', public.heure_courte(new.confirme_a, v_langue)));
   elsif new.statut = 'refusee' then
-    insert into public.notifications (user_id, message) values (new.hotesse_id,
-      'Ta candidature chez ' || v_lieu || ' pour le ' || v_date || ' n''a pas été retenue.');
+    select e.nom, m.date, coalesce(p.langue, 'fr') into v_lieu, v_date_m, v_langue
+      from public.missions m
+      join public.etablissements e on e.id = m.etablissement_id
+      join public.profiles p on p.id = new.hotesse_id
+     where m.id = new.mission_id;
+    perform public.notifier_utilisateur(new.hotesse_id, 'notif.refusee',
+      jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, v_langue)));
   elsif new.statut = 'expiree' then
-    insert into public.notifications (user_id, message) values (new.hotesse_id,
-      '⏰ Tu n''as pas confirmé à temps ta mission chez ' || v_lieu || ' du ' || v_date
-      || ' : ta place a été libérée.');
+    select e.nom, m.date, coalesce(p.langue, 'fr') into v_lieu, v_date_m, v_langue
+      from public.missions m
+      join public.etablissements e on e.id = m.etablissement_id
+      join public.profiles p on p.id = new.hotesse_id
+     where m.id = new.mission_id;
+    perform public.notifier_utilisateur(new.hotesse_id, 'notif.expiree',
+      jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, v_langue)));
   elsif new.statut = 'confirmee' then
-    insert into public.notifications (user_id, message)
-    select m.etablissement_id, '✅ Une hôtesse a confirmé sa venue pour ta mission du ' || v_date || '.'
-      from public.missions m where m.id = new.mission_id;
+    select m.date, coalesce(p.langue, 'fr') into v_date_m, v_langue
+      from public.missions m join public.profiles p on p.id = m.etablissement_id
+     where m.id = new.mission_id;
+    perform public.notifier_utilisateur(
+      (select etablissement_id from public.missions where id = new.mission_id),
+      'notif.confirmee_etab', jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
   end if;
   return new;
 end; $function$;
@@ -664,13 +809,35 @@ CREATE OR REPLACE FUNCTION public.notifier_nouvelle_candidature()
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_prenom text;
+  v_date_m date;
+  v_langue text;
 begin
-  insert into public.notifications (user_id, message)
-  select m.etablissement_id, '📩 Nouvelle candidature reçue pour ta mission.'
-  from public.missions m where m.id = new.mission_id;
+  select h.prenom, m.date, coalesce(p.langue, 'fr') into v_prenom, v_date_m, v_langue
+    from public.missions m
+    join public.hotesses h on h.id = new.hotesse_id
+    join public.profiles p on p.id = m.etablissement_id
+   where m.id = new.mission_id;
+  perform public.notifier_utilisateur(
+    (select etablissement_id from public.missions where id = new.mission_id),
+    'notif.nouvelle_candidature',
+    jsonb_build_object('prenom', v_prenom, 'date', public.date_courte(v_date_m, v_langue)));
   return new;
-end;
-$function$;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.notifier_utilisateur(p_user uuid, p_cle text, p_params jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_langue text;
+begin
+  select langue into v_langue from public.profiles where id = p_user;
+  insert into public.notifications (user_id, message, cle, params)
+  values (p_user, public.traduire(p_cle, coalesce(v_langue, 'fr'), p_params), p_cle, p_params);
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.prolonger_abonnement(p_profil uuid, p_montant numeric, p_mode text, p_periode text, p_date timestamp with time zone, p_ref text, p_note text)
  RETURNS paiements
@@ -682,6 +849,7 @@ declare
   v_debut timestamptz;
   v_fin timestamptz;
   v_p public.paiements;
+  v_langue text;
 begin
   select greatest(coalesce(actif_jusqu_a, p_date), p_date) into v_debut
     from public.profiles where id = p_profil for update;
@@ -693,11 +861,14 @@ begin
   returning * into v_p;
 
   update public.profiles set actif_jusqu_a = v_fin, rappel_fin_envoye_pour = null where id = p_profil;
-  insert into public.notifications (user_id, message) values (p_profil,
-    case when p_mode = 'offert'
-      then '🎁 DamUp t''offre l''accès jusqu''au ' || to_char(v_fin at time zone 'Europe/Paris', 'DD/MM/YYYY') || '.'
-      else '✅ Paiement reçu : ton abonnement DamUp est actif jusqu''au '
-           || to_char(v_fin at time zone 'Europe/Paris', 'DD/MM/YYYY') || '.' end);
+  select coalesce(langue, 'fr') into v_langue from public.profiles where id = p_profil;
+  if p_mode = 'offert' then
+    perform public.notifier_utilisateur(p_profil, 'notif.paiement_offert',
+      jsonb_build_object('date', public.date_courte(v_fin::date, v_langue)));
+  else
+    perform public.notifier_utilisateur(p_profil, 'notif.paiement_recu',
+      jsonb_build_object('date', public.date_courte(v_fin::date, v_langue)));
+  end if;
   return v_p;
 end; $function$;
 
@@ -788,6 +959,26 @@ CREATE OR REPLACE FUNCTION public.taches_auto()
  SET search_path TO 'public'
 AS $function$
 begin
+  -- rappel quand il reste 1 h ou moins pour confirmer
+  with a_rappeler as (
+    update public.candidatures c set rappel_envoye = true
+     where c.statut = 'acceptee' and not c.annulation and not c.rappel_envoye
+       and c.confirme_a > now() and c.confirme_a - now() <= interval '1 hour'
+    returning c.hotesse_id, c.confirme_a
+  )
+  insert into public.notifications (user_id, message, cle, params)
+  select r.hotesse_id,
+         public.traduire('notif.rappel_confirmation', coalesce(p.langue, 'fr'),
+           jsonb_build_object('heure', public.heure_courte(r.confirme_a, coalesce(p.langue, 'fr')))),
+         'notif.rappel_confirmation',
+         jsonb_build_object('heure', public.heure_courte(r.confirme_a, coalesce(p.langue, 'fr')))
+    from a_rappeler r join public.profiles p on p.id = r.hotesse_id;
+
+  -- acceptations non confirmées à temps
+  update public.candidatures set statut = 'expiree'
+   where statut = 'acceptee' and not annulation
+     and confirme_a is not null and confirme_a < now();
+
   -- rappels de fin d'abonnement (3 jours avant)
   with a_prevenir as (
     update public.profiles p set rappel_fin_envoye_pour = p.actif_jusqu_a
@@ -795,40 +986,47 @@ begin
        and p.rappel_fin_envoye_pour is distinct from p.actif_jusqu_a
        and ((p.type = 'etablissement' and public.reglage_bool('paiement_etablissements_actif', false))
          or (p.type = 'hotesse' and public.reglage_bool('paiement_hotesses_actif', false)))
-    returning p.id, p.actif_jusqu_a
+    returning p.id, p.actif_jusqu_a, p.langue
   )
-  insert into public.notifications (user_id, message)
-  select id, '⏳ Ton abonnement DamUp se termine le '
-             || to_char(actif_jusqu_a at time zone 'Europe/Paris', 'DD/MM') || '. Pense à le renouveler.'
-    from a_prevenir
+  insert into public.notifications (user_id, message, cle, params)
+  select a.id,
+         public.traduire('notif.fin_abonnement', a.langue,
+           jsonb_build_object('date', public.date_courte(a.actif_jusqu_a::date, a.langue))),
+         'notif.fin_abonnement',
+         jsonb_build_object('date', public.date_courte(a.actif_jusqu_a::date, a.langue))
+    from a_prevenir a
   union all
-  select ad.id, '💶 ' || (select count(*) from a_prevenir) || ' abonnement(s) se terminent dans moins de 3 jours.'
+  select ad.id,
+         public.traduire('notif.fin_abonnement_admin', 'fr', jsonb_build_object('n', (select count(*) from a_prevenir))),
+         'notif.fin_abonnement_admin',
+         jsonb_build_object('n', (select count(*) from a_prevenir))
     from public.profiles ad
    where ad.type = 'admin' and exists (select 1 from a_prevenir);
-
-  -- rappel confirmation
-  with a_rappeler as (
-    update public.candidatures c set rappel_envoye = true
-     where c.statut = 'acceptee' and not c.annulation and not c.rappel_envoye
-       and c.confirme_a > now() and c.confirme_a - now() <= interval '1 hour'
-    returning c.hotesse_id, c.confirme_a
-  )
-  insert into public.notifications (user_id, message)
-  select hotesse_id, '⏳ Rappel : confirme ta venue avant '
-         || to_char(confirme_a at time zone 'Europe/Paris', 'HH24"h"MI')
-         || ', sinon ta place sera libérée.'
-    from a_rappeler;
-
-  -- acceptations non confirmées à temps
-  update public.candidatures set statut = 'expiree'
-   where statut = 'acceptee' and not annulation
-     and confirme_a is not null and confirme_a < now();
 
   -- missions terminées
   update public.missions set statut = 'terminee'
    where statut in ('ouverte', 'cloturee', 'en_cours')
      and ((date + heure_fin + case when heure_fin <= heure_debut then interval '1 day' else interval '0' end)
           at time zone 'Europe/Paris') < now();
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.traduire(p_cle text, p_langue text, p_params jsonb DEFAULT '{}'::jsonb)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v text;
+  k text;
+begin
+  select texte into v from public.traductions where cle = p_cle and langue = coalesce(p_langue, 'fr');
+  if v is null then select texte into v from public.traductions where cle = p_cle and langue = 'fr'; end if;
+  if v is null then return p_cle; end if;
+  for k in select jsonb_object_keys(coalesce(p_params, '{}'::jsonb)) loop
+    v := replace(v, '{' || k || '}', coalesce(p_params ->> k, ''));
+  end loop;
+  return v;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.valider_presence(p_code text)
@@ -962,6 +1160,9 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
    FROM missions m
   WHERE ((m.id = candidatures.mission_id) AND (m.etablissement_id = auth.uid()))))))
 
+-- email_erreurs.email_erreurs_admin (SELECT, to {)
+  using (is_admin())
+
 -- equipe.equipe_all_admin (ALL, to {)
   using (is_admin())
   with check (is_admin())
@@ -1038,3 +1239,6 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- signalements.signalements_update_admin (UPDATE, to {)
   using (is_admin())
+
+-- traductions.traductions_lecture (SELECT, to {)
+  using (true)
