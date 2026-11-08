@@ -328,6 +328,7 @@
       </div>
       <div class="pub"><h3>Photos du lieu</h3>
         <div id="photos-etab" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+        <div id="bloc-abonnement"></div>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterPhotoEtab()">＋ Ajouter des photos</button>
       </div>`;
     chargerProfilEtab();
@@ -345,6 +346,7 @@
     document.getElementById("photos-etab").innerHTML = photos.length
       ? photos.map((p, i) => `<div style="aspect-ratio:4/3;border-radius:10px;background-image:url('${urlPhoto(p)}');background-size:cover;background-position:center;position:relative"><span onclick="supprimerPhotoEtab(${i})" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.5);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer">✕</span></div>`).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune photo pour le moment.</div>';
+    afficherBlocAbonnement("bloc-abonnement");
   }
 
   async function sauverProfilEtab() {

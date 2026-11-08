@@ -462,6 +462,8 @@
   async function sauverSection(sec) {
     const zone = document.getElementById("sec-" + sec);
     const champs = [...zone.querySelectorAll("[id^='s-']")];
+    const { data: actuel } = await db.from("settings").select("key, value").in("key", ["paiement_etablissements_actif", "paiement_hotesses_actif", "paiement_en_ligne_actif"]);
+    const avant = Object.fromEntries((actuel || []).map(r => [r.key, String(r.value)]));
     const upserts = champs.map(el => {
       let v;
       if (el.type === "checkbox") v = el.checked ? "true" : "false";
@@ -472,6 +474,16 @@
     const { error } = await db.from("settings").upsert(upserts);
     if (error) { toast(error.message, "erreur"); return; }
     toast("Réglages enregistrés ✅", "ok");
+    const apres = Object.fromEntries(upserts.map(u => [u.key, String(u.value)]));
+    const allume = [["paiement_etablissements_actif", "etablissement"], ["paiement_hotesses_actif", "hotesse"]]
+      .find(([k]) => avant[k] === "false" && apres[k] === "true");
+    if (allume && await demander("Veux-tu offrir une période d'essai aux comptes sans abonnement ?", "Offrir")) {
+      const { data: r } = await db.from("settings").select("value").eq("key", "essai_jours").single();
+      const jours = parseInt(r?.value || "7");
+      const { error: e2 } = await db.rpc("admin_offrir_periode_groupe", { p_type: allume[1], p_jours: jours });
+      if (e2) toast(e2.message, "erreur");
+      else toast("Essai offert ✅", "ok");
+    }
   }
 
   // ============ ÉQUIPE & DROITS ============

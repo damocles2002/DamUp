@@ -70,6 +70,52 @@ function redimensionnerImage(file, maxCote = 1600, qualite = 0.8) {
   });
 }
 
+// Bloc "Mon abonnement" (appelé depuis profil établissement / hôtesse)
+async function afficherBlocAbonnement(conteneurId) {
+  const conteneur = document.getElementById(conteneurId);
+  if (!conteneur) return;
+  const { data: { user } } = await auth.getUser();
+  if (!user) return;
+  const { data: profil } = await db.from("profiles").select("type, tarif, periode, actif_jusqu_a, stripe_customer_id").eq("id", user.id).single();
+  const { data: paiements } = await db.from("paiements").select("*").eq("profil_id", user.id).order("created_at", { ascending: false });
+  const type = profil?.type;
+  const cleType = type === "etablissement" ? "paiement_etablissements_actif" : "paiement_hotesses_actif";
+  const [rEnLigne, rType] = await Promise.all([
+    db.from("settings").select("value").eq("key", "paiement_en_ligne_actif").single(),
+    db.from("settings").select("value").eq("key", cleType).single(),
+  ]);
+  const enLigneActif = rEnLigne.data?.value === "true";
+  const doitPayer = rType.data?.value === "true";
+  const actif = profil?.actif_jusqu_a ? new Date(profil.actif_jusqu_a) : null;
+  const actifOk = actif && actif > new Date();
+  const periode = profil?.periode === "hebdomadaire" ? "semaine" : "mois";
+  const dejaClient = !!profil?.stripe_customer_id;
+  conteneur.innerHTML = `
+    <div class="panneau" style="margin:14px 18px">
+      <div class="tete">Mon abonnement</div>
+      <div style="padding:16px">
+        <div style="font-size:14px;margin-bottom:8px">Statut : ${actif ? (actifOk ? 'Actif jusqu\u2019au <b>' + actif.toLocaleDateString("fr-FR") + '</b>' : 'Expiré le ' + actif.toLocaleDateString("fr-FR")) : 'Essai gratuit'}</div>
+        <div style="font-size:13px;color:var(--gris);margin-bottom:12px">Tarif : ${profil?.tarif ? profil.tarif + ' € / ' + periode : 'non défini'}</div>
+        ${doitPayer ? (enLigneActif
+          ? `<button class="btn btn-primaire btn-sm" onclick="lancerPaiement(${dejaClient})">${dejaClient ? "Gérer mon abonnement" : "S'abonner"}</button>`
+          : '<span style="font-size:12.5px;color:var(--gris)">Le paiement en ligne n\u2019est pas encore actif. Contacte DamUp pour régler en espèces.</span>')
+          : '<span style="font-size:12.5px;color:var(--gris)">Aucun paiement requis pour le moment.</span>'}
+        ${(paiements && paiements.length) ? `<div style="margin-top:12px;border-top:1px solid #EEE;padding-top:10px">
+          <div style="font-size:12.5px;color:var(--gris);margin-bottom:6px">Mes reçus :</div>
+          ${paiements.slice(0, 5).map(p => `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0"><span>${esc(p.numero_recu)} · ${Number(p.montant).toFixed(2)} €</span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a></div>`).join("")}
+        </div>` : ""}
+      </div>
+    </div>`;
+}
+
+async function lancerPaiement(gerer = false) {
+  const fn = gerer ? "paiement-portail" : "paiement-creer";
+  const { data, error } = await db.functions.invoke(fn, { body: {} });
+  if (error) { toast(error.message || "Erreur", "erreur"); return; }
+  if (data?.url) location.href = data.url;
+  else if (data?.error) toast(data.error, "erreur");
+}
+
 // Vérification de la maintenance (auto au chargement, sauf admin/login/reinitialiser)
 document.addEventListener("DOMContentLoaded", async () => {
   if (/admin|login|reinitialiser/.test(location.pathname)) return;
