@@ -67,6 +67,11 @@
   <p><b>Paiement en ligne</b> (lorsqu'il est activé) : vos coordonnées de carte ou bancaires sont saisies directement chez <b>Stripe</b> ; DamUp ne reçoit qu'un identifiant client et le résultat des paiements.</p>
   <p><b>Signalements</b> : auteur, personne ou Mission visée, motif et décision prise.</p>
   <p><b>Données techniques</b> : les hébergeurs enregistrent des journaux de connexion (adresse IP, date, pages appelées) nécessaires à la sécurité du service.</p>
+  <p><b>Messagerie</b> : les messages échangés entre un Établissement et une Hôtesse (contenu et photos) liés à une Mission. L'équipe DamUp n'y accède qu'en cas de signalement concernant cette conversation.</p>
+  <p><b>Notifications</b> : les appareils sur lesquels vous activez les notifications push, et vos préférences (push et e-mails par catégorie).</p>
+  <p><b>Invitations de copines</b> : le prénom indiqué par l'Hôtesse qui propose son amie ; l'invitation est conservée jusqu'à son expiration.</p>
+  <p><b>Vérification d'identité</b> : pièce d'identité et selfie, vérifiés par l'équipe DamUp puis supprimés dès la décision. Si la vérification automatique (Stripe Identity) est activée, Stripe traite ces images comme prestataire, sans que DamUp ne les conserve.</p>
+  <p><b>SIRET</b> : le numéro SIRET des Établissements est contrôlé via l'annuaire officiel des entreprises (API publique gratuite).</p>
 
   <h2 id="s3">3. Pourquoi ces données sont utilisées (finalités et bases légales)</h2>
   <table>
@@ -99,6 +104,8 @@
     <tr><td>Pièce d'identité</td><td>Supprimée dès la vérification terminée</td></tr>
     <tr><td>Photos</td><td>Jusqu'à leur suppression par l'utilisateur ou la suppression du compte</td></tr>
     <tr><td>Missions, candidatures, présences, avis</td><td>Durée du compte concerné ; les données nécessaires à la gestion d'un litige peuvent être conservées jusqu'à 1 an après la Mission</td></tr>
+    <tr><td>Messages (contenu et photos)</td><td>1 an après la Mission</td></tr>
+    <tr><td>Invitations de copines</td><td>Jusqu'à leur expiration (7 jours) ou la fin de la Mission</td></tr>
     <tr><td>Signalements et décisions de modération</td><td>3 ans après leur traitement, pour prévenir les abus répétés</td></tr>
     <tr><td>Paiements, reçus et pièces comptables</td><td>10 ans (obligation légale)</td></tr>
     <tr><td>Journaux techniques</td><td>Selon les durées des hébergeurs, en principe 1 an au maximum</td></tr>
