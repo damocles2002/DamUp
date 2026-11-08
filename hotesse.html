@@ -154,7 +154,7 @@
             <div class="icone-type">${couverture}</div>
             <div class="titres">
               <h3>${esc(e?.nom || "Établissement")}</h3>
-              <div class="lieu">📍 ${esc(m.adresse || e?.ville || "")}</div>
+              <div class="lieu">📍 ${esc(m.adresse || e?.ville || "")}${m.note ? " · 📝" : ""}</div>
             </div>
             <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} places</span>
           </div>
@@ -216,6 +216,7 @@
         </div>
         <div class="lieu" style="margin:10px 0">📍 ${esc(m.adresse || e?.ville || "")}</div>
         <div class="offres">${offres}</div>
+        ${m.note ? `<div style="background:var(--ivoire);border-radius:10px;padding:12px;margin-top:12px;font-size:13.5px;white-space:pre-line">📝 <b>Infos de l'établissement</b><br>${esc(m.note)}</div>` : ""}
         <button class="btn btn-primaire btn-block" onclick="postulerDepuisModal('${m.id}')" style="margin-top:14px">Postuler</button>
         <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('mission', '${m.id}')">🚩 Signaler</button>
       </div>`;

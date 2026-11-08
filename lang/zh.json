@@ -113,6 +113,7 @@
   "notif.nouvelle_candidature": "📩 {prenom} 报名了您 {date} 的场次。",
   "notif.validation_refusee": "您的资料未通过审核：{motif}。请修改后联系我们。",
   "notif.mission_annulee_admin": "您的场次已被 DamUp 取消：{motif}。",
+  "notif.mission_note_modifiee": "📝 {lieu} 更新了您 {date} 场次的信息。",
 
   "legal.traduction_note": "本译文仅供阅读方便。如有出入，以法文版本为准。"
 }

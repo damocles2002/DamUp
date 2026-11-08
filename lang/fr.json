@@ -113,6 +113,7 @@
   "notif.nouvelle_candidature": "📩 {prenom} a postulé à ta mission du {date}.",
   "notif.validation_refusee": "Ton profil n'a pas été validé : {motif}. Corrige-le puis contacte-nous.",
   "notif.mission_annulee_admin": "Ta mission a été annulée par DamUp : {motif}.",
+  "notif.mission_note_modifiee": "📝 {lieu} a mis à jour les informations de ta mission du {date}.",
 
   "legal.traduction_note": "Traduction fournie pour faciliter la lecture. En cas de différence, la version française fait foi."
 }

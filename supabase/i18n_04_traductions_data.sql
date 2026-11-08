@@ -118,6 +118,12 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.mission_annulee_admin', 'es', 'Tu evento fue cancelado por DamUp: {motif}.'),
 ('notif.mission_annulee_admin', 'zh', '您的场次已被 DamUp 取消：{motif}。'),
 
+-- note de mission modifiée
+('notif.mission_note_modifiee', 'fr', '📝 {lieu} a mis à jour les informations de ta mission du {date}.'),
+('notif.mission_note_modifiee', 'en', '📝 {lieu} updated the information for your mission on {date}.'),
+('notif.mission_note_modifiee', 'es', '📝 {lieu} actualizó la información de tu evento del {date}.'),
+('notif.mission_note_modifiee', 'zh', '📝 {lieu} 更新了您 {date} 场次的信息。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp — Nouvelle notification'),
 ('email.sujet', 'en', 'DamUp — New notification'),

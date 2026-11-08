@@ -214,13 +214,13 @@
 
   async function chargerMesMissions() {
     const { data } = await db.from("candidatures")
-      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, etablissements(id, nom))")
+      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, note, etablissements(id, nom))")
       .eq("hotesse_id", user.id).order("created_at", { ascending: false });
     const statuts = { en_attente: "🕓 En attente", acceptee: "✅ Acceptée", confirmee: "💚 Confirmée", refusee: "❌ Refusée" };
     document.getElementById("mes-missions").innerHTML = (data && data.length)
       ? data.map(c => {
           const m = c.missions;
-          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
+          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div>${m?.note ? `<div class="txt" style="white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
   }
@@ -238,7 +238,7 @@
   async function chargerQR() {
     const zone = document.getElementById("qr");
     const { data } = await db.from("candidatures")
-      .select("id, statut, confirme_a, annulation, qr_code, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
+      .select("id, statut, confirme_a, annulation, qr_code, missions(date, heure_debut, heure_fin, adresse, note, etablissements(nom))")
       .eq("hotesse_id", user.id)
       .in("statut", ["acceptee", "confirmee"])
       .eq("annulation", false);
@@ -279,7 +279,7 @@
         <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:12px" onclick="annulerMission('${c.id}')">Je ne peux plus venir</button>`;
     }
 
-    zone.innerHTML = `<h2>${esc(m.etablissements?.nom || "Mission")}</h2>${corps}`;
+    zone.innerHTML = `<h2>${esc(m.etablissements?.nom || "Mission")}</h2>${m.note ? `<div style="background:var(--ivoire);border-radius:10px;padding:12px;margin:10px 0;font-size:13.5px;white-space:pre-line">📝 <b>Infos de l'établissement</b><br>${esc(m.note)}</div>` : ""}${corps}`;
 
     if (c.statut === "confirmee" && c.qr_code) {
       setTimeout(() => { new QRCode(document.getElementById("qrcode"), { text: c.qr_code, width: 200, height: 200, colorDark: "#2A1120" }); }, 50);

@@ -113,6 +113,7 @@
   "notif.nouvelle_candidature": "📩 {prenom} se inscribió a tu evento del {date}.",
   "notif.validation_refusee": "Tu perfil no fue aprobado: {motif}. Corrígelo y contáctanos.",
   "notif.mission_annulee_admin": "Tu evento fue cancelado por DamUp: {motif}.",
+  "notif.mission_note_modifiee": "📝 {lieu} actualizó la información de tu evento del {date}.",
 
   "legal.traduction_note": "Traducción facilitada para la lectura. En caso de diferencia, prevalece la versión francesa."
 }

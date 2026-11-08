@@ -718,7 +718,7 @@
   let missionsAdminListe = [];
   async function afficherMissions() {
     main.innerHTML = "<h1>Missions</h1><div class='panneau'><div class='tete'>À venir</div><div id='liste-missions' class='vide'>Chargement…</div></div>";
-    const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, medias, etablissements(nom)").order("date", { ascending: true });
+    const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, medias, note, etablissements(nom)").order("date", { ascending: true });
     const aujourdhui = new Date().toISOString().slice(0, 10);
     missionsAdminListe = (data || []).filter(m => m.date >= aujourdhui && !["terminee", "annulee"].includes(m.statut));
     document.getElementById("liste-missions").innerHTML = (missionsAdminListe.length) ? `
@@ -746,6 +746,7 @@
           <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-mission-admin').remove()">✕</button>
         </div>
         <div style="font-size:13px;color:var(--gris);margin-bottom:10px">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)} · ${m.places_restantes ?? m.nb_hotesses}/${m.nb_hotesses} places</div>
+        ${m.note ? `<div style="background:var(--ivoire);border-radius:10px;padding:12px;margin-bottom:12px;font-size:13.5px;white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}
         <b style="font-size:13px">Photos & vidéos du lieu</b>
         ${vignettesMedia(m.medias, [], "mission-" + (m.etablissements?.nom || "x").replace(/\s+/g, "-"))}
       </div>`;

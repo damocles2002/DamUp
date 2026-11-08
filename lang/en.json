@@ -113,6 +113,7 @@
   "notif.nouvelle_candidature": "📩 {prenom} applied to your mission on {date}.",
   "notif.validation_refusee": "Your profile was not approved: {motif}. Please fix it and contact us.",
   "notif.mission_annulee_admin": "Your mission was cancelled by DamUp: {motif}.",
+  "notif.mission_note_modifiee": "📝 {lieu} updated the information for your mission on {date}.",
 
   "legal.traduction_note": "Translation provided for convenience. In case of any difference, the French version prevails."
 }
