@@ -93,6 +93,7 @@
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
   const main = document.getElementById("main");
   let vue = "dashboard";
@@ -176,6 +177,7 @@
           <option value="suspendu">Suspendu</option>
         </select>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterAnnuaire()">Exporter CSV</button>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterAnnuaireXlsx()">Excel (.xlsx)</button>
       </div>
       <div class='panneau'><div id='liste-annuaire' class='vide'>Chargement…</div></div>`;
     document.getElementById("a-recherche").value = annuaireRecherche;
@@ -271,6 +273,27 @@
     }
   }
 
+  // ==== EXPORTS (A2) ====
+  async function telechargerOuPartager(blob, nom, mime) {
+    const fichier = new File([blob], nom, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+      try { await navigator.share({ files: [fichier], title: nom }); return; } catch (e) { /* refus → téléchargement */ }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nom;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function exporterXlsx(lignes, nom) {
+    const ws = XLSX.utils.aoa_to_sheet(lignes);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Feuille1");
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    telechargerOuPartager(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), nom, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  }
+
   function filtreAnnuaire(x) {
     if (annuaireFiltre === "verifie") return x.verifie;
     if (annuaireFiltre === "en_attente") return !x.verifie;
@@ -328,10 +351,14 @@
     }
     const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "annuaire-" + annuaireType + ".csv";
-    a.click();
+    telechargerOuPartager(blob, "annuaire-" + annuaireType + ".csv", "text/csv;charset=utf-8");
+  }
+
+  function exporterAnnuaireXlsx() {
+    const lignes = annuaireType === "hotesses"
+      ? [["Prénom","Âge","E-mail","Instagram"]].concat(annuaireData.map(h => [h.prenom,h.age,h.email,h.instagram]))
+      : [["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le","Tarif","Actif jusqu'au","Dernier mode"]].concat(annuaireData.map(e => [e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):"",e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode]));
+    exporterXlsx(lignes, "annuaire-" + annuaireType + ".xlsx");
   }
 
   // ============ FICHE ============
@@ -745,6 +772,7 @@
           <option value="tous">Tous</option><option value="especes">Espèces</option><option value="carte">Carte</option><option value="prelevement">Prélèvement</option><option value="offert">Offert</option>
         </select>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterRecettes()">Exporter CSV</button>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterRecettesXlsx()">Excel (.xlsx)</button>
       </div>
       <div class='panneau'><div id='liste-recettes' class='vide'>Chargement…</div></div>
       <div id="total-recettes" style="margin-top:12px;font-weight:600"></div>`;
@@ -775,10 +803,13 @@
     recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, p.mode, Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
     const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "recettes.csv";
-    a.click();
+    telechargerOuPartager(blob, "recettes.csv", "text/csv;charset=utf-8");
+  }
+
+  function exporterRecettesXlsx() {
+    const lignes = [["Date","Numero recu","Mode","Montant","Periode debut","Periode fin"]];
+    recettesData.forEach(p => lignes.push([new Date(p.created_at).toLocaleDateString("fr-FR"), p.numero_recu, p.mode, Number(p.montant).toFixed(2), new Date(p.periode_debut).toLocaleDateString("fr-FR"), new Date(p.periode_fin).toLocaleDateString("fr-FR")]));
+    exporterXlsx(lignes, "recettes.xlsx");
   }
 
   init();
