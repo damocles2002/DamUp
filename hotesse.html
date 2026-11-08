@@ -214,6 +214,7 @@
         <div class="lieu" style="margin:10px 0">📍 ${esc(m.adresse || e?.ville || "")}</div>
         <div class="offres">${offres}</div>
         <button class="btn btn-primaire btn-block" onclick="postulerDepuisModal('${m.id}')" style="margin-top:14px">Postuler</button>
+        <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('mission', '${m.id}')">🚩 Signaler</button>
       </div>`;
     document.getElementById("modal-mission").classList.add("on");
   }

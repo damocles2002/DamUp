@@ -24,3 +24,35 @@ function urlPhoto(p) {
   const ok = typeof p === "string" && p.startsWith(SB_URL + "/storage/v1/object/public/photos/");
   return ok ? esc(p) : "";
 }
+
+// --- Fenêtre de signalement (partagée) ---
+function ouvrirSignalement(cibleType, cibleId) {
+  const motifs = ["Comportement inapproprié", "Conditions de mission non respectées", "Annonce ou profil trompeur", "Problème de sécurité", "Autre"];
+  const modal = document.createElement("div");
+  modal.id = "modal-signalement";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:999;padding:20px";
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px">
+      <h3 style="margin-bottom:12px">🚩 Signaler</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        ${motifs.map(m => `<label style="font-size:14px"><input type="radio" name="sig-motif" value="${m}"> ${m}</label>`).join("")}
+      </div>
+      <textarea id="sig-texte" placeholder="Décris le problème…" style="width:100%;border:1px solid #EEE4D2;border-radius:8px;padding:8px;font-size:13px;min-height:70px"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-block" style="background:#EEE" onclick="document.getElementById('modal-signalement').remove()">Annuler</button>
+        <button class="btn btn-block btn-primaire" onclick="envoyerSignalement('${cibleType}', '${cibleId}')">Envoyer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function envoyerSignalement(cibleType, cibleId) {
+  const motif = (document.querySelector('input[name="sig-motif"]:checked') || {}).value;
+  const texte = document.getElementById("sig-texte").value.trim();
+  if (!motif) { alert("Choisis un motif."); return; }
+  const payload = { cible_type: cibleType, cible_id: cibleId, motif: (texte ? motif + " — " + texte : motif) };
+  const { error } = await db.from("signalements").insert(payload);
+  document.getElementById("modal-signalement").remove();
+  if (error) { alert(error.message); return; }
+  alert("Merci, l'équipe DamUp va examiner ton signalement.");
+}

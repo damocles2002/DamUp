@@ -208,13 +208,13 @@
 
   async function chargerMesMissions() {
     const { data } = await db.from("candidatures")
-      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, etablissements(nom))")
+      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, etablissements(id, nom))")
       .eq("hotesse_id", user.id).order("created_at", { ascending: false });
     const statuts = { en_attente: "🕓 En attente", acceptee: "✅ Acceptée", confirmee: "💚 Confirmée", refusee: "❌ Refusée" };
     document.getElementById("mes-missions").innerHTML = (data && data.length)
       ? data.map(c => {
           const m = c.missions;
-          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div></div>`;
+          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
   }
