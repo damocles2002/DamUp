@@ -195,7 +195,8 @@ create table public.profiles (
   "rappel_fin_envoye_pour" timestamp with time zone,
   "stripe_customer_id" text,
   "stripe_compte" text,
-  "langue" text NOT NULL DEFAULT 'fr'::text
+  "langue" text NOT NULL DEFAULT 'fr'::text,
+  "reference_virement" text
 );
 
 -- TABLE settings
@@ -243,7 +244,7 @@ AS $function$
 $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuaire_etablissements()
- RETURNS TABLE(id uuid, nom text, type text, ville text, adresse text, email text, siret text, verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, dernier_mode text, photos jsonb, videos jsonb)
+ RETURNS TABLE(id uuid, nom text, type text, ville text, adresse text, email text, siret text, verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, dernier_mode text, reference_virement text, photos jsonb, videos jsonb)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -252,7 +253,7 @@ AS $function$
          (select count(*) from public.missions m where m.etablissement_id = e.id),
          e.created_at, p.tarif, p.periode, p.actif_jusqu_a,
          (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1),
-         e.photos, e.videos
+         p.reference_virement, e.photos, e.videos
     from public.etablissements e join public.profiles p on p.id = e.id
    where public.is_admin()
    order by e.created_at desc;
@@ -309,9 +310,8 @@ declare
   v_avoir_id uuid;
 begin
   if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
-  select * into v_p from public.paiements where id = p_id and mode in ('especes', 'offert');
+  select * into v_p from public.paiements where id = p_id and mode in ('especes', 'virement', 'offert');
   if v_p.id is null then raise exception 'Paiement introuvable (les paiements en ligne s''annulent dans Stripe).'; end if;
-
   select * into v_facture from public.factures where paiement_id = p_id and type = 'facture';
   if v_facture.id is not null then
     insert into public.factures (numero, type, facture_origine, profil_id, vendeur, client, lignes, total, mode_paiement, acquittee_le)
@@ -319,7 +319,6 @@ begin
     returning id into v_avoir_id;
     perform public.envoyer_facture(v_avoir_id);
   end if;
-
   delete from public.paiements where id = p_id;
   update public.profiles set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_p.profil_id) where id = v_p.profil_id;
 end; $function$;
@@ -332,9 +331,9 @@ CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mo
 AS $function$
 begin
   if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
-  if p_mode not in ('especes', 'offert') then raise exception 'Mode non autorisé ici.'; end if;
+  if p_mode not in ('especes', 'virement', 'offert') then raise exception 'Mode non autorisé ici.'; end if;
   if p_periode not in ('hebdomadaire', 'mensuel') then raise exception 'Période invalide.'; end if;
-  if p_mode = 'especes' and (p_montant is null or p_montant <= 0) then raise exception 'Montant invalide.'; end if;
+  if p_mode in ('especes', 'virement') and (p_montant is null or p_montant <= 0) then raise exception 'Montant invalide.'; end if;
   return public.prolonger_abonnement(
     p_profil, case when p_mode = 'offert' then 0 else p_montant end, p_mode, p_periode,
     coalesce(p_date::timestamp at time zone 'Europe/Paris', now()), null, p_note);
@@ -1142,6 +1141,29 @@ begin
     end if;
   end if;
   return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.reference_virement(p_uid uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_ref text; v_nom text;
+begin
+  if auth.uid() <> p_uid and not public.is_admin() then
+    raise exception 'Accès non autorisé.' using hint = 'acces_interdit';
+  end if;
+  select reference_virement into v_ref from public.profiles where id = p_uid;
+  if v_ref is null then
+    select regexp_replace(upper(coalesce(nom, 'ETAB')), '[^A-Z0-9]', '', 'g') into v_nom
+      from public.etablissements where id = p_uid;
+    v_nom := coalesce(nullif(v_nom, ''), 'ETAB');
+    if length(v_nom) > 12 then v_nom := left(v_nom, 12); end if;
+    v_ref := 'DAMUP-' || v_nom || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 4));
+    update public.profiles set reference_virement = v_ref where id = p_uid;
+  end if;
+  return v_ref;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.reglage_bool(p_cle text, p_defaut boolean)
