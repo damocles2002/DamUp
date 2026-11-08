@@ -74,6 +74,8 @@
   .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
   .bottomnav .ico { font-size: 20px; }
   .topbar, .tabs { flex-shrink: 0; }
+  .tabs, .filtres { scrollbar-width: none; }
+  .tabs::-webkit-scrollbar, .filtres::-webkit-scrollbar { display: none; }
 </style>
 </head>
 <body>
@@ -108,6 +110,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
+<script src="js/ui.js"></script>
 <script src="js/notifications.js"></script>
 <script>
   const contenu = document.getElementById("contenu");
@@ -177,7 +180,7 @@
       for (const f of input.files) {
         const path = `${user.id}/mission-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
         const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { alert("Erreur : " + error.message); continue; }
+        if (error) { toast("Erreur : " + error.message); continue; }
         mediasEnCours.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       afficherApercuMedias();
@@ -199,15 +202,15 @@
     const nb = parseInt(document.getElementById("m-nb").value || "2");
     const adresse = document.getElementById("m-adresse").value || (etab?.adresse || "");
 
-    if (!date) { alert("Choisis une date."); return; }
-    if (date < new Date().toISOString().slice(0, 10)) { alert("La date de la mission est déjà passée."); return; }
-    if (!debut || !fin) { alert("Renseigne l'heure de début et de fin."); return; }
-    if (debut === fin) { alert("L'heure de début doit être différente de l'heure de fin."); return; }
-    if (nb < 1 || nb > 50) { alert("Le nombre d'hôtesses doit être entre 1 et 50."); return; }
-    if (!adresse || !adresse.trim()) { alert("L'adresse est obligatoire pour publier."); return; }
-    if (!mediasEnCours.length) { alert("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
+    if (!date) { toast("Choisis une date."); return; }
+    if (date < new Date().toISOString().slice(0, 10)) { toast("La date de la mission est déjà passée."); return; }
+    if (!debut || !fin) { toast("Renseigne l'heure de début et de fin."); return; }
+    if (debut === fin) { toast("L'heure de début doit être différente de l'heure de fin."); return; }
+    if (nb < 1 || nb > 50) { toast("Le nombre d'hôtesses doit être entre 1 et 50."); return; }
+    if (!adresse || !adresse.trim()) { toast("L'adresse est obligatoire pour publier."); return; }
+    if (!mediasEnCours.length) { toast("Ajoute au moins une photo ou vidéo : c'est obligatoire pour publier."); return; }
     if (fin < debut) {
-      if (!confirm("La mission se termine le lendemain à " + formatHeure(fin) + ". Continuer ?")) return;
+      if (!await demander("La mission se termine le lendemain à " + formatHeure(fin) + ". Continuer ?")) return;
     }
 
     const payload = {
@@ -219,8 +222,8 @@
       statut: "ouverte"
     };
     const { error } = await db.from("missions").insert(payload);
-    if (error) { alert(error.message); return; }
-    alert("Mission publiée ✅");
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Mission publiée ✅");
     afficherMissions();
   }
 
@@ -239,7 +242,7 @@
   }
 
   async function annulerMission(id) {
-    if (!confirm("Annuler cette mission ?")) return;
+    if (!await demander("Annuler cette mission ?")) return;
     await db.from("missions").update({ statut: "annulee" }).eq("id", id);
     chargerMissions();
   }
@@ -285,7 +288,7 @@
 
   async function decider(candId, statut) {
     const { error } = await db.from("candidatures").update({ statut }).eq("id", candId);
-    if (error) { alert(error.message); return; }
+    if (error) { toast(error.message, "erreur"); return; }
     afficherSelection(); // recharge le lot restant
   }
 
@@ -349,9 +352,9 @@
       adresse: document.getElementById("p-adresse").value || null,
       siret: document.getElementById("p-siret").value || null,
     };
-    if (!maj.nom) { alert("Le nom est obligatoire."); return; }
+    if (!maj.nom) { toast("Le nom est obligatoire."); return; }
     await db.from("etablissements").update(maj).eq("id", user.id);
-    alert("Profil enregistré ✅");
+    toast("Profil enregistré ✅");
     chargerProfilEtab();
   }
 
@@ -363,7 +366,7 @@
       for (const f of input.files) {
         const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
         const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { alert("Erreur : " + error.message); continue; }
+        if (error) { toast("Erreur : " + error.message); continue; }
         photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       await db.from("etablissements").update({ photos }).eq("id", user.id);
@@ -421,7 +424,7 @@
   }
 
   async function demarrerScan() {
-    if (!window.Html5Qrcode) { alert("Lecteur QR indisponible."); return; }
+    if (!window.Html5Qrcode) { toast("Lecteur QR indisponible."); return; }
     if (scanner) { await scanner.stop(); scanner.clear(); scanner = null; }
     const zone = document.getElementById("scan-zone");
     zone.innerHTML = '<div id="reader" style="width:100%"></div>';
@@ -436,7 +439,7 @@
 
   async function validerCodeManuel() {
     const code = document.getElementById("code-manuel").value.trim();
-    if (!code) { alert("Saisis un code."); return; }
+    if (!code) { toast("Saisis un code."); return; }
     await validerPresenceCode(code);
   }
 
@@ -459,7 +462,7 @@
 
   async function publierAvis(candId, missionId, hotesseId) {
     const note = notesEnCours[candId];
-    if (!note) { alert("Choisis une note (1 à 5 étoiles)."); return; }
+    if (!note) { toast("Choisis une note (1 à 5 étoiles)."); return; }
     const criteres = [...document.querySelectorAll(`#crit-${candId}:checked`)].map(i => i.getAttribute("data-k"));
     const commentaire = document.getElementById(`com-${candId}`).value.trim();
     const { error } = await db.from("avis").insert({
@@ -467,11 +470,11 @@
       note, criteres, commentaire: commentaire || null
     });
     if (error) {
-      if (error.code === "23505") { alert("Tu as déjà noté cette hôtesse pour cette mission."); }
-      else { alert(error.message); }
+      if (error.code === "23505") { toast("Tu as déjà noté cette hôtesse pour cette mission."); }
+      else { toast(error.message, "erreur"); }
       return;
     }
-    alert("Avis publié ✅");
+    toast("Avis publié ✅");
     chargerANoter();
   }
 
@@ -516,7 +519,7 @@
     const { error } = await db.from("candidatures").update({ statut }).eq("id", candId);
     const modal = document.getElementById("modal-fiche");
     if (modal) modal.remove();
-    if (error) { alert(error.message); return; }
+    if (error) { toast(error.message, "erreur"); return; }
     afficherSelection();
   }
 

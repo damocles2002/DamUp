@@ -1,0 +1,51 @@
+// ============================================================
+//  DamUp — UI partagée : toast + fenêtre de confirmation
+//  Remplace toast() et await demander() du navigateur.
+// ============================================================
+
+// Bandeau de notification en bas de l'écran (4 s)
+function toast(message, type = "info") {
+  const couleurs = { ok: "#1E7A3C", erreur: "#C0392B", info: "#2A1120" };
+  const fonds = { ok: "#E7F5EC", erreur: "#FBE4E1", info: "#F4E8D6" };
+  const el = document.createElement("div");
+  el.textContent = message;
+  el.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%);max-width:90%;" +
+    "background:" + (fonds[type] || fonds.info) + ";color:" + (couleurs[type] || couleurs.info) + ";" +
+    "padding:12px 18px;border-radius:12px;font-size:14px;font-weight:500;" +
+    "box-shadow:0 6px 24px rgba(0,0,0,.18);z-index:9999;text-align:center;" +
+    "opacity:0;transition:opacity .25s;";
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = "1"; });
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+// Petite fenêtre de confirmation (promesse true / false)
+function demander(question, libelleOui = "Oui") {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9998;padding:20px";
+    const box = document.createElement("div");
+    box.style.cssText = "background:#fff;border-radius:16px;padding:22px;width:100%;max-width:340px;text-align:center";
+    const q = document.createElement("div");
+    q.textContent = question;
+    q.style.cssText = "font-size:15px;margin-bottom:18px;white-space:pre-line";
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:10px";
+    const non = document.createElement("button");
+    non.textContent = "Annuler";
+    non.style.cssText = "flex:1;padding:12px;border:none;border-radius:10px;background:#EEE;font-size:14px;font-weight:600;cursor:pointer";
+    const oui = document.createElement("button");
+    oui.textContent = libelleOui;
+    oui.style.cssText = "flex:1;padding:12px;border:none;border-radius:10px;background:#2A1120;color:#fff;font-size:14px;font-weight:600;cursor:pointer";
+    actions.appendChild(non);
+    actions.appendChild(oui);
+    box.appendChild(q);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const fin = (val) => { overlay.remove(); resolve(val); };
+    oui.onclick = () => fin(true);
+    non.onclick = () => fin(false);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) fin(false); });
+  });
+}

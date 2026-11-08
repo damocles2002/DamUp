@@ -49,10 +49,10 @@ function ouvrirSignalement(cibleType, cibleId) {
 async function envoyerSignalement(cibleType, cibleId) {
   const motif = (document.querySelector('input[name="sig-motif"]:checked') || {}).value;
   const texte = document.getElementById("sig-texte").value.trim();
-  if (!motif) { alert("Choisis un motif."); return; }
+  if (!motif) { toast("Choisis un motif."); return; }
   const payload = { cible_type: cibleType, cible_id: cibleId, motif: (texte ? motif + " — " + texte : motif) };
   const { error } = await db.from("signalements").insert(payload);
   document.getElementById("modal-signalement").remove();
-  if (error) { alert(error.message); return; }
-  alert("Merci, l'équipe DamUp va examiner ton signalement.");
+  if (error) { toast(error.message, "erreur"); return; }
+  toast("Merci, l'équipe DamUp va examiner ton signalement.");
 }

@@ -71,6 +71,7 @@
       <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
     </nav>
     <div class="profil">Connecté en <b>Administrateur</b></div>
+    <a class="logout" id="logout"><span class="ico">🚪</span>Se déconnecter</a>
   </aside>
 
   <div class="menu-mobile">
@@ -80,6 +81,7 @@
     <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
     <a data-vue="equipe"><span class="ico">🛡️</span>Équipe</a>
     <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
+    <a id="logout-mobile"><span class="ico">🚪</span>Quitter</a>
   </div>
   <main class="main" id="main"></main>
 </div>
@@ -87,6 +89,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
+<script src="js/ui.js"></script>
 <script>
   const main = document.getElementById("main");
   let vue = "dashboard";
@@ -95,7 +98,7 @@
     const { data } = await auth.getUser();
     if (!data.user) { location.href = "login.html"; return; }
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
-    if (!p || p.type !== "admin") { alert("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
+    if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
     afficher();
   }
   document.querySelectorAll(".menu a, .menu-mobile a").forEach(a => a.addEventListener("click", () => {
@@ -103,6 +106,9 @@
     document.querySelectorAll(".menu a, .menu-mobile a").forEach(x => x.classList.toggle("on", x.dataset.vue === vue));
     afficher();
   }));
+  async function deconnecter() { await auth.signOut(); location.href = "login.html"; }
+  document.getElementById("logout").addEventListener("click", deconnecter);
+  document.getElementById("logout-mobile").addEventListener("click", deconnecter);
 
   function afficher() {
     if (vue === "dashboard") return afficherDashboard();
@@ -212,13 +218,13 @@
     chargerSignalements();
   }
   async function suspendreCible(id, cibleId) {
-    if (!confirm("Suspendre le compte visé ? Il ne pourra plus postuler ni publier.")) return;
+    if (!await demander("Suspendre le compte visé ? Il ne pourra plus postuler ni publier.")) return;
     await db.from("profiles").update({ suspendu: true }).eq("id", cibleId);
     await db.from("signalements").update({ statut: "traite" }).eq("id", id);
     chargerSignalements();
   }
   async function annulerMissionSignalement(missionId) {
-    if (!confirm("Annuler cette mission ?")) return;
+    if (!await demander("Annuler cette mission ?")) return;
     await db.from("missions").update({ statut: "annulee" }).eq("id", missionId);
     chargerSignalements();
   }
@@ -340,7 +346,7 @@
   }
 
   async function supprimerMembre(id, user_id) {
-    if (!confirm("Retirer ce membre ? Son accès sera supprimé.")) return;
+    if (!await demander("Retirer ce membre ? Son accès sera supprimé.")) return;
     await sb.functions.invoke("membres", { body: { action: "delete", id, user_id } });
     chargerMembres();
   }
@@ -359,7 +365,7 @@
   }
 
   async function retrograderAdmin(id) {
-    if (!confirm("Retirer le rôle administrateur de ce compte ?")) return;
+    if (!await demander("Retirer le rôle administrateur de ce compte ?")) return;
     await db.from("profiles").update({ type: "hotesse" }).eq("id", id);
     chargerAdmins();
   }

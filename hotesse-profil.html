@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
+  body { background: var(--ivoire-2); display: flex; justify-content: center; min-height: 100vh; }
   .app { width: 100%; max-width: 430px; background: var(--ivoire-2); min-height: 100vh; position: relative;
          box-shadow: 0 0 60px rgba(0,0,0,.5); display: flex; flex-direction: column; }
   .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
@@ -106,6 +106,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
+<script src="js/ui.js"></script>
 <script>
   let user = null, profil = null;
 
@@ -158,7 +159,7 @@
 
   async function ajouterPhotos() {
     const nbActuel = (profil?.photos || []).length;
-    if (nbActuel >= 7) { alert("Maximum 7 photos."); return; }
+    if (nbActuel >= 7) { toast("Maximum 7 photos."); return; }
     const input = document.createElement("input");
     input.type = "file"; input.accept = "image/*"; input.multiple = true;
     input.onchange = async () => {
@@ -167,7 +168,7 @@
         if (photos.length >= 7) break;
         const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
         const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { alert("Erreur : " + error.message); continue; }
+        if (error) { toast("Erreur : " + error.message); continue; }
         photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       await db.from("hotesses").update({ photos }).eq("id", user.id);
@@ -198,10 +199,10 @@
       telephone: document.getElementById("e-tel").value || null,
       instagram: document.getElementById("e-insta").value || null,
     };
-    if (!maj.prenom) { alert("Le prénom est obligatoire."); return; }
-    if (!maj.age || maj.age < 18) { alert("Âge invalide (18 ans minimum)."); return; }
+    if (!maj.prenom) { toast("Le prénom est obligatoire."); return; }
+    if (!maj.age || maj.age < 18) { toast("Âge invalide (18 ans minimum)."); return; }
     const { error } = await db.from("hotesses").update(maj).eq("id", user.id);
-    if (error) { alert(error.message); return; }
+    if (error) { toast(error.message, "erreur"); return; }
     document.getElementById("form-edit").classList.remove("visible");
     chargerProfil();
   }
@@ -261,7 +262,7 @@
         `<div class="sous" style="color:${resteMin < 60 ? "#E57373" : "var(--champagne)"}">Plus que ${Math.floor(resteMin/60)} h ${String(resteMin%60).padStart(2,"0")} pour confirmer</div>`;
       corps = `
         <div class="sous">${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</div>
-        <div class="info" style="margin:10px 0">Confirme avant <b>${txtLimite}</b>, sinon ta place sera libérée.</div>
+        <p style="margin:10px 0;font-size:14px">Confirme avant <b>${txtLimite}</b> sinon ta place sera libérée.</p>
         ${txtReste}
         <button class="btn btn-primaire btn-block" onclick="confirmerMission('${c.id}')" style="margin-top:14px">Confirmer ma venue ✅</button>
         <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="annulerMission('${c.id}')">Je ne peux plus venir</button>`;
@@ -282,7 +283,7 @@
 
   async function confirmerMission(id) {
     const { error } = await db.from("candidatures").update({ statut: "confirmee" }).eq("id", id);
-    if (error) { alert(error.message); return; }
+    if (error) { toast(error.message, "erreur"); return; }
     chargerQR();
     chargerMesMissions();
   }
@@ -293,9 +294,9 @@
     const msg = dejaConfirmee
       ? "Annuler après avoir confirmé te donne un signe négatif. Continuer ?"
       : "Annuler ta candidature pour cette mission ?";
-    if (!confirm(msg)) return;
+    if (!await demander(msg)) return;
     const { error } = await db.from("candidatures").update({ annulation: true }).eq("id", id);
-    if (error) { alert(error.message); return; }
+    if (error) { toast(error.message, "erreur"); return; }
     chargerQR();
     chargerMesMissions();
   }
