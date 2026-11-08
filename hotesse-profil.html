@@ -97,6 +97,7 @@
   <div class="qrcard" id="qr"></div>
 
   <div id="bloc-abonnement"></div>
+  <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>
 
   <nav class="bottomnav">
     <a href="hotesse.html"><span class="ico">🏠</span>Missions</a>
@@ -307,6 +308,18 @@
   }
 
   document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
+  function chargerPartenaire() {
+    try {
+      db.from("settings").select("value").eq("key", "partenaire_lien").single().then(({ data }) => {
+        const lien = (data && data.value || "").trim();
+        const zone = document.getElementById("partenaire-suivi");
+        if (!zone) return;
+        if (!lien) { zone.innerHTML = ""; return; }
+        zone.innerHTML = `<a href="${esc(lien)}" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:600">📸 Suivre notre partenaire</a>`;
+      });
+    } catch (e) {}
+  }
+  chargerPartenaire();
   init();
 </script>
 </body>

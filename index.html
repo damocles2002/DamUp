@@ -143,6 +143,17 @@
     </div>
   </section>
 
+  <!-- Section — Notre partenaire -->
+  <section class="claire" id="section-partenaire" style="display:none">
+    <div class="wrap" style="text-align:center">
+      <h2 class="section-titre" data-i18n="partenaire.titre">Notre partenaire</h2>
+      <img id="partenaire-logo" alt="" style="width:96px;height:96px;border-radius:50%;object-fit:cover;background:var(--champagne);margin:0 auto 10px;display:block">
+      <div id="partenaire-nom" style="font-family:var(--font-titre);font-size:20px;font-weight:700"></div>
+      <p data-i18n="partenaire.phrase" style="color:var(--gris);max-width:440px;margin:10px auto">Le meilleur du bar et de la mixologie, partenaire de DamUp.</p>
+      <a class="btn btn-champagne" id="partenaire-lien" target="_blank" rel="noopener" data-i18n="partenaire.voir">📸 Voir sur Instagram</a>
+    </div>
+  </section>
+
   <!-- Section 6 — Questions fréquentes -->
   <section class="claire">
     <div class="wrap">
@@ -170,7 +181,7 @@
   </section>
 </main>
 
-<footer class="wrap">DamUp © 2026 — <a href="mentions-legales.html">Mentions légales</a> · <a href="cgu.html">CGU</a> · <a href="confidentialite.html">Confidentialité</a></footer>
+<footer class="wrap">DamUp © 2026 — <a href="mentions-legales.html">Mentions légales</a> · <a href="cgu.html">CGU</a> · <a href="confidentialite.html">Confidentialité</a> · <a id="partenaire-footer" href="#" target="_blank" rel="noopener" style="display:none">@le_barreau_des_barmans</a></footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/i18n.js"></script>
@@ -194,6 +205,27 @@
       const email = (data && data.value && data.value.trim()) || "damotrader2025@gmail.com";
       const el = document.getElementById("contact-email");
       el.textContent = email; el.href = "mailto:" + email;
+    });
+  } catch (e) {}
+
+  // Partenaire Instagram (réglage admin, masqué si le lien est vide)
+  try {
+    db.from("settings").select("key, value").in("key", ["partenaire_nom", "partenaire_lien", "partenaire_logo"]).then(({ data }) => {
+      const s = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+      const lien = (s.partenaire_lien || "").trim();
+      if (!lien) return;
+      const nom = (s.partenaire_nom || "Le Barreau des Barmans").trim();
+      const logo = (s.partenaire_logo || "").trim();
+      document.getElementById("section-partenaire").style.display = "block";
+      document.getElementById("partenaire-nom").textContent = nom;
+      document.getElementById("partenaire-lien").href = lien;
+      if (logo) { document.getElementById("partenaire-logo").src = logo; }
+      else { document.getElementById("partenaire-logo").style.display = "none"; }
+      const compte = (lien.replace(/\/+$/, "").split("/").pop() || "").replace(/^@/, "") || "le_barreau_des_barmans";
+      const pf = document.getElementById("partenaire-footer");
+      pf.style.display = "inline";
+      pf.href = lien;
+      pf.textContent = "@" + compte;
     });
   } catch (e) {}
 

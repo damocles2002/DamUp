@@ -368,8 +368,10 @@
         <div id="photos-etab" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
         <div id="bloc-abonnement"></div>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:10px" onclick="ajouterPhotoEtab()">＋ Ajouter des photos</button>
-      </div>`;
+      </div>
+      <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>`;
     chargerProfilEtab();
+    chargerPartenaire();
   }
 
   async function chargerProfilEtab() {
@@ -608,6 +610,18 @@
         <button class="btn btn-block" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('hotesse', '${c.hotesse_id}')">🚩 Signaler</button>
       </div>`;
     document.body.appendChild(modal);
+  }
+
+  function chargerPartenaire() {
+    try {
+      db.from("settings").select("value").eq("key", "partenaire_lien").single().then(({ data }) => {
+        const lien = (data && data.value || "").trim();
+        const zone = document.getElementById("partenaire-suivi");
+        if (!zone) return;
+        if (!lien) { zone.innerHTML = ""; return; }
+        zone.innerHTML = `<a href="${esc(lien)}" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:600">📸 Suivre notre partenaire</a>`;
+      });
+    } catch (e) {}
   }
 
   init();

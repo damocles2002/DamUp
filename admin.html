@@ -563,6 +563,10 @@
     document.getElementById("sec-informations").innerHTML = `
       <div class="champ-inline"><label>E-mail de contact</label><input class="field" id="s-contact_email" value="${val("contact_email", "")}" style="max-width:260px"></div>
       <div class="champ-inline"><label>Annonce (affichée en haut de l'appli)</label><textarea class="field" id="s-annonce" rows="3" style="width:100%">${val("annonce", "")}</textarea></div>
+      <div style="margin:16px 0 8px;font-weight:600;font-size:14px">Partenaire</div>
+      <div class="champ-inline"><label>Nom du partenaire</label><input class="field" id="s-partenaire_nom" value="${val("partenaire_nom", "")}" style="max-width:260px"></div>
+      <div class="champ-inline"><label>Lien Instagram</label><input class="field" id="s-partenaire_lien" value="${val("partenaire_lien", "")}" style="max-width:260px" placeholder="https://www.instagram.com/..."></div>
+      <div class="champ-inline"><label>Logo (URL de l'image)</label><input class="field" id="s-partenaire_logo" value="${val("partenaire_logo", "")}" style="max-width:260px"></div>
       <button class="btn btn-primaire btn-sm" onclick="sauverSection('informations')">Enregistrer</button>`;
 
     document.getElementById("sec-recus").innerHTML = `

@@ -115,5 +115,10 @@
   "notif.mission_annulee_admin": "Ta mission a été annulée par DamUp : {motif}.",
   "notif.mission_note_modifiee": "📝 {lieu} a mis à jour les informations de ta mission du {date}.",
 
+  "partenaire.titre": "Notre partenaire",
+  "partenaire.phrase": "Le meilleur du bar et de la mixologie, partenaire de DamUp.",
+  "partenaire.voir": "📸 Voir sur Instagram",
+  "partenaire.suivre": "📸 Suivre notre partenaire",
+
   "legal.traduction_note": "Traduction fournie pour faciliter la lecture. En cas de différence, la version française fait foi."
 }

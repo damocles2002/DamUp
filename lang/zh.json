@@ -115,5 +115,10 @@
   "notif.mission_annulee_admin": "您的场次已被 DamUp 取消：{motif}。",
   "notif.mission_note_modifiee": "📝 {lieu} 更新了您 {date} 场次的信息。",
 
+  "partenaire.titre": "我们的合作伙伴",
+  "partenaire.phrase": "酒吧与调酒的精华，DamUp 的合作伙伴。",
+  "partenaire.voir": "📸 在 Instagram 上查看",
+  "partenaire.suivre": "📸 关注我们的合作伙伴",
+
   "legal.traduction_note": "本译文仅供阅读方便。如有出入，以法文版本为准。"
 }
