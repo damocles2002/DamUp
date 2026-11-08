@@ -159,28 +159,37 @@
 
   function val() { return document.getElementById; }
 
+  function messageLisible(m) {
+    if (m.includes("Invalid login credentials")) return "E-mail ou mot de passe incorrect.";
+    if (m.includes("User already registered")) return "Un compte existe déjà avec cet e-mail.";
+    if (m.includes("Email not confirmed")) return "Confirme d'abord ton e-mail (vérifie ta boîte mail).";
+    return m || "Une erreur est survenue.";
+  }
+
   btn.addEventListener("click", async () => {
     afficherMsg("");
     const email = document.getElementById("email").value;
     const mdp = document.getElementById("mdp").value;
     if (!email || !mdp) return afficherMsg("Renseigne ton e-mail et ton mot de passe.", "err");
+
+    // vérifications AVANT de désactiver le bouton
+    if (mode === "inscription") {
+      if (role === "hotesse") {
+        const age = parseInt(document.getElementById("age").value);
+        if (!document.getElementById("prenom").value) return afficherMsg("Le prénom est obligatoire.", "err");
+        if (!age || age < 18) return afficherMsg("Tu dois avoir 18 ans ou plus.", "err");
+        if (!document.getElementById("ville").value) return afficherMsg("La ville est obligatoire.", "err");
+        if (!document.getElementById("insta").value) return afficherMsg("Le compte Instagram est obligatoire.", "err");
+      } else {
+        if (!document.getElementById("etab-nom").value) return afficherMsg("Le nom de l'établissement est obligatoire.", "err");
+        if (!document.getElementById("etab-siret").value) return afficherMsg("Le SIRET est obligatoire.", "err");
+      }
+    }
+
     btn.disabled = true; btn.textContent = "Un instant…";
 
     try {
       if (mode === "inscription") {
-        // vérifier les champs obligatoires du cahier des charges
-        if (role === "hotesse") {
-          const age = parseInt(document.getElementById("age").value);
-          if (!document.getElementById("prenom").value) return afficherMsg("Le prénom est obligatoire.", "err");
-          if (!age || age < 18) return afficherMsg("Tu dois avoir 18 ans ou plus.", "err");
-          if (!document.getElementById("ville").value) return afficherMsg("La ville est obligatoire.", "err");
-          if (!document.getElementById("insta").value) return afficherMsg("Le compte Instagram est obligatoire.", "err");
-        } else {
-          if (!document.getElementById("etab-nom").value) return afficherMsg("Le nom de l'établissement est obligatoire.", "err");
-          if (!document.getElementById("etab-siret").value) return afficherMsg("Le SIRET est obligatoire.", "err");
-        }
-        btn.disabled = false; btn.textContent = "Créer mon compte";
-
         // les champs partent dans user_metadata → le trigger SQL crée les entrées automatiquement
         const meta = role === "hotesse"
           ? { role, prenom: document.getElementById("prenom").value, age: parseInt(document.getElementById("age").value), ville: document.getElementById("ville").value, telephone: document.getElementById("tel").value || null, instagram: document.getElementById("insta").value || null }
@@ -198,7 +207,8 @@
         setTimeout(() => location.href = type === "etablissement" ? "etablissement.html" : (type === "admin" ? "admin.html" : "hotesse.html"), 600);
       }
     } catch (e) {
-      afficherMsg(e.message || "Une erreur est survenue.", "err");
+      afficherMsg(messageLisible(e.message || ""), "err");
+    } finally {
       btn.disabled = false; setMode(mode);
     }
   });
