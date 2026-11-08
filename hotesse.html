@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>DamUp — Espace hôtesse</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,7 +41,7 @@
   .mission .offres span { background: var(--champagne); color: var(--aubergine); padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--champagne-2); }
   .vide { text-align: center; color: var(--gris); padding: 60px 20px; font-size: 15px; }
   .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px;
-               background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 14px; }
+               background: #fff; border-top: 1px solid #EEE4D2; display: flex; justify-content: space-around; padding: 10px 0 calc(14px + env(safe-area-inset-bottom)); }
   .bottomnav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--gris); text-decoration: none; }
   .bottomnav a.on { color: var(--aubergine); font-weight: 600; }
   .bottomnav .ico { font-size: 20px; }
