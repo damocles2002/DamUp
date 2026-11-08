@@ -36,7 +36,8 @@ begin
 end; $$;
 
 -- missions_honorees lisible par l'hôtesse elle-même / l'admin uniquement
-create or replace function public.hotesse_prive(p_id uuid)
+drop function if exists public.hotesse_prive(uuid);
+create function public.hotesse_prive(p_id uuid)
 returns table (telephone text, instagram text, signes_negatifs int, missions_honorees int)
 language sql stable security definer set search_path = public as $$
   select h.telephone, h.instagram, h.signes_negatifs, h.missions_honorees from public.hotesses h
