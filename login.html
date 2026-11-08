@@ -60,6 +60,7 @@
     <label class="label">Mot de passe</label>
     <input class="field" type="password" id="mdp" placeholder="6 caractères minimum">
   </div>
+  <div style="text-align:right;margin:-6px 0 10px"><a id="lien-oubli" style="color:var(--aubergine);font-size:12.5px;font-weight:600;cursor:pointer">Mot de passe oublié ?</a></div>
 
   <!-- champs selon le rôle (renseignements obligatoires du cahier des charges) -->
   <div id="champs-role" class="visible">
@@ -165,6 +166,14 @@
     if (m.includes("Email not confirmed")) return "Confirme d'abord ton e-mail (vérifie ta boîte mail).";
     return m || "Une erreur est survenue.";
   }
+
+  // --- mot de passe oublié ---
+  document.getElementById("lien-oubli").addEventListener("click", async () => {
+    const email = document.getElementById("email").value.trim();
+    if (!email) { afficherMsg("Saisis d'abord ton e-mail.", "err"); return; }
+    await auth.resetPasswordForEmail(email, { redirectTo: "https://damocles2002.github.io/DamUp/reinitialiser.html" });
+    afficherMsg("Si un compte existe pour cet e-mail, tu vas recevoir un lien pour choisir un nouveau mot de passe.", "ok");
+  });
 
   btn.addEventListener("click", async () => {
     afficherMsg("");

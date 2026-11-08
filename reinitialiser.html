@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>DamUp — Nouveau mot de passe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
+  .carte-auth { background: var(--ivoire-2); width: 100%; max-width: 430px; min-height: 100vh; padding: 40px 24px; }
+  .logo { text-align: center; margin-bottom: 24px; }
+  .logo img { width: 64px; margin: 0 auto 8px; }
+  .logo h1 { font-family: var(--font-titre); font-size: 26px; }
+  .champ { margin-bottom: 12px; }
+  .label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field { width: 100%; padding: 12px; border: 1px solid #EEE4D2; border-radius: 10px; font-size: 15px; }
+  .msg { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin: 10px 0; display: none; }
+  .msg.ok { display: block; background: #E7F5EC; color: #1E7A3C; }
+  .msg.err { display: block; background: #FBE4E1; color: #C0392B; }
+</style>
+</head>
+<body>
+<div class="carte-auth">
+  <div class="logo"><img src="assets/logo-couronne.png" alt="DamUp"><h1>DamUp</h1></div>
+  <div class="msg" id="msg"></div>
+  <div class="champ"><label class="label">Nouveau mot de passe</label><input class="field" type="password" id="mdp1" placeholder="8 caractères minimum"></div>
+  <div class="champ"><label class="label">Confirme le mot de passe</label><input class="field" type="password" id="mdp2" placeholder="Identique"></div>
+  <button class="btn btn-primaire btn-block" onclick="changer()">Changer mon mot de passe</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script>
+  function msg(txt, type) { const m = document.getElementById("msg"); m.textContent = txt; m.className = "msg " + type; }
+  async function init() {
+    const { data } = await auth.getSession();
+    if (!data.session) { msg("Ce lien a expiré, recommence depuis la page de connexion.", "err"); return; }
+  }
+  async function changer() {
+    const m1 = document.getElementById("mdp1").value;
+    const m2 = document.getElementById("mdp2").value;
+    if (m1.length < 8) { msg("Le mot de passe doit faire au moins 8 caractères.", "err"); return; }
+    if (m1 !== m2) { msg("Les deux mots de passe ne sont pas identiques.", "err"); return; }
+    const { error } = await auth.updateUser({ password: m1 });
+    if (error) { msg(error.message, "err"); return; }
+    msg("Mot de passe changé ✅ Redirection…", "ok");
+    setTimeout(() => location.href = "login.html", 1500);
+  }
+  init();
+</script>
+</body>
+</html>
