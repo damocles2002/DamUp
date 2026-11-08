@@ -395,6 +395,14 @@
         docRecto = r1.data?.signedUrl || ""; docSelfie = r2.data?.signedUrl || "";
       }
     } catch (e) {}
+    // contrôle SIRET (établissement uniquement) via l'annuaire officiel
+    let siretInfo = null;
+    if (type === "etablissement" && x.siret) {
+      try {
+        const { data: r } = await sb.functions.invoke("verifier-siret", { body: { siret: x.siret } });
+        siretInfo = r;
+      } catch (e) {}
+    }
     const nom = type === "hotesse" ? (x.prenom || "?") : (x.nom || "?");
     const estVerifie = x.verifie;
     const estSuspendu = x.suspendu;
@@ -408,6 +416,20 @@
           <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche-admin').remove()">✕</button>
         </div>
         <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(x.email || "")} · ${type === "hotesse" ? (x.ville || "") : (x.type || "") + " · " + (x.ville || "")} ${x.siret ? "· SIRET " + esc(x.siret) : ""}</div>
+
+        ${siretInfo ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Contrôle SIRET (annuaire officiel)</b>
+          ${siretInfo.introuvable
+            ? `<div style="margin-top:8px;padding:10px;background:#FBE4E1;border-radius:8px;color:var(--danger);font-size:13px">⚠️ SIRET introuvable${siretInfo.motif ? " : " + esc(siretInfo.motif) : ""}</div>`
+            : `<div style="font-size:13px;margin-top:8px">
+                <div>Nom officiel : <b>${esc(siretInfo.nom_officiel || "")}</b></div>
+                ${siretInfo.adresse ? `<div>Adresse : ${esc(siretInfo.adresse)}</div>` : ""}
+                ${siretInfo.activite ? `<div>Activité : ${esc(siretInfo.activite)}</div>` : ""}
+                <div style="margin-top:4px">Statut : ${siretInfo.etat === "active" ? "🟢 entreprise active" : "🔴 entreprise fermée"}</div>
+                ${siretInfo.etat !== "active" ? `<div style="margin-top:6px;padding:8px;background:#FBE4E1;border-radius:8px;color:var(--danger);font-size:12.5px">⚠️ Entreprise fermée</div>` : ""}
+                ${nomTresDifferent(x.nom, siretInfo.nom_officiel) ? `<div style="margin-top:6px;padding:8px;background:#FFF3E0;border-radius:8px;color:#9A5B00;font-size:12.5px">⚠️ Le nom déclaré diffère fortement du nom officiel</div>` : ""}
+              </div>`}
+        </div>` : ""}
+
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Photos & médias</b>
           ${vignettesMedia(x.photos, type === "etablissement" ? (x.videos || []) : [], (type === "hotesse" ? (x.prenom || "hotesse") + "-" + (x.ville || "ville") : (x.nom || "etablissement") + "-etablissement").replace(/\s+/g, "-"))}
         </div>
@@ -544,6 +566,7 @@
         <div style="font-size:12px;color:var(--gris);margin-top:4px">Le ${new Date(s.created_at).toLocaleString("fr-FR")} · ${esc(s.cible_id || "")}</div>
         <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
           <button class="btn btn-sm btn-primaire" onclick="traiterSignalement('${s.id}')">Marquer traité</button>
+          <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="voirConversationSignalement('${s.id}')">💬 Voir la conversation</button>
           <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCible('${s.id}','${s.cible_id}')">Suspendre</button>
           ${s.cible_type === 'mission' ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionSignalement('${s.cible_id}')">Annuler la mission</button>` : ""}
         </div>
@@ -942,6 +965,31 @@
     toast(valide ? "Identité validée ✅" : "Identité refusée.");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
+  }
+
+  function nomTresDifferent(a, b) {
+    const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, " ").replace(/\b(sarl|sas|sasu|eurl|sci|snc|scop|scic|association|asso)\b/g, " ")
+      .replace(/\s+/g, " ").trim();
+    const na = norm(a), nb = norm(b);
+    if (!na || !nb) return false;
+    if (na.includes(nb) || nb.includes(na)) return false;
+    const motsA = na.split(" ").filter(m => m.length >= 4);
+    const motsB = nb.split(" ").filter(m => m.length >= 4);
+    return !motsA.some(m => motsB.includes(m));
+  }
+
+  async function voirConversationSignalement(id) {
+    const { data, error } = await db.rpc("admin_lire_conversation", { p_signalement: id });
+    if (error) { toast(error.message, "erreur"); return; }
+    const modal = document.createElement("div");
+    modal.id = "modal-conversation-admin";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:996";
+    modal.innerHTML = `<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="font-family:var(--font-titre);font-size:18px">💬 Conversation</h3><button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-conversation-admin').remove()">✕</button></div>
+      ${(data && data.length) ? data.map(m => `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--gris);margin-bottom:2px">${esc(m.expediteur_type === "etablissement" ? "Établissement" : "Hôtesse")} · ${new Date(m.created_at).toLocaleString("fr-FR")}</div><div style="background:#F4E8D6;border-radius:12px;padding:9px 13px;font-size:13.5px;white-space:pre-line">${esc(m.contenu || (m.photo_url ? "📷 photo" : ""))}</div></div>`).join("") : '<div class="vide">Aucun message dans cette conversation.</div>'}
+    </div>`;
+    document.body.appendChild(modal);
   }
 
   init();
