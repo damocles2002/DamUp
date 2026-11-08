@@ -195,8 +195,12 @@
   async function sauverPrix() {
     const hebdo = parseFloat(document.getElementById("prix-hebdo").value);
     const mensuel = parseFloat(document.getElementById("prix-mensuel").value);
-    await db.from("settings").upsert([{ key: "prix_hebdo", value: hebdo }, { key: "prix_mensuel", value: mensuel }]);
-    document.getElementById("msg-prix").textContent = "Prix enregistrés ✅";
+    const msg = document.getElementById("msg-prix");
+    if (!(hebdo > 0) || !(mensuel > 0)) { msg.style.color = "var(--danger)"; msg.textContent = "Saisis deux prix valides (supérieurs à 0)."; return; }
+    const { error } = await db.from("settings").upsert([{ key: "prix_hebdo", value: hebdo }, { key: "prix_mensuel", value: mensuel }]);
+    if (error) { msg.style.color = "var(--danger)"; msg.textContent = "Erreur : " + error.message; return; }
+    msg.style.color = "var(--ok)";
+    msg.textContent = "Prix enregistrés ✅";
   }
 
   // ============ ÉQUIPE & DROITS ============
