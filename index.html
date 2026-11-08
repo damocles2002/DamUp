@@ -15,27 +15,63 @@
   .brand { display: flex; align-items: center; gap: 11px; }
   .brand .crown { width: 34px; height: auto; }
   .brand .nom { font-family: var(--font-titre); font-size: 26px; font-weight: 700; letter-spacing: .5px; }
-  .hero { text-align: center; padding: 58px 0 30px; }
+
+  .annonce { display: none; background: var(--champagne); color: var(--aubergine); text-align: center; padding: 9px 16px; font-size: 14px; font-weight: 500; }
+
+  .hero { text-align: center; padding: 64px 0 30px; }
   .hero .crown { width: 120px; margin: 0 auto 20px; filter: drop-shadow(0 8px 30px rgba(0,0,0,.4)); }
   .hero h1 { font-size: clamp(34px, 6vw, 56px); font-weight: 700; line-height: 1.08; }
-  .hero .tag { font-size: 18px; color: rgba(244,232,214,.78); margin-top: 16px; font-weight: 300; }
-  .choix { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 42px 0 64px; }
-  .choix .carte { border-radius: var(--radius); padding: 30px 28px; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
-  .choix .carte:hover { transform: translateY(-4px); box-shadow: 0 18px 50px rgba(0,0,0,.35); }
-  .choix .etab { background: linear-gradient(160deg, var(--champagne), var(--champagne-2)); color: var(--aubergine); }
-  .choix .hote { background: rgba(244,232,214,.06); border: 1px solid rgba(244,232,214,.22); color: var(--ivoire); }
-  .choix .emoji { font-size: 30px; }
-  .choix h2 { font-size: 24px; margin: 12px 0 8px; }
-  .choix p { font-size: 14.5px; opacity: .82; }
-  .bandeau { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 10px 0 40px; }
-  .bandeau .item { text-align: center; padding: 0 10px; }
-  .bandeau .t { font-family: var(--font-titre); font-size: 18px; margin-bottom: 4px; color: var(--champagne); }
-  .bandeau .s { font-size: 13.5px; color: rgba(244,232,214,.7); font-weight: 300; }
+  .hero .tag { font-size: 18px; color: rgba(244,232,214,.78); margin: 16px auto 0; font-weight: 300; max-width: 620px; line-height: 1.5; }
+  .cta { display: flex; gap: 14px; justify-content: center; margin: 34px 0 60px; flex-wrap: wrap; }
+  .cta .btn { min-width: 230px; }
+  @media (max-width: 560px) { .cta { flex-direction: column; align-items: stretch; } .cta .btn { min-width: 0; } }
+
+  /* Sections claires */
+  section.claire { background: var(--ivoire-2); color: var(--encre); padding: 58px 0; }
+  section.claire .wrap { padding: 0 24px; }
+  .section-titre { font-size: clamp(26px, 4.5vw, 36px); text-align: center; margin-bottom: 12px; line-height: 1.2; }
+  .section-sous { text-align: center; color: var(--gris); font-size: 15.5px; max-width: 620px; margin: 0 auto 40px; }
+
+  .points { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .point { background: var(--blanc); border-radius: var(--radius); padding: 22px 20px; box-shadow: var(--shadow); }
+  .point .ico { font-size: 26px; }
+  .point h3 { font-size: 17px; margin: 10px 0 6px; }
+  .point p { font-size: 14px; color: var(--gris); line-height: 1.5; }
+  @media (max-width: 640px) { .points { grid-template-columns: 1fr; } }
+
+  .frise { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .etape { background: var(--blanc); border-radius: var(--radius); padding: 22px 18px; box-shadow: var(--shadow); text-align: center; }
+  .etape .num { width: 34px; height: 34px; border-radius: 50%; background: var(--aubergine); color: var(--champagne); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-weight: 700; font-size: 16px; }
+  .etape h3 { font-size: 15.5px; margin-bottom: 5px; }
+  .etape p { font-size: 13px; color: var(--gris); line-height: 1.45; }
+  @media (max-width: 720px) { .frise { grid-template-columns: 1fr; } }
+
+  .confiance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .encadre { background: var(--blanc); border-radius: var(--radius); padding: 24px 20px; box-shadow: var(--shadow); text-align: center; }
+  .encadre .ico { font-size: 28px; }
+  .encadre h3 { font-size: 16px; margin: 10px 0 6px; }
+  .encadre p { font-size: 13.5px; color: var(--gris); line-height: 1.5; }
+  @media (max-width: 720px) { .confiance { grid-template-columns: 1fr; } }
+
+  .faq { max-width: 720px; margin: 0 auto; }
+  .faq details { background: var(--blanc); border-radius: var(--radius-sm); box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden; }
+  .faq summary { padding: 16px 18px; font-weight: 600; font-size: 15px; cursor: pointer; list-style: none; position: relative; padding-right: 40px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--gris); }
+  .faq details[open] summary::after { content: "–"; }
+  .faq .rep { padding: 0 18px 16px; font-size: 14px; color: var(--gris); line-height: 1.55; }
+
+  .dernier { text-align: center; padding: 70px 0; }
+  .dernier h2 { font-size: clamp(28px, 5vw, 42px); margin-bottom: 26px; }
+  .dernier .contact { margin-top: 22px; font-size: 14.5px; color: rgba(244,232,214,.7); }
+  .dernier .contact a { color: var(--champagne); font-weight: 600; }
+
   footer { text-align: center; padding: 30px 0 44px; font-size: 12.5px; color: rgba(244,232,214,.45); }
-  @media (max-width: 640px) { .choix { grid-template-columns: 1fr; } .bandeau { grid-template-columns: 1fr; gap: 16px; } }
+  footer a { color: rgba(244,232,214,.6); }
 </style>
 </head>
 <body>
+<div class="annonce" id="annonce"></div>
 <header class="wrap">
   <nav>
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt="DamUp"><span class="nom">DamUp</span></div>
@@ -43,30 +79,92 @@
   </nav>
 </header>
 
-<main class="wrap">
-  <section class="hero">
+<main>
+  <!-- Section 1 — Accroche -->
+  <section class="hero wrap">
     <img class="crown" src="assets/logo-couronne.png" alt="La Couronne DamUp">
-    <h1>Les hôtesses et les établissements,<br>enfin au même endroit.</h1>
-    <p class="tag">Fini le bouche-à-oreille. Publiez, postulez, sélectionnez — tout se passe ici.</p>
+    <h1>Vos soirées méritent<br>les meilleures hôtesses.</h1>
+    <p class="tag">DamUp réunit les hôtesses de table et les bars, restaurants, clubs et lounges. Fini le bouche-à-oreille : les missions, les candidatures et les confirmations se gèrent au même endroit.</p>
+    <div class="cta">
+      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement">Je suis un établissement</a>
+      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse">Je suis une hôtesse</a>
+    </div>
   </section>
 
-  <section class="choix">
-    <a class="carte etab" href="login.html">
-      <span class="emoji">🏠</span>
-      <h2>Je suis un établissement</h2>
-      <p>Publiez vos missions, choisissez vos hôtesses par swipe, scannez leur QR code à l'entrée.</p>
-    </a>
-    <a class="carte hote" href="login.html">
-      <span class="emoji">✨</span>
-      <h2>Je suis une hôtesse</h2>
-      <p>Créez votre profil, postulez aux missions qui vous plaisent, suivez tout depuis votre téléphone.</p>
-    </a>
+  <!-- Section 2 — Pour les établissements -->
+  <section class="claire">
+    <div class="wrap">
+      <h2 class="section-titre">Établissements : trouvez vos hôtesses en quelques minutes</h2>
+      <div class="points">
+        <div class="point"><div class="ico">📅</div><h3>Publiez une mission en 2 minutes</h3><p>Date, horaires, nombre d'hôtesses et avantages offerts (boissons, repas, chicha…).</p></div>
+        <div class="point"><div class="ico">✨</div><h3>Choisissez sur profil</h3><p>Photos, avis des autres établissements et fiabilité de chaque hôtesse.</p></div>
+        <div class="point"><div class="ico">✅</div><h3>Des venues confirmées</h3><p>Chaque hôtesse sélectionnée confirme sa présence ; sans confirmation, la place se libère pour une autre.</p></div>
+        <div class="point"><div class="ico">📷</div><h3>Contrôle à l'entrée</h3><p>Scannez le QR code de l'hôtesse à son arrivée, puis laissez un avis après la soirée.</p></div>
+      </div>
+    </div>
   </section>
 
-  <section class="bandeau">
-    <div class="item"><div class="t">Gratuit</div><div class="s">pour les hôtesses, abonnement pour les établissements</div></div>
-    <div class="item"><div class="t">Sécurisé</div><div class="s">comptes vérifiés, signalements, bouton d'urgence</div></div>
-    <div class="item"><div class="t">Île-de-France</div><div class="s">lancement sur Paris et sa région</div></div>
+  <!-- Section 3 — Pour les hôtesses -->
+  <section class="claire" style="background:var(--ivoire);">
+    <div class="wrap">
+      <h2 class="section-titre">Hôtesses : des missions près de chez vous, en toute confiance</h2>
+      <div class="points">
+        <div class="point"><div class="ico">🆓</div><h3>Gratuit</h3><p>Créez votre profil et postulez sans payer.</p></div>
+        <div class="point"><div class="ico">👀</div><h3>Toutes les conditions avant de postuler</h3><p>Lieu, horaires, avantages offerts et photos de l'établissement.</p></div>
+        <div class="point"><div class="ico">🔒</div><h3>Vos coordonnées restent privées</h3><p>Les établissements ne voient ni votre téléphone, ni votre Instagram, ni votre e-mail.</p></div>
+        <div class="point"><div class="ico">⭐</div><h3>Construisez votre réputation</h3><p>Chaque mission honorée renforce votre profil.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4 — Comment ça marche -->
+  <section class="claire">
+    <div class="wrap">
+      <h2 class="section-titre">Comment ça marche</h2>
+      <div class="frise">
+        <div class="etape"><div class="num">1</div><h3>Inscription</h3><p>Créez votre compte, il est vérifié par l'équipe DamUp.</p></div>
+        <div class="etape"><div class="num">2</div><h3>Mission</h3><p>L'établissement publie, les hôtesses postulent.</p></div>
+        <div class="etape"><div class="num">3</div><h3>Sélection</h3><p>L'établissement choisit, l'hôtesse confirme sa venue.</p></div>
+        <div class="etape"><div class="num">4</div><h3>Soirée</h3><p>QR code à l'entrée, avis après la mission.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5 — Confiance -->
+  <section class="claire" style="background:var(--ivoire);">
+    <div class="wrap">
+      <div class="confiance">
+        <div class="encadre"><div class="ico">🛡️</div><h3>Comptes vérifiés</h3><p>Chaque hôtesse et chaque établissement est validé avant de pouvoir utiliser DamUp. Réservé aux 18 ans et plus.</p></div>
+        <div class="encadre"><div class="ico">🚩</div><h3>Signalements traités</h3><p>Un problème ? Signalez-le depuis l'application, l'équipe DamUp intervient.</p></div>
+        <div class="encadre"><div class="ico">📍</div><h3>Île-de-France</h3><p>Lancement à Paris et en région parisienne.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6 — Questions fréquentes -->
+  <section class="claire">
+    <div class="wrap">
+      <h2 class="section-titre">Questions fréquentes</h2>
+      <div class="faq">
+        <details><summary>DamUp est-il payant ?</summary><div class="rep">Gratuit pour les hôtesses. Les établissements souscrivent un abonnement pour publier des missions ; le tarif leur est communiqué avant tout paiement.</div></details>
+        <details><summary>Qui peut s'inscrire ?</summary><div class="rep">Les hôtesses de 18 ans et plus, et les établissements déclarés (bars, restaurants, clubs, lounges) avec un numéro SIRET.</div></details>
+        <details><summary>Pourquoi mon compte doit-il être validé ?</summary><div class="rep">Pour garantir la sécurité de tous : l'équipe DamUp vérifie chaque profil avant son activation.</div></details>
+        <details><summary>Que se passe-t-il si je ne confirme pas ma venue ?</summary><div class="rep">Après acceptation, vous avez 12 heures pour confirmer (3 heures si la mission a lieu dans moins de 24 heures). Sans confirmation, la place est proposée à une autre hôtesse.</div></details>
+        <details><summary>Et si je dois annuler ?</summary><div class="rep">Vous pouvez annuler depuis l'application jusqu'au début de la mission. Une annulation après confirmation laisse un signe négatif sur votre profil, retiré après 3 missions honorées.</div></details>
+        <details><summary>Qui voit mes informations ?</summary><div class="rep">Les établissements voient votre prénom, votre âge, votre ville, vos photos et vos avis, uniquement quand vous postulez à leurs missions. Vos coordonnées restent privées.</div></details>
+        <details><summary>Comment payer l'abonnement ?</summary><div class="rep">En espèces contre reçu, ou en ligne par carte ou prélèvement lorsque ce mode est proposé.</div></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 7 — Dernier appel -->
+  <section class="dernier wrap">
+    <h2>Prêt à rejoindre DamUp ?</h2>
+    <div class="cta" style="margin:0">
+      <a class="btn btn-champagne" href="login.html?mode=inscription&role=etablissement">Je suis un établissement</a>
+      <a class="btn btn-ghost" href="login.html?mode=inscription&role=hotesse">Je suis une hôtesse</a>
+    </div>
+    <div class="contact">Une question ? Écrivez-nous : <a id="contact-email" href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a></div>
   </section>
 </main>
 
@@ -77,6 +175,23 @@
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script>
+  // Bandeau d'annonce (réglage admin, affiché seulement s'il n'est pas vide)
+  try {
+    db.from("settings").select("value").eq("key", "annonce").single().then(({ data }) => {
+      const val = data && data.value && data.value.trim();
+      if (val) { const b = document.getElementById("annonce"); b.textContent = val; b.style.display = "block"; }
+    });
+  } catch (e) {}
+
+  // E-mail de contact (réglage admin, défaut si vide)
+  try {
+    db.from("settings").select("value").eq("key", "contact_email").single().then(({ data }) => {
+      const email = (data && data.value && data.value.trim()) || "damotrader2025@gmail.com";
+      const el = document.getElementById("contact-email");
+      el.textContent = email; el.href = "mailto:" + email;
+    });
+  } catch (e) {}
+
   // Si déjà connecté, rediriger vers le bon espace.
   auth.getUser().then(({ data }) => {
     if (data && data.user) {

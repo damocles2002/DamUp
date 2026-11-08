@@ -239,6 +239,17 @@
 
   adapterChamps();
   setMode("connexion");
+
+  // Ouverture directe depuis l'accueil : login.html?mode=inscription&role=etablissement|hotesse
+  const params = new URLSearchParams(location.search);
+  const pm = params.get("mode");
+  const pr = params.get("role");
+  if (pr === "etablissement" || pr === "hotesse") {
+    role = pr;
+    document.querySelectorAll("#choix-role .role").forEach(r => r.classList.toggle("on", r.dataset.role === pr));
+    adapterChamps();
+  }
+  if (pm === "inscription") setMode("inscription");
 </script>
 </body>
 </html>
