@@ -2,6 +2,7 @@
 //  DamUp — Edge Function "stripe-webhook"
 //  Signature Stripe obligatoire (STRIPE_WEBHOOK_SECRET).
 //  Corrigé : moyen de paiement réel, erreurs -> 500, admins prévenus.
+//  Notifications localisées via notifier_utilisateur() (clés notif.*).
 // ============================================================
 import Stripe from "npm:stripe@14";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -29,10 +30,10 @@ Deno.serve(async (req) => {
     const { data } = await admin.from("profiles").select("id, periode").eq("stripe_customer_id", customerId).single();
     return data ?? null;
   }
-  async function prevenirAdmins(message: string) {
+  async function prevenirAdmins(cle: string, params: Record<string, string> = {}) {
     const { data: admins } = await admin.from("profiles").select("id").eq("type", "admin");
     for (const a of admins || []) {
-      await admin.from("notifications").insert({ user_id: a.id, message });
+      await admin.rpc("notifier_utilisateur", { p_user: a.id, p_cle: cle, p_params: params });
     }
   }
   // détermine le moyen de paiement réel d'un PaymentIntent (carte / sepa_debit)
@@ -89,13 +90,13 @@ Deno.serve(async (req) => {
     } else if (event.type === "invoice.payment_failed") {
       const prof = await profilParCustomer(obj.customer);
       if (prof) {
-        const { error } = await admin.from("notifications").insert({ user_id: prof.id, message: "⚠️ Ton paiement n'est pas passé, mets à jour ton moyen de paiement." });
+        const { error } = await admin.rpc("notifier_utilisateur", { p_user: prof.id, p_cle: "notif.paiement_echoue", p_params: {} });
         if (error) throw new Error("notification client: " + error.message);
       }
-      await prevenirAdmins("⚠️ Un paiement Stripe a échoué (facture " + obj.id + ").");
+      await prevenirAdmins("notif.paiement_echoue_admin", { ref: obj.id });
 
     } else if (event.type === "charge.dispute.created") {
-      await prevenirAdmins("⚠️ Contestation Stripe détectée. Consulte ton tableau de bord Stripe.");
+      await prevenirAdmins("notif.contestation_admin");
     }
 
     return new Response("ok", { status: 200 });

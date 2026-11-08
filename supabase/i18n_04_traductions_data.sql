@@ -82,6 +82,24 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.signalement_admin', 'es', '🚩 Nueva denuncia por atender.'),
 ('notif.signalement_admin', 'zh', '🚩 有新的举报需要处理。'),
 
+-- paiement échoué (client)
+('notif.paiement_echoue', 'fr', '⚠️ Ton paiement n''est pas passé, mets à jour ton moyen de paiement.'),
+('notif.paiement_echoue', 'en', '⚠️ Your payment failed. Please update your payment method.'),
+('notif.paiement_echoue', 'es', '⚠️ Tu pago no se ha realizado. Actualiza tu método de pago.'),
+('notif.paiement_echoue', 'zh', '⚠️ 付款失败。请更新您的付款方式。'),
+
+-- paiement échoué (admin)
+('notif.paiement_echoue_admin', 'fr', '⚠️ Un paiement Stripe a échoué (facture {ref}).'),
+('notif.paiement_echoue_admin', 'en', '⚠️ A Stripe payment failed (invoice {ref}).'),
+('notif.paiement_echoue_admin', 'es', '⚠️ Un pago de Stripe ha fallado (factura {ref}).'),
+('notif.paiement_echoue_admin', 'zh', '⚠️ 一笔 Stripe 付款失败（账单 {ref}）。'),
+
+-- contestation (admin)
+('notif.contestation_admin', 'fr', '⚠️ Contestation Stripe détectée. Consulte ton tableau de bord Stripe.'),
+('notif.contestation_admin', 'en', '⚠️ A Stripe dispute was detected. Check your Stripe dashboard.'),
+('notif.contestation_admin', 'es', '⚠️ Se ha detectado una disputa en Stripe. Revisa tu panel de Stripe.'),
+('notif.contestation_admin', 'zh', '⚠️ 检测到 Stripe 争议。请查看您的 Stripe 后台。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp — Nouvelle notification'),
 ('email.sujet', 'en', 'DamUp — New notification'),

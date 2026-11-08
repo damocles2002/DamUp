@@ -44,6 +44,7 @@ begin
   values (p_user, public.traduire(p_cle, coalesce(v_langue, 'fr'), p_params), p_cle, p_params);
 end; $$;
 revoke execute on function public.notifier_utilisateur(uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function public.notifier_utilisateur(uuid, text, jsonb) to service_role;
 
 -- dates et heures dans les messages, selon la langue
 create or replace function public.date_courte(p_d date, p_langue text) returns text
