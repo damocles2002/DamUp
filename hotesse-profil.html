@@ -166,9 +166,11 @@
       let photos = [...(profil.photos || [])];
       for (const f of input.files) {
         if (photos.length >= 7) break;
+        let fichier = f;
+        try { fichier = await redimensionnerImage(f); } catch (e) { toast("Image invalide.", "erreur"); continue; }
         const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
-        const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { toast("Erreur : " + error.message); continue; }
+        const { error } = await sb.storage.from("photos").upload(path, fichier);
+        if (error) { toast("Erreur : " + error.message, "erreur"); continue; }
         photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       await db.from("hotesses").update({ photos }).eq("id", user.id);

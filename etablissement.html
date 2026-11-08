@@ -178,9 +178,12 @@
     input.type = "file"; input.accept = "image/*,video/*"; input.multiple = true;
     input.onchange = async () => {
       for (const f of input.files) {
+        if (f.size > 50 * 1024 * 1024) { toast("Vidéo de plus de 50 Mo refusée.", "erreur"); continue; }
+        let fichier = f;
+        if (f.type.startsWith("image/")) { try { fichier = await redimensionnerImage(f); } catch (e) { toast("Image invalide.", "erreur"); continue; } }
         const path = `${user.id}/mission-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
-        const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { toast("Erreur : " + error.message); continue; }
+        const { error } = await sb.storage.from("photos").upload(path, fichier);
+        if (error) { toast("Erreur : " + error.message, "erreur"); continue; }
         mediasEnCours.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       afficherApercuMedias();
@@ -364,9 +367,11 @@
     input.onchange = async () => {
       let photos = [...(etab?.photos || [])];
       for (const f of input.files) {
+        let fichier = f;
+        if (f.type.startsWith("image/")) { try { fichier = await redimensionnerImage(f); } catch (e) { toast("Image invalide.", "erreur"); continue; } }
         const path = `${user.id}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
-        const { error } = await sb.storage.from("photos").upload(path, f);
-        if (error) { toast("Erreur : " + error.message); continue; }
+        const { error } = await sb.storage.from("photos").upload(path, fichier);
+        if (error) { toast("Erreur : " + error.message, "erreur"); continue; }
         photos.push(`${SB_URL}/storage/v1/object/public/photos/${path}`);
       }
       await db.from("etablissements").update({ photos }).eq("id", user.id);

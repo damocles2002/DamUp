@@ -50,6 +50,26 @@ function demander(question, libelleOui = "Oui") {
   });
 }
 
+// Redimensionne une image côté navigateur (canvas), JPEG qualité 0.8, max 1600 px
+function redimensionnerImage(file, maxCote = 1600, qualite = 0.8) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      const ratio = Math.min(1, maxCote / Math.max(width, height));
+      if (ratio < 1) { width = Math.round(width * ratio); height = Math.round(height * ratio); }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => { blob ? resolve(blob) : reject(new Error("Impossible de traiter l'image")); }, "image/jpeg", qualite);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image invalide")); };
+    img.src = url;
+  });
+}
+
 // Vérification de la maintenance (auto au chargement, sauf admin/login/reinitialiser)
 document.addEventListener("DOMContentLoaded", async () => {
   if (/admin|login|reinitialiser/.test(location.pathname)) return;

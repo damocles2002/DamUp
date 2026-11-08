@@ -128,13 +128,34 @@ create table public.notifications (
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+-- TABLE paiements
+create table public.paiements (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "profil_id" uuid NOT NULL,
+  "montant" numeric NOT NULL,
+  "mode" text NOT NULL,
+  "periode_debut" timestamp with time zone NOT NULL,
+  "periode_fin" timestamp with time zone NOT NULL,
+  "numero_recu" text NOT NULL DEFAULT ((('DU-'::text || to_char(now(), 'YYYY'::text)) || '-'::text) || lpad((nextval('recu_seq'::regclass))::text, 5, '0'::text)),
+  "reference_externe" text,
+  "note" text,
+  "enregistre_par" uuid,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 -- TABLE profiles
 create table public.profiles (
   "id" uuid NOT NULL,
   "type" text NOT NULL,
   "email" text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
-  "suspendu" boolean NOT NULL DEFAULT false
+  "suspendu" boolean NOT NULL DEFAULT false,
+  "tarif" numeric,
+  "periode" text,
+  "actif_jusqu_a" timestamp with time zone,
+  "rappel_fin_envoye_pour" timestamp with time zone,
+  "stripe_customer_id" text,
+  "stripe_compte" text
 );
 
 -- TABLE settings
@@ -159,6 +180,83 @@ create table public.signalements (
 
 -- ============ FONCTIONS ============
 
+CREATE OR REPLACE FUNCTION public.abonnement_ok(p_uid uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case p.type
+    when 'etablissement' then not public.reglage_bool('paiement_etablissements_actif', false)
+                              or coalesce(p.actif_jusqu_a > now(), false)
+    when 'hotesse'       then not public.reglage_bool('paiement_hotesses_actif', false)
+                              or coalesce(p.actif_jusqu_a > now(), false)
+    else true end
+  from public.profiles p where p.id = p_uid;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.admin_annuaire_etablissements()
+ RETURNS TABLE(id uuid, nom text, type text, ville text, adresse text, email text, siret text, verifie boolean, suspendu boolean, missions_publiees bigint, inscrit_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone, dernier_mode text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select e.id, e.nom, e.type, e.ville, e.adresse, p.email, e.siret, e.verifie, p.suspendu,
+         (select count(*) from public.missions m where m.etablissement_id = e.id),
+         e.created_at, p.tarif, p.periode, p.actif_jusqu_a,
+         (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1)
+    from public.etablissements e join public.profiles p on p.id = e.id
+   where public.is_admin()
+   order by e.created_at desc;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.admin_annuaire_hotesses()
+ RETURNS TABLE(id uuid, prenom text, age integer, ville text, email text, instagram text, telephone text, verifie boolean, suspendu boolean, note_moyenne numeric, nb_avis integer, signes_negatifs integer, missions_honorees bigint, inscrite_le timestamp with time zone, tarif numeric, periode text, actif_jusqu_a timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select h.id, h.prenom, h.age, h.ville, p.email, h.instagram, h.telephone,
+         h.verifie, p.suspendu, h.note_moyenne, h.nb_avis, h.signes_negatifs,
+         (select count(*) from public.candidatures c where c.hotesse_id = h.id and c.presente_a is not null),
+         h.created_at, p.tarif, p.periode, p.actif_jusqu_a
+    from public.hotesses h join public.profiles p on p.id = h.id
+   where public.is_admin()
+   order by h.created_at desc;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.admin_annuler_paiement(p_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_profil uuid;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  delete from public.paiements where id = p_id and mode in ('especes', 'offert') returning profil_id into v_profil;
+  if v_profil is null then raise exception 'Paiement introuvable (les paiements en ligne s''annulent dans Stripe).'; end if;
+  update public.profiles
+     set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_profil)
+   where id = v_profil;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mode text, p_periode text, p_montant numeric, p_date date DEFAULT NULL::date, p_note text DEFAULT NULL::text)
+ RETURNS paiements
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if p_mode not in ('especes', 'offert') then raise exception 'Mode non autorisé ici.'; end if;
+  if p_periode not in ('hebdomadaire', 'mensuel') then raise exception 'Période invalide.'; end if;
+  if p_mode = 'especes' and (p_montant is null or p_montant <= 0) then raise exception 'Montant invalide.'; end if;
+  return public.prolonger_abonnement(
+    p_profil, case when p_mode = 'offert' then 0 else p_montant end, p_mode, p_periode,
+    coalesce(p_date::timestamp at time zone 'Europe/Paris', now()), null, p_note);
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.admin_hotesses()
  RETURNS SETOF hotesses
  LANGUAGE sql
@@ -168,17 +266,46 @@ AS $function$
   select * from public.hotesses where public.is_admin() order by created_at desc;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if p_type not in ('etablissement', 'hotesse') or p_jours not between 1 and 90 then
+    raise exception 'Paramètres invalides.';
+  end if;
+  update public.profiles set actif_jusqu_a = now() + make_interval(days => p_jours), rappel_fin_envoye_pour = null
+   where type = p_type and (actif_jusqu_a is null or actif_jusqu_a < now());
+  get diagnostics n = row_count;
+  return n;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.apres_annulation()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_signes int;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
       update public.hotesses set signes_negatifs = signes_negatifs + 1, missions_honorees = 0
-       where id = new.hotesse_id;
+       where id = new.hotesse_id
+       returning signes_negatifs into v_signes;
+      if v_signes >= public.reglage_num('signes_avant_suspension', 3)::int then
+        update public.profiles set suspendu = true where id = new.hotesse_id;
+        insert into public.notifications (user_id, message) values (new.hotesse_id,
+          '🚫 Compte suspendu automatiquement après ' || v_signes || ' annulations. Contacte DamUp.');
+        insert into public.notifications (user_id, message)
+        select p.id, '🚫 Une hôtesse a été suspendue automatiquement (' || v_signes || ' annulations).'
+          from public.profiles p where p.type = 'admin';
+      end if;
     end if;
     insert into public.notifications (user_id, message)
     select m.etablissement_id, '⚠️ Une hôtesse a annulé sa venue : une place se libère sur ta mission du '
@@ -222,6 +349,9 @@ begin
     if not exists (select 1 from public.hotesses h where h.id = auth.uid() and h.verifie) then
       raise exception 'Ton profil doit être validé par DamUp avant de postuler.';
     end if;
+    if not public.abonnement_ok(auth.uid()) then
+      raise exception 'Ton abonnement est terminé : renouvelle-le pour postuler.';
+    end if;
     if v_m.statut <> 'ouverte' or v_debut <= now() then
       raise exception 'Cette mission n''accepte plus de candidatures.';
     end if;
@@ -252,7 +382,9 @@ begin
           raise exception 'Toutes les places de cette mission sont déjà prises.';
         end if;
         new.confirme_a := least(
-          now() + case when v_debut - now() < interval '24 hours' then interval '3 hours' else interval '12 hours' end,
+          now() + case when v_debut - now() < interval '24 hours'
+            then make_interval(hours => public.reglage_num('delai_confirmation_court_h', 3)::int)
+            else make_interval(hours => public.reglage_num('delai_confirmation_h', 12)::int) end,
           v_debut);
       end if;
     end if;
@@ -358,19 +490,35 @@ declare
   m jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   r text;
   v_age int;
+  v_villes jsonb;
 begin
+  if not public.reglage_bool('inscriptions_ouvertes', true) then
+    raise exception 'Les inscriptions sont fermées pour le moment.';
+  end if;
+
   if coalesce(new.raw_app_meta_data->>'role', '') = 'admin' then r := 'admin';
   elsif m->>'role' = 'etablissement' then r := 'etablissement';
   else r := 'hotesse';
   end if;
 
-  insert into public.profiles (id, type, email) values (new.id, r, new.email)
+  insert into public.profiles (id, type, email, tarif, periode, actif_jusqu_a)
+  values (new.id, r, new.email,
+    case when r = 'etablissement' then public.reglage_num('prix_defaut_etablissement', 79)
+         when r = 'hotesse' then public.reglage_num('prix_defaut_hotesse', 0)
+         else null end,
+    case when r = 'admin' then null else 'mensuel' end,
+    now() + make_interval(days => public.reglage_num('essai_jours', 7)::int))
   on conflict (id) do nothing;
 
   if r = 'hotesse' then
     v_age := nullif(m->>'age', '')::int;
     if v_age is null or v_age < 18 then
       raise exception 'Inscription réservée aux personnes de 18 ans et plus.';
+    end if;
+    v_villes := (select value from public.settings where key = 'villes');
+    if v_villes is not null and jsonb_array_length(v_villes) > 0
+       and not (coalesce(m->>'ville', '') = ANY (select jsonb_array_elements_text(v_villes))) then
+      raise exception 'Cette ville n''est pas encore ouverte aux inscriptions.';
     end if;
     insert into public.hotesses (id, prenom, age, ville, instagram, telephone, photos)
     values (new.id, left(coalesce(nullif(trim(m->>'prenom'), ''), '?'), 50), v_age,
@@ -385,8 +533,7 @@ begin
     on conflict (id) do nothing;
   end if;
   return new;
-end;
-$function$;
+end; $function$;
 
 CREATE OR REPLACE FUNCTION public.hotesse_prive(p_id uuid)
  RETURNS TABLE(telephone text, instagram text, signes_negatifs integer, missions_honorees integer)
@@ -525,6 +672,35 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.prolonger_abonnement(p_profil uuid, p_montant numeric, p_mode text, p_periode text, p_date timestamp with time zone, p_ref text, p_note text)
+ RETURNS paiements
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_debut timestamptz;
+  v_fin timestamptz;
+  v_p public.paiements;
+begin
+  select greatest(coalesce(actif_jusqu_a, p_date), p_date) into v_debut
+    from public.profiles where id = p_profil for update;
+  if v_debut is null then raise exception 'Compte introuvable.'; end if;
+  v_fin := v_debut + case p_periode when 'hebdomadaire' then interval '7 days' else interval '1 month' end;
+
+  insert into public.paiements (profil_id, montant, mode, periode_debut, periode_fin, reference_externe, note, enregistre_par)
+  values (p_profil, p_montant, p_mode, v_debut, v_fin, p_ref, p_note, auth.uid())
+  returning * into v_p;
+
+  update public.profiles set actif_jusqu_a = v_fin, rappel_fin_envoye_pour = null where id = p_profil;
+  insert into public.notifications (user_id, message) values (p_profil,
+    case when p_mode = 'offert'
+      then '🎁 DamUp t''offre l''accès jusqu''au ' || to_char(v_fin at time zone 'Europe/Paris', 'DD/MM/YYYY') || '.'
+      else '✅ Paiement reçu : ton abonnement DamUp est actif jusqu''au '
+           || to_char(v_fin at time zone 'Europe/Paris', 'DD/MM/YYYY') || '.' end);
+  return v_p;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.protege_etablissement()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -574,13 +750,36 @@ begin
       if not exists (select 1 from public.etablissements e where e.id = auth.uid() and e.verifie) then
         raise exception 'Ton établissement doit être validé par DamUp avant de publier.';
       end if;
+      if not public.abonnement_ok(auth.uid()) then
+        raise exception 'Ton abonnement est terminé : renouvelle-le pour publier de nouvelles missions.';
+      end if;
       if new.date < current_date then raise exception 'La date de la mission est déjà passée.'; end if;
-      if new.nb_hotesses not between 1 and 50 then raise exception 'Le nombre d''hôtesses doit être entre 1 et 50.'; end if;
+      if new.nb_hotesses not between 1 and public.reglage_num('max_hotesses_mission', 50)::int then
+        raise exception 'Le nombre d''hôtesses doit être entre 1 et %.', public.reglage_num('max_hotesses_mission', 50)::int;
+      end if;
       new.statut := 'ouverte';
     end if;
   end if;
   return new;
 end; $function$;
+
+CREATE OR REPLACE FUNCTION public.reglage_bool(p_cle text, p_defaut boolean)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce((select (s.value #>> '{}')::boolean from public.settings s where s.key = p_cle), p_defaut);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.reglage_num(p_cle text, p_defaut numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce((select (s.value #>> '{}')::numeric from public.settings s where s.key = p_cle), p_defaut);
+$function$;
 
 CREATE OR REPLACE FUNCTION public.taches_auto()
  RETURNS void
@@ -589,7 +788,25 @@ CREATE OR REPLACE FUNCTION public.taches_auto()
  SET search_path TO 'public'
 AS $function$
 begin
-  -- rappel quand il reste 1 h ou moins pour confirmer (un seul rappel par candidature)
+  -- rappels de fin d'abonnement (3 jours avant)
+  with a_prevenir as (
+    update public.profiles p set rappel_fin_envoye_pour = p.actif_jusqu_a
+     where p.actif_jusqu_a between now() and now() + interval '3 days'
+       and p.rappel_fin_envoye_pour is distinct from p.actif_jusqu_a
+       and ((p.type = 'etablissement' and public.reglage_bool('paiement_etablissements_actif', false))
+         or (p.type = 'hotesse' and public.reglage_bool('paiement_hotesses_actif', false)))
+    returning p.id, p.actif_jusqu_a
+  )
+  insert into public.notifications (user_id, message)
+  select id, '⏳ Ton abonnement DamUp se termine le '
+             || to_char(actif_jusqu_a at time zone 'Europe/Paris', 'DD/MM') || '. Pense à le renouveler.'
+    from a_prevenir
+  union all
+  select ad.id, '💶 ' || (select count(*) from a_prevenir) || ' abonnement(s) se terminent dans moins de 3 jours.'
+    from public.profiles ad
+   where ad.type = 'admin' and exists (select 1 from a_prevenir);
+
+  -- rappel confirmation
   with a_rappeler as (
     update public.candidatures c set rappel_envoye = true
      where c.statut = 'acceptee' and not c.annulation and not c.rappel_envoye
@@ -641,9 +858,10 @@ begin
 
   update public.candidatures set presente_a = now() where id = c.id;
   update public.hotesses set missions_honorees = missions_honorees + 1 where id = c.hotesse_id;
-  -- 3 missions honorées = un signe négatif retiré
   update public.hotesses set signes_negatifs = signes_negatifs - 1, missions_honorees = 0
-   where id = c.hotesse_id and missions_honorees >= 3 and signes_negatifs > 0;
+   where id = c.hotesse_id
+     and missions_honorees >= public.reglage_num('missions_pour_retirer_signe', 3)::int
+     and signes_negatifs > 0;
   return '✅ ' || c.prenom || ' est bien arrivée.';
 end; $function$;
 
@@ -793,11 +1011,17 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- notifications.notifications_update_own (UPDATE, to {)
   using ((user_id = auth.uid()))
 
+-- paiements.paiements_select (SELECT, to {)
+  using (((profil_id = auth.uid()) OR is_admin()))
+
 -- profiles.profiles_select_own (SELECT, to {)
   using (((id = auth.uid()) OR is_admin()))
 
 -- profiles.profiles_update_admin (UPDATE, to {)
   using (is_admin())
+
+-- settings.settings_select_anon (SELECT, to {)
+  using (true)
 
 -- settings.settings_select_auth (SELECT, to {)
   using ((auth.role() = 'authenticated'::text))

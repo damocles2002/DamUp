@@ -1,39 +1,55 @@
-# Paiement & abonnement — DamUp
+# Paiement en ligne DamUp (Stripe) — Guide pour le porteur de projet
 
-## Principe
-Les **établissements** paient un abonnement (hebdomadaire ou mensuel). Les hôtesses ne paient rien.
+Tout est construit mais **éteint par défaut**. Tant que tu ne fais rien, aucun paiement n'est exigé
+(période bêta).
 
-Deux modes, **bascule possible depuis le back-office admin sans toucher au code** :
+## 1. Créer ton compte Stripe (mode test d'abord)
 
-| Mode | Quand l'utiliser | Rôle de DamUp |
-|------|------------------|---------------|
-| **Paddle** | Pas encore de société | Paddle est le "Merchant of Record" : il encaisse, facture et reverse la TVA à la place de DamUp |
-| **Stripe** | Une société est créée | DamUp encaisse directement via Stripe (compte pro), gère sa propre TVA |
+1. Va sur [stripe.com](https://stripe.com) et crée un compte (gratuit).
+2. Reste en **mode test** (interrupteur « Test » en haut à droite du tableau de bord).
+3. Dans **Réglages → Moyens de paiement**, active :
+   - **Carte bancaire** (Card)
+   - **Prélèvement SEPA** (SEPA Direct Debit) — Stripe demandera une vérification d'identité
+     supplémentaire (c'est normal, prépare une pièce d'identité).
 
-## Prix (modifiables dans l'admin, sans dev)
-- Hebdomadaire : 25 € (par défaut)
-- Mensuel : 79 € (par défaut)
-- Essai gratuit : 7 jours
+## 2. Où coller les clés dans Supabase
 
-→ Ces valeurs sont stockées dans la table `settings` et modifiables dans l'onglet **Réglages** du back-office.
+Dashboard Supabase → **Edge Functions → Secrets**. Ajoute ces 3 secrets (jamais dans le code) :
 
-## Ce qu'il faut pour activer le paiement (à faire ensemble)
+| Secret | Valeur |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | ta clé secrète Stripe (`sk_test_…` en test) |
+| `STRIPE_WEBHOOK_SECRET` | le secret du webhook (voir ci-dessous) |
+| `STRIPE_COMPTE` | un libellé libre, ex. `perso-2026` |
 
-### Étape 1 — Créer un compte Paddle
-1. Aller sur https://paddle.com et créer un compte (gratuit).
-2. Créer les **produits/prix** d'abonnement (hebdo + mensuel) dans le dashboard Paddle.
-3. Récupérer la **clé API** (Settings → API Keys) et les **Price IDs**.
+## 3. Déclarer le webhook dans Stripe
 
-### Étape 2 — Me donner ces éléments
-- La clé API Paddle
-- Les 2 Price IDs (hebdo, mensuel)
+1. Dans Stripe → **Développeurs → Webhooks → Ajouter un endpoint**.
+2. URL : `https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/stripe-webhook`
+3. Événements à cocher :
+   - `invoice.paid`
+   - `invoice.payment_failed`
+   - `checkout.session.completed`
+   - `charge.dispute.created`
+4. Stripe affiche un **secret de signature** (`whsec_…`) : copie-le dans le secret
+   `STRIPE_WEBHOOK_SECRET` de Supabase.
 
-### Étape 3 — Je branche
-Je déploie l'Edge Function `paiement` (crée un lien de paiement) et je relie :
-- le bouton « S'abonner » de l'espace établissement → Paddle
-- le **webhook** Paddle → Supabase (mise à jour automatique de l'abonnement : actif/expiré)
+## 4. Tester
 
-## Table `abonnements` (déjà prête)
-Colonnes : `plan` (hebdo/mensuel), `prix`, `processeur` (paddle/stripe), `statut` (essai/actif/expire/resilie), `debut`, `fin`.
+Une fois `paiement_en_ligne_actif` activé dans les Réglages :
+- **Carte** : numéro `4242 4242 4242 4242`, n'importe quelle date future, n'importe quel CVC.
+- **SEPA** : IBAN de test `DE89370400440532013000`.
 
-La logique est prête : il ne manque que les clés Paddle.
+## 5. Passer en mode réel
+
+1. Dans Stripe, passe en **mode réel**.
+2. Remplace `STRIPE_SECRET_KEY` par la clé réelle (`sk_live_…`).
+3. Refais un webhook en mode réel (nouveau secret `whsec_…` → mets à jour `STRIPE_WEBHOOK_SECRET`).
+
+## 6. Changer de compte Stripe (micro-entreprise → société)
+
+1. Remplace les **3 secrets** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_COMPTE`).
+2. Résilie les abonnements en cours sur l'ancien compte (tableau de bord Stripe).
+3. Les abonnés en ligne verront « Réactive ton paiement » et referont une fois le paiement
+   (leurs anciennes autorisations restent liées à l'ancien compte).
+4. Les paiements **en espèces** ne sont pas concernés.
