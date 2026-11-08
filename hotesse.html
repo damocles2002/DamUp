@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-i18n-title="hotesse.titre">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DamUp — Espace hôtesse</title>
+<title>DamUp</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2A1120">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -67,6 +67,7 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:300;color:var(--aubergine)"></div>
 <div class="app">
   <div class="topbar">
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
@@ -82,22 +83,23 @@
   </div>
 
   <div class="filtres">
-    <span class="chip on" data-type="">Toutes</span>
-    <span class="chip" data-type="bar">Bar</span>
-    <span class="chip" data-type="restaurant">Restaurant</span>
-    <span class="chip" data-type="club">Club</span>
-    <span class="chip" data-type="lounge">Lounge</span>
+    <span class="chip on" data-type="" data-i18n="hotesse.filtre_toutes">Toutes</span>
+    <span class="chip" data-type="bar" data-i18n="commun.type_bar">Bar</span>
+    <span class="chip" data-type="restaurant" data-i18n="commun.type_restaurant">Restaurant</span>
+    <span class="chip" data-type="club" data-i18n="commun.type_club">Club</span>
+    <span class="chip" data-type="lounge" data-i18n="commun.type_lounge">Lounge</span>
   </div>
 
-  <div class="liste" id="liste"><div class="spin">Chargement des missions…</div></div>
+  <div class="liste" id="liste"><div class="spin" data-i18n="hotesse.chargement_missions">Chargement des missions…</div></div>
 
   <nav class="bottomnav">
-    <a class="on" href="#"><span class="ico">🏠</span>Missions</a>
-    <a href="hotesse-profil.html"><span class="ico">👤</span>Profil</a>
-    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+    <a class="on" href="#"><span class="ico">🏠</span><span data-i18n="nav.missions">Missions</span></a>
+    <a href="hotesse-profil.html"><span class="ico">👤</span><span data-i18n="nav.profil">Profil</span></a>
+    <a href="#" id="logout"><span class="ico">🚪</span><span data-i18n="nav.quitter">Quitter</span></a>
   </nav>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
@@ -119,8 +121,10 @@
     user = data.user;
     const { data: p } = await db.from("hotesses").select("id, prenom, age, ville, photos, note_moyenne, nb_avis, verifie, created_at").eq("id", user.id).single();
     profil = p;
+    const { data: pr } = await db.from("profiles").select("langue").eq("id", user.id).single();
+    if (pr?.langue) appliquerLangueCompte(pr.langue);
     document.getElementById("avatar").textContent = (p?.prenom || user.email || "?")[0].toUpperCase();
-    document.getElementById("salut").textContent = "Bonjour " + (p?.prenom || "") + " 👋";
+    document.getElementById("salut").textContent = t("hotesse.bonjour", { prenom: p?.prenom || "" });
     chargerMissions();
     initCloche("cloche", user.id);
   }
@@ -237,6 +241,7 @@
   document.getElementById("avatar").addEventListener("click", () => location.href = "hotesse-profil.html");
   document.getElementById("logout").addEventListener("click", async () => { await auth.signOut(); location.href = "index.html"; });
 
+  chargerDicts().then(() => initSelecteurLangue("sel-langue"));
   init();
 </script>
 <div class="overlay" id="modal-mission">

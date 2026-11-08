@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-i18n-title="recu.titre">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DamUp — Reçu</title>
+<title>DamUp</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2A1120">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -21,14 +21,16 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:50;color:var(--aubergine)"></div>
 <div class="recu">
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:20px">
-    <button class="btn btn-primaire btn-sm" onclick="window.print()">🖨️ Imprimer / PDF</button>
-    <a href="index.html" style="color:var(--aubergine);font-weight:600">← Retour</a>
+    <button class="btn btn-primaire btn-sm" onclick="window.print()" data-i18n="recu.imprimer">🖨️ Imprimer / PDF</button>
+    <a href="index.html" style="color:var(--aubergine);font-weight:600" data-i18n="recu.retour">← Retour</a>
   </div>
-  <div id="contenu">Chargement…</div>
+  <div id="contenu" data-i18n="recu.chargement">Chargement…</div>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
@@ -36,9 +38,9 @@
   async function init() {
     const id = new URLSearchParams(location.search).get("id");
     const zone = document.getElementById("contenu");
-    if (!id) { zone.innerHTML = "Reçu introuvable."; return; }
+    if (!id) { zone.innerHTML = t("recu.introuvable"); return; }
     const { data: p } = await db.from("paiements").select("*").eq("id", id).single();
-    if (!p) { zone.innerHTML = "Reçu introuvable ou accès non autorisé."; return; }
+    if (!p) { zone.innerHTML = t("recu.introuvable_acces"); return; }
     const { data: prof } = await db.from("profiles").select("type, email").eq("id", p.profil_id).single();
     let clientNom = prof?.email || "";
     if (prof?.type === "etablissement") {
@@ -54,23 +56,23 @@
     const estAdmin = prof && (await (async () => { const { data: u } = await auth.getUser(); if (!u.user) return false; const { data: pr } = await db.from("profiles").select("type").eq("id", u.user.id).single(); return pr?.type === "admin"; })());
     zone.innerHTML = `
       <div style="text-align:center;margin-bottom:24px">
-        <h1 style="font-family:var(--font-titre);font-size:22px">Reçu ${esc(p.numero_recu)}</h1>
+        <h1 style="font-family:var(--font-titre);font-size:22px">${t("recu.recu")} ${esc(p.numero_recu)}</h1>
         <div style="color:var(--gris)">${new Date(p.created_at).toLocaleDateString("fr-FR")}</div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:20px;gap:20px">
         <div><b>${esc(s.vendeur_nom || "DamUp")}</b><br>${esc(s.vendeur_adresse || "")}<br>${s.vendeur_siret ? esc("SIRET " + s.vendeur_siret) : ""}</div>
-        <div style="text-align:right"><b>Client</b><br>${esc(clientNom)}</div>
+        <div style="text-align:right"><b>${t("recu.client")}</b><br>${esc(clientNom)}</div>
       </div>
       <table style="width:100%;border-collapse:collapse">
-        <tr><td style="padding:8px 0">Période couverte</td><td style="text-align:right">${new Date(p.periode_debut).toLocaleDateString("fr-FR")} → ${new Date(p.periode_fin).toLocaleDateString("fr-FR")}</td></tr>
-        <tr><td style="padding:8px 0">Mode de paiement</td><td style="text-align:right">${modes[p.mode] || p.mode}</td></tr>
-        <tr style="font-weight:700"><td style="padding:12px 0;border-top:1px solid #EEE">Montant</td><td style="text-align:right;border-top:1px solid #EEE">${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(p.montant))}</td></tr>
+        <tr><td style="padding:8px 0">${t("recu.periode")}</td><td style="text-align:right">${new Date(p.periode_debut).toLocaleDateString("fr-FR")} → ${new Date(p.periode_fin).toLocaleDateString("fr-FR")}</td></tr>
+        <tr><td style="padding:8px 0">${t("recu.mode")}</td><td style="text-align:right">${modes[p.mode] || p.mode}</td></tr>
+        <tr style="font-weight:700"><td style="padding:12px 0;border-top:1px solid #EEE">${t("recu.montant")}</td><td style="text-align:right;border-top:1px solid #EEE">${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(p.montant))}</td></tr>
       </table>
       <div style="margin-top:24px;font-size:12px;color:var(--gris)">${esc(s.mention_tva || "")}</div>
-      ${estAdmin ? '<div style="margin-top:20px;font-size:12px;color:var(--gris);border-top:1px dashed #DDD;padding-top:10px">Vérifie les mentions obligatoires avec ton comptable.</div>' : ""}
+      ${estAdmin ? `<div style="margin-top:20px;font-size:12px;color:var(--gris);border-top:1px dashed #DDD;padding-top:10px">${t("recu.verifie")}</div>` : ""}
     `;
   }
-  init();
+  chargerDicts().then(() => { initSelecteurLangue("sel-langue"); appliquerLangueDOM(); init(); });
 </script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>
 </body>

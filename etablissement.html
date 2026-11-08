@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-i18n-title="etablissement.titre">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DamUp — Espace établissement</title>
+<title>DamUp</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2A1120">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -85,6 +85,7 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:300;color:var(--aubergine)"></div>
 <div class="app">
   <div class="topbar">
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
@@ -95,24 +96,25 @@
   </div>
 
   <div class="tabs">
-    <span class="tab on" data-vue="missions">📋 Missions</span>
-    <span class="tab" data-vue="selection">✨ Sélection</span>
-    <span class="tab" data-vue="accueil">📷 Accueil</span>
-    <span class="tab" data-vue="dashboard">📊 Dashboard</span>
-    <span class="tab" data-vue="profil">👤 Profil</span>
+    <span class="tab on" data-vue="missions">📋 <span data-i18n="nav.missions">Missions</span></span>
+    <span class="tab" data-vue="selection">✨ <span data-i18n="nav.selection">Sélection</span></span>
+    <span class="tab" data-vue="accueil">📷 <span data-i18n="nav.accueil">Accueil</span></span>
+    <span class="tab" data-vue="dashboard">📊 <span data-i18n="nav.dashboard">Dashboard</span></span>
+    <span class="tab" data-vue="profil">👤 <span data-i18n="nav.profil">Profil</span></span>
   </div>
 
   <div class="contenu" id="contenu"></div>
 
   <nav class="bottomnav">
-    <a href="#" class="on" id="nav-missions"><span class="ico">📋</span>Missions</a>
-    <a href="#" id="nav-selection"><span class="ico">✨</span>Sélection</a>
-    <a href="#" id="nav-accueil"><span class="ico">📷</span>Accueil</a>
-    <a href="#" id="nav-dashboard"><span class="ico">📊</span>Dashboard</a>
-    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+    <a href="#" class="on" id="nav-missions"><span class="ico">📋</span><span data-i18n="nav.missions">Missions</span></a>
+    <a href="#" id="nav-selection"><span class="ico">✨</span><span data-i18n="nav.selection">Sélection</span></a>
+    <a href="#" id="nav-accueil"><span class="ico">📷</span><span data-i18n="nav.accueil">Accueil</span></a>
+    <a href="#" id="nav-dashboard"><span class="ico">📊</span><span data-i18n="nav.dashboard">Dashboard</span></a>
+    <a href="#" id="logout"><span class="ico">🚪</span><span data-i18n="nav.quitter">Quitter</span></a>
   </nav>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
@@ -135,7 +137,8 @@
       return;
     }
     user = data.user;
-    const { data: p } = await db.from("profiles").select("type").eq("id", user.id).single();
+    const { data: p } = await db.from("profiles").select("type, langue").eq("id", user.id).single();
+    if (p?.langue) appliquerLangueCompte(p.langue);
     if (!p || p.type !== "etablissement") {
       if (codeScan) {
         document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Jost,sans-serif;color:#2A1120;text-align:center;padding:20px"><div style="font-size:16px">⚠️<br><b>Ce QR code doit être scanné par l\'établissement à ton arrivée.</b></div></div>';
@@ -674,6 +677,7 @@
     window.open(data.signedUrl, "_blank");
   }
 
+  chargerDicts().then(() => initSelecteurLangue("sel-langue"));
   init();
 </script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>

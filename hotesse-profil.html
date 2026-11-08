@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-i18n-title="hotesse-profil.titre">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DamUp — Profil hôtesse</title>
+<title>DamUp</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2A1120">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -71,6 +71,7 @@
 </style>
 </head>
 <body>
+<div id="sel-langue" style="position:fixed;top:14px;right:16px;z-index:300;color:var(--aubergine)"></div>
 <div class="app">
   <div class="topbar">
     <a class="back" href="hotesse.html">‹</a>
@@ -83,36 +84,37 @@
   <div class="section"><h2>Mes photos <span id="compteur-photos"></span> <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ajouterPhotos()">＋ Ajouter</a></h2></div>
   <div class="photos" id="photos"></div>
 
-  <div class="section"><h2>Mon profil <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()">✏️ Modifier</a></h2></div>
+  <div class="section"><h2><span data-i18n="profil.mon_profil">Mon profil</span> <a style="font-size:12.5px;color:var(--aubergine);cursor:pointer;font-weight:600" onclick="ouvrirEdit()" data-i18n="commun.modifier">✏️ Modifier</a></h2></div>
   <div id="form-edit">
-    <div class="champ"><label class="label">Prénom</label><input class="field" id="e-prenom"></div>
+    <div class="champ"><label class="label" data-i18n="commun.prenom">Prénom</label><input class="field" id="e-prenom"></div>
     <div class="ligne">
-      <div class="champ"><label class="label">Âge</label><input class="field" type="number" id="e-age" min="18"></div>
-      <div class="champ"><label class="label">Ville</label><input class="field" id="e-ville"></div>
+      <div class="champ"><label class="label" data-i18n="commun.age">Âge</label><input class="field" type="number" id="e-age" min="18"></div>
+      <div class="champ"><label class="label" data-i18n="commun.ville">Ville</label><input class="field" id="e-ville"></div>
     </div>
     <div class="ligne">
-      <div class="champ"><label class="label">Téléphone</label><input class="field" id="e-tel"></div>
-      <div class="champ"><label class="label">Instagram</label><input class="field" id="e-insta"></div>
+      <div class="champ"><label class="label" data-i18n="commun.telephone">Téléphone</label><input class="field" id="e-tel"></div>
+      <div class="champ"><label class="label" data-i18n="commun.instagram">Instagram</label><input class="field" id="e-insta"></div>
     </div>
-    <button class="btn btn-primaire btn-block btn-sm" onclick="sauverProfil()">Enregistrer</button>
+    <button class="btn btn-primaire btn-block btn-sm" onclick="sauverProfil()" data-i18n="commun.enregistrer">Enregistrer</button>
   </div>
 
-  <div class="section"><h2>Avis des établissements</h2><div id="avis"></div></div>
-  <div class="section"><h2>Mes missions</h2><div id="mes-missions"></div></div>
-  <div class="section"><h2>Ma mission — à présenter à l'entrée</h2></div>
+  <div class="section"><h2 data-i18n="profil.avis">Avis des établissements</h2><div id="avis"></div></div>
+  <div class="section"><h2 data-i18n="profil.mes_missions">Mes missions</h2><div id="mes-missions"></div></div>
+  <div class="section"><h2 data-i18n="profil.ma_mission">Ma mission — à présenter à l'entrée</h2></div>
   <div class="qrcard" id="qr"></div>
 
   <div id="bloc-abonnement"></div>
   <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>
-  <div style="text-align:center;margin:8px 0 14px"><a style="color:var(--aubergine);cursor:pointer;font-weight:600" onclick="demanderInstallation()">📲 Installer l'application</a></div>
+  <div style="text-align:center;margin:8px 0 14px"><a style="color:var(--aubergine);cursor:pointer;font-weight:600" onclick="demanderInstallation()" data-i18n="commun.installer">📲 Installer l'application</a></div>
 
   <nav class="bottomnav">
-    <a href="hotesse.html"><span class="ico">🏠</span>Missions</a>
-    <a href="#" class="on"><span class="ico">👤</span>Profil</a>
-    <a href="#" id="logout"><span class="ico">🚪</span>Quitter</a>
+    <a href="hotesse.html"><span class="ico">🏠</span><span data-i18n="nav.missions">Missions</span></a>
+    <a href="#" class="on"><span class="ico">👤</span><span data-i18n="nav.profil">Profil</span></a>
+    <a href="#" id="logout"><span class="ico">🚪</span><span data-i18n="nav.quitter">Quitter</span></a>
   </nav>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
@@ -125,6 +127,8 @@
     const { data } = await auth.getUser();
     if (!data.user) { location.href = "login.html"; return; }
     user = data.user;
+    const { data: pr } = await db.from("profiles").select("langue").eq("id", user.id).single();
+    if (pr?.langue) appliquerLangueCompte(pr.langue);
     await chargerProfil();
     chargerAvis();
     chargerMesMissions();
@@ -328,6 +332,7 @@
     } catch (e) {}
   }
   chargerPartenaire();
+  chargerDicts().then(() => initSelecteurLangue("sel-langue"));
   init();
 </script>
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function(){});</script>
