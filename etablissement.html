@@ -280,19 +280,20 @@
 
   // ============ DASHBOARD ============
   async function afficherDashboard() {
-    contenu.innerHTML = '<div class="stats"><div class="stat"><div class="v">…</div><div class="l">chargement</div></div></div>';
+    contenu.innerHTML = '<div id="stats"></div><div id="a-noter"></div>';
     const { data: missions } = await db.from("missions").select("id, statut").eq("etablissement_id", user.id);
     const { data: cands } = await db.from("candidatures").select("id, statut, mission_id");
     const mesIds = new Set((missions||[]).map(m => m.id));
     const mesCands = (cands||[]).filter(c => mesIds.has(c.mission_id));
     const ouvertes = (missions||[]).filter(m => m.statut === "ouverte").length;
-    contenu.innerHTML = `
+    document.getElementById("stats").innerHTML = `
       <div class="stats">
         <div class="stat"><div class="v">${(missions||[]).length}</div><div class="l">Missions publiées</div></div>
         <div class="stat"><div class="v">${ouvertes}</div><div class="l">Missions ouvertes</div></div>
         <div class="stat"><div class="v">${mesCands.length}</div><div class="l">Candidatures reçues</div></div>
         <div class="stat"><div class="v">${mesCands.filter(c=>c.statut==="acceptee").length}</div><div class="l">Hôtesses acceptées</div></div>
       </div>`;
+    chargerANoter();
   }
 
   // ============ PROFIL ÉTABLISSEMENT ============
@@ -434,6 +435,70 @@
     if (error) { msg.style.color = "var(--danger)"; msg.textContent = error.message; }
     else { msg.style.color = "var(--ok)"; msg.textContent = data; }
     chargerPresences();
+  }
+
+  // ============ À NOTER (avis) ============
+  const notesEnCours = {};
+  function choisirNote(candId, n) {
+    notesEnCours[candId] = n;
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById(`etoile-${candId}-${i}`).style.color = i <= n ? "var(--champagne-2)" : "#DDD";
+    }
+  }
+
+  async function publierAvis(candId, missionId, hotesseId) {
+    const note = notesEnCours[candId];
+    if (!note) { alert("Choisis une note (1 à 5 étoiles)."); return; }
+    const criteres = [...document.querySelectorAll(`#crit-${candId}:checked`)].map(i => i.getAttribute("data-k"));
+    const commentaire = document.getElementById(`com-${candId}`).value.trim();
+    const { error } = await db.from("avis").insert({
+      mission_id: missionId, etablissement_id: user.id, hotesse_id: hotesseId,
+      note, criteres, commentaire: commentaire || null
+    });
+    if (error) {
+      if (error.code === "23505") { alert("Tu as déjà noté cette hôtesse pour cette mission."); }
+      else { alert(error.message); }
+      return;
+    }
+    alert("Avis publié ✅");
+    chargerANoter();
+  }
+
+  async function chargerANoter() {
+    const zone = document.getElementById("a-noter");
+    zone.innerHTML = '<div class="pub"><h3>⭐ À noter</h3><div class="vide">Chargement…</div></div>';
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const { data: cands } = await db.from("candidatures")
+      .select("id, mission_id, hotesse_id, hotesses(prenom, photos), missions(date)")
+      .eq("statut", "confirmee").eq("annulation", false);
+    const { data: mesMissions } = await db.from("missions").select("id").eq("etablissement_id", user.id);
+    const mesIds = new Set((mesMissions || []).map(m => m.id));
+    const { data: avis } = await db.from("avis").select("mission_id, hotesse_id");
+    const dejaNotes = new Set((avis || []).map(a => a.mission_id + ":" + a.hotesse_id));
+    const aNoter = (cands || []).filter(c =>
+      mesIds.has(c.mission_id) && c.missions?.date < aujourdhui && !dejaNotes.has(c.mission_id + ":" + c.hotesse_id));
+
+    zone.innerHTML = `<div class="pub"><h3>⭐ À noter</h3>
+      ${aNoter.length ? aNoter.map(c => `
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #F1E9DA">
+          <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;background:var(--champagne);flex-shrink:0">
+            ${urlPhoto(c.hotesses?.photos?.[0]) ? `<img src="${urlPhoto(c.hotesses?.photos?.[0])}" style="width:100%;height:100%;object-fit:cover">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%">${esc((c.hotesses?.prenom||"?")[0])}</span>`}
+          </div>
+          <div style="flex:1">
+            <b>${esc(c.hotesses?.prenom || "?")}</b>
+            <div style="font-size:12.5px;color:var(--gris)">Mission du ${formatDate(c.missions?.date)}</div>
+            <div style="margin:8px 0">
+              ${[1,2,3,4,5].map(n => `<span onclick="choisirNote('${c.id}', ${n})" id="etoile-${c.id}-${n}" style="font-size:22px;cursor:pointer;color:#DDD">★</span>`).join("")}
+            </div>
+            <div style="font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px">
+              ${["Ponctualité","Présentation","Amabilité","Professionnalisme"].map(k => `<label style="font-size:12px"><input type="checkbox" id="crit-${c.id}" data-k="${k}"> ${k}</label>`).join("")}
+            </div>
+            <textarea id="com-${c.id}" placeholder="Commentaire (facultatif)" maxlength="500" style="width:100%;margin-top:8px;border:1px solid #EEE4D2;border-radius:8px;padding:8px;font-size:13px"></textarea>
+            <div style="text-align:right;margin-top:6px"><button class="btn btn-sm btn-primaire" onclick="publierAvis('${c.id}', '${c.mission_id}', '${c.hotesse_id}')">Publier l'avis</button></div>
+          </div>
+        </div>`).join("")
+      : '<div class="vide">Aucune hôtesse à noter pour le moment.</div>'}
+    </div>`;
   }
 
   init();
