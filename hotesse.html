@@ -107,7 +107,7 @@
     const { data } = await auth.getUser();
     if (!data.user) { location.href = "login.html"; return; }
     user = data.user;
-    const { data: p } = await db.from("hotesses").select("*").eq("id", user.id).single();
+    const { data: p } = await db.from("hotesses").select("id, prenom, age, ville, photos, note_moyenne, nb_avis, verifie, created_at").eq("id", user.id).single();
     profil = p;
     document.getElementById("avatar").textContent = (p?.prenom || user.email || "?")[0].toUpperCase();
     document.getElementById("salut").textContent = "Bonjour " + (p?.prenom || "") + " 👋";
@@ -150,8 +150,8 @@
           <div class="entete">
             <div class="icone-type">${couverture}</div>
             <div class="titres">
-              <h3>${e?.nom || "Établissement"}</h3>
-              <div class="lieu">📍 ${m.adresse || e?.ville || ""}</div>
+              <h3>${esc(e?.nom || "Établissement")}</h3>
+              <div class="lieu">📍 ${esc(m.adresse || e?.ville || "")}</div>
             </div>
             <span class="badge badge-champagne nb">${m.places_restantes ?? m.nb_hotesses} places</span>
           </div>
@@ -199,7 +199,7 @@
     const sheet = document.getElementById("sheet-mission");
     sheet.innerHTML = `
       <div class="sheet-head">
-        <h3>${e?.nom || "Établissement"}</h3>
+        <h3>${esc(e?.nom || "Établissement")}</h3>
         <button class="sheet-close" onclick="fermerMission()">✕</button>
       </div>
       <div class="galerie">
@@ -211,7 +211,7 @@
           <span class="badge badge-aubergine">🕗 ${formatHeure(m.heure_debut)} – ${formatHeure(m.heure_fin)}</span>
           <span class="badge badge-champagne">👥 ${m.places_restantes ?? m.nb_hotesses} places restantes</span>
         </div>
-        <div class="lieu" style="margin:10px 0">📍 ${m.adresse || e?.ville || ""}</div>
+        <div class="lieu" style="margin:10px 0">📍 ${esc(m.adresse || e?.ville || "")}</div>
         <div class="offres">${offres}</div>
         <button class="btn btn-primaire btn-block" onclick="postulerDepuisModal('${m.id}')" style="margin-top:14px">Postuler</button>
       </div>`;

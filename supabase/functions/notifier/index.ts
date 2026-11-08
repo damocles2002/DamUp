@@ -1,8 +1,7 @@
 // ============================================================
 //  DamUp — Edge Function "notifier" (envoi d'emails via Brevo)
-//  Même technologie que DAMAVIS. Expéditeur : « DamUp ».
+//  Fermée au public (B6) : exige l'en-tête x-damup-secret.
 // ============================================================
-import { createClient } from "npm:@supabase/supabase-js@2";
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const SENDER_EMAIL = Deno.env.get("SENDER_EMAIL") ?? "";
@@ -23,15 +22,12 @@ const json = (data: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    // Vérifier que l'appelant est connecté (sécurité)
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return json({ error: "Non autorisé" }, 401);
+    // Secret partagé obligatoire : seul le déclencheur SQL (qui connaît le secret)
+    // peut envoyer un email au nom de DamUp.
+    const secret = req.headers.get("x-damup-secret") ?? "";
+    if (secret !== (Deno.env.get("NOTIFIER_SECRET") ?? "")) {
+      return json({ error: "Non autorisé" }, 401);
+    }
 
     const { to, subject, html } = await req.json();
     if (!to || !subject) return json({ error: "to et subject requis" }, 400);

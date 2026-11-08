@@ -119,7 +119,7 @@
     user = data.user;
     const { data: p } = await db.from("profiles").select("type").eq("id", user.id).single();
     if (!p || p.type !== "etablissement") { location.href = "hotesse.html"; return; } // un établissement seulement
-    const { data: e } = await db.from("etablissements").select("*").eq("id", user.id).single();
+    const { data: e } = await db.from("etablissements").select("id, nom, type, adresse, ville, siret, photos, videos, verifie, abonnement_actif, created_at").eq("id", user.id).single();
     etab = e;
     document.getElementById("avatar").textContent = (e?.nom || "?")[0].toUpperCase();
     afficher();
@@ -218,7 +218,7 @@
       <div class="mission">
         <div class="t"><h4>📅 ${formatDate(m.date)} · ${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</h4>
           <span class="badge badge-aubergine">${m.statut}</span></div>
-        <div class="meta">📍 ${m.adresse} · ${m.nb_hotesses} hôtesse(s) · ${(m.articles_offerts||[]).map(a=>LIBELLES_ARTICLES[a]||a).join(", ")}</div>
+        <div class="meta">📍 ${esc(m.adresse)} · ${m.nb_hotesses} hôtesse(s) · ${(m.articles_offerts||[]).map(a=>LIBELLES_ARTICLES[a]||a).join(", ")}</div>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="annulerMission('${m.id}')">Annuler</button>
       </div>`).join("");
   }
@@ -257,8 +257,8 @@
         <div class="photo">${photo}</div>
         <div class="gradient"></div>
         <div class="infos">
-          <h3>${h.prenom}, ${h.age}</h3>
-          <div class="sous">📍 ${h.ville || ""} · ⭐ ${h.note_moyenne ?? 5} (${h.nb_avis ?? 0} avis)</div>
+          <h3>${esc(h.prenom)}, ${h.age}</h3>
+          <div class="sous">📍 ${esc(h.ville || "")} · ⭐ ${h.note_moyenne ?? 5} (${h.nb_avis ?? 0} avis)</div>
           <div class="sous">Mission du ${formatDate(c.missions?.date)} à ${formatHeure(c.missions?.heure_debut)}</div>
         </div>
       </div>
@@ -312,7 +312,7 @@
   }
 
   async function chargerProfilEtab() {
-    const { data: e } = await db.from("etablissements").select("*").eq("id", user.id).single();
+    const { data: e } = await db.from("etablissements").select("id, nom, type, adresse, ville, siret, photos, videos, verifie, abonnement_actif, created_at").eq("id", user.id).single();
     etab = e;
     document.getElementById("p-nom").value = e?.nom || "";
     document.getElementById("p-type").value = e?.type || "bar";

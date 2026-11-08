@@ -119,7 +119,9 @@
   }
 
   async function chargerProfil() {
-    const { data: h } = await db.from("hotesses").select("*").eq("id", user.id).single();
+    const { data: h } = await db.from("hotesses").select("id, prenom, age, ville, photos, note_moyenne, nb_avis, verifie, created_at").eq("id", user.id).single();
+    const { data: priv } = await db.rpc("hotesse_prive", { p_id: user.id });
+    if (priv && priv.length) { h.telephone = priv[0].telephone; h.instagram = priv[0].instagram; h.signes_negatifs = priv[0].signes_negatifs; }
     profil = h;
     const avatarUrl = (h?.photos && h.photos[0]) || "";
     document.getElementById("head").innerHTML = `
@@ -221,8 +223,8 @@
       .select("note, commentaire, etablissements(nom)")
       .eq("hotesse_id", user.id).order("created_at", { ascending: false });
     document.getElementById("avis").innerHTML = (data && data.length)
-      ? data.map(a => `<div class="avis"><div class="t"><span class="e">${a.etablissements?.nom || "Établissement"}</span>
-          <span class="st">${"★".repeat(a.note)}</span></div><div class="txt">${a.commentaire || ""}</div></div>`).join("")
+      ? data.map(a => `<div class="avis"><div class="t"><span class="e">${esc(a.etablissements?.nom || "Établissement")}</span>
+          <span class="st">${"★".repeat(a.note)}</span></div><div class="txt">${esc(a.commentaire || "")}</div></div>`).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucun avis pour le moment.</div>';
   }
 

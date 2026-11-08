@@ -127,20 +127,20 @@
       <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
     const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
     document.getElementById("a-valider").innerHTML = (nonVerif && nonVerif.length)
-      ? nonVerif.map(h => `<div style="padding:10px 20px;border-top:1px solid #F5EEE2">✨ ${h.prenom}, ${h.age} — ${h.ville} (photo à valider)</div>`).join("")
+      ? nonVerif.map(h => `<div style="padding:10px 20px;border-top:1px solid #F5EEE2">✨ ${esc(h.prenom)}, ${h.age} — ${esc(h.ville)} (photo à valider)</div>`).join("")
       : "Aucun profil en attente.";
   }
 
   // ============ UTILISATEURS ============
   async function afficherUtilisateurs() {
     main.innerHTML = "<h1>Utilisateurs</h1><div class='panneau'><div class='tete'>Hôtesses</div><div id='liste-hotesses' class='vide'>Chargement…</div></div><div class='panneau'><div class='tete'>Établissements</div><div id='liste-etabs' class='vide'>Chargement…</div></div>";
-    const { data } = await db.from("hotesses").select("id, prenom, age, ville, verifie, instagram, telephone").order("created_at", { ascending: false });
+    const { data } = await db.rpc("admin_hotesses");
     document.getElementById("liste-hotesses").innerHTML = (data && data.length) ? `
       <table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th></th></tr>
       ${data.map(h => `<tr>
-        <td><div class="cell"><div class="av">${(h.prenom||"?")[0]}</div>${h.prenom}, ${h.age}</div></td>
-        <td>${h.ville || "—"}</td>
-        <td style="font-size:12.5px;color:var(--gris)">${h.instagram || ""}<br>${h.telephone || ""}</td>
+        <td><div class="cell"><div class="av">${esc((h.prenom||"?")[0])}</div>${esc(h.prenom)}, ${h.age}</div></td>
+        <td>${esc(h.ville || "—")}</td>
+        <td style="font-size:12.5px;color:var(--gris)">${esc(h.instagram || "")}<br>${esc(h.telephone || "")}</td>
         <td>${h.verifie ? '<span class="badge badge-vert">Vérifiée</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
         <td>${h.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="valider('${h.id}')">Valider</button>`}</td>
       </tr>`).join("")}
@@ -149,10 +149,10 @@
     document.getElementById("liste-etabs").innerHTML = (etabs && etabs.length) ? `
       <table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>SIRET</th><th>Statut</th><th></th></tr>
       ${etabs.map(e => `<tr>
-        <td><div class="cell"><div class="av">${(e.nom||"?")[0]}</div>${e.nom}</div></td>
-        <td>${e.type || "—"}</td>
-        <td>${e.ville || "—"}</td>
-        <td>${e.siret || "—"}</td>
+        <td><div class="cell"><div class="av">${esc((e.nom||"?")[0])}</div>${esc(e.nom)}</div></td>
+        <td>${esc(e.type || "—")}</td>
+        <td>${esc(e.ville || "—")}</td>
+        <td>${esc(e.siret || "—")}</td>
         <td>${e.verifie ? '<span class="badge badge-vert">Vérifié</span>' : '<span class="badge badge-champagne">En attente</span>'}</td>
         <td>${e.verifie ? "" : `<button class="btn btn-sm btn-primaire" onclick="validerEtab('${e.id}')">Valider</button>`}</td>
       </tr>`).join("")}
@@ -173,7 +173,7 @@
     const { data } = await db.from("signalements").select("*").order("created_at", { ascending: false });
     document.getElementById("liste").innerHTML = (data && data.length) ? data.map(s => `
       <div style="padding:13px 20px;border-top:1px solid #F5EEE2">
-        <b>${s.signalant_type} → ${s.cible_type}</b> <span style="color:var(--gris)">${s.motif || ""}</span>
+        <b>${esc(s.signalant_type)} → ${esc(s.cible_type)}</b> <span style="color:var(--gris)">${esc(s.motif || "")}</span>
         <span class="badge ${s.statut==='nouveau' ? 'badge-rouge' : 'badge-aubergine'}">${s.statut}</span>
       </div>`).join("") : "Aucun signalement.";
   }
@@ -271,7 +271,7 @@
     if (!membresListe.length) { zone.innerHTML = "Aucun membre pour l'instant."; return; }
     zone.innerHTML = `<table><tr><th>Nom</th><th>Droits</th><th></th></tr>
       ${membresListe.map(m => `<tr>
-        <td>${m.nom || "—"}</td>
+        <td>${esc(m.nom || "—")}</td>
         <td style="font-size:12.5px;color:var(--gris)">${DROITS_DISPONIBLES.filter(d => m.droits && m.droits[d.key]).map(d => d.label).join(", ") || "aucun"}</td>
         <td>
           <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="editerMembre('${m.id}')">Modifier</button>
@@ -307,7 +307,7 @@
     const moi = (await auth.getUser()).data.user.id;
     zone.innerHTML = (data && data.length) ? `<table><tr><th>E-mail</th><th>Rôle</th><th></th></tr>
       ${data.map(a => `<tr>
-        <td>${a.email}</td>
+        <td>${esc(a.email)}</td>
         <td><span class="badge badge-aubergine">Admin</span></td>
         <td>${a.id === moi ? '<span style="color:var(--gris);font-size:12.5px">(vous)</span>' : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="retrograderAdmin('${a.id}')">Retirer le rôle</button>`}</td>
       </tr>`).join("")}</table>` : "Aucun administrateur.";
