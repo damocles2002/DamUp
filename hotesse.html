@@ -72,6 +72,7 @@
   <div class="topbar">
     <div class="brand"><img class="crown" src="assets/logo-couronne.png" alt=""><span class="nom">DamUp</span></div>
     <div style="display:flex;align-items:center;gap:16px">
+      <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="ouvrirMessages()">💬</button>
       <div id="cloche"></div>
       <div class="avatar" id="avatar" title="Mon profil">?</div>
     </div>
@@ -106,6 +107,7 @@
 <script src="js/ui.js"></script>
 <script src="js/install.js"></script>
 <script src="js/notifications.js"></script>
+<script src="js/messages.js"></script>
 <script>
   const liste = document.getElementById("liste");
   let user = null, profil = null, filtre = "";

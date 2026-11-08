@@ -204,5 +204,6 @@
   "hotesse.titre": "DamUp : Espace hôtesse",
   "hotesse-profil.titre": "DamUp : Mon profil",
   "etablissement.titre": "DamUp : Espace établissement",
-  "err.session": "Ta session a expiré, reconnecte-toi."
+  "err.session": "Ta session a expiré, reconnecte-toi.",
+  "notif.message.nouveau": "💬 {nom} t'a écrit un message."
 }

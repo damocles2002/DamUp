@@ -204,5 +204,6 @@
   "hotesse.titre": "DamUp : Área azafata",
   "hotesse-profil.titre": "DamUp : Mi perfil",
   "etablissement.titre": "DamUp : Área establecimiento",
-  "err.session": "Tu sesión ha caducado, inicia sesión de nuevo."
+  "err.session": "Tu sesión ha caducado, inicia sesión de nuevo.",
+  "notif.message.nouveau": "💬 {nom} te ha enviado un mensaje."
 }

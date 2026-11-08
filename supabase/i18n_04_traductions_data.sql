@@ -124,6 +124,12 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.mission_note_modifiee', 'es', '📝 {lieu} actualizó la información de tu evento del {date}.'),
 ('notif.mission_note_modifiee', 'zh', '📝 {lieu} 更新了您 {date} 场次的信息。'),
 
+-- nouveau message
+('notif.message.nouveau', 'fr', '💬 {nom} t''a écrit un message.'),
+('notif.message.nouveau', 'en', '💬 {nom} sent you a message.'),
+('notif.message.nouveau', 'es', '💬 {nom} te ha enviado un mensaje.'),
+('notif.message.nouveau', 'zh', '💬 {nom} 给您发了一条消息。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),
