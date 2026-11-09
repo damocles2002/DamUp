@@ -46,6 +46,11 @@ Deno.serve(async (req) => {
     const journal = (action: string, cible: string | null, cibleId: string | null, details: unknown) =>
       admin.rpc("journaliser", { p_action: action, p_cible_type: cible, p_cible_id: cibleId, p_details: details ?? {} });
 
+    // ---- mes propres infos (droits + propriétaire) ----
+    if (action === "moi") {
+      return json({ data: { nom: moi.nom, proprietaire: moi.proprietaire, suspendu: moi.suspendu, droits: moi.droits ?? {} } });
+    }
+
     // ---- lister l'équipe ----
     if (action === "list") {
       if (!ai("gerer_equipe")) return json(req, { error: "Droit insuffisant" }, 403);
