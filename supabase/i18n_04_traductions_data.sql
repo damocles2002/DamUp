@@ -190,6 +190,20 @@ insert into public.traductions (cle, langue, texte) values
 ('qr_jour.retard_autre', 'es', 'Otro…'),
 ('qr_jour.retard_autre', 'zh', '其他…'),
 
+-- absences
+('notif.verifier_presence', 'fr', '« {prenom} n''a pas été scannée à ta mission du {date}. Est-elle venue ? »'),
+('notif.verifier_presence', 'en', '« {prenom} was not scanned at your mission on {date}. Did she come? »'),
+('notif.verifier_presence', 'es', '« {prenom} no fue escaneada en tu misión del {date}. ¿Vino? »'),
+('notif.verifier_presence', 'zh', '« {prenom} 在 {date} 的场次没有被扫描。她来了吗？ »'),
+('notif.absence_declaree', 'fr', 'Absence déclarée par {lieu} pour la mission du {date} : {n} signes négatifs. Si c''est une erreur, contacte DamUp.'),
+('notif.absence_declaree', 'en', 'Absence declared by {lieu} for the mission on {date}: {n} negative marks. If this is a mistake, contact DamUp.'),
+('notif.absence_declaree', 'es', 'Ausencia declarada por {lieu} para la misión del {date}: {n} marcas negativas. Si es un error, contacta a DamUp.'),
+('notif.absence_declaree', 'zh', '{lieu} 已申报您缺席 {date} 的场次：{n} 个负面标记。如有误请联系 DamUp。'),
+('notif.absence_declaree_admin', 'fr', 'Absence déclarée pour {prenom} à la mission du {date} chez {lieu}.'),
+('notif.absence_declaree_admin', 'en', 'Absence declared for {prenom} at the mission on {date} at {lieu}.'),
+('notif.absence_declaree_admin', 'es', 'Ausencia declarada para {prenom} en la misión del {date} en {lieu}.'),
+('notif.absence_declaree_admin', 'zh', '已申报 {prenom} 缺席 {date} 在 {lieu} 的场次。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

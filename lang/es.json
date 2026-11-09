@@ -223,5 +223,8 @@
   "notif.retard_annonce": "⏰ {prenom} llegará unos {minutes} min tarde (prevista hacia las {heure}).",
   "notif.retard_sanction": "Retraso de {minutes} min sin aviso: se añadió una marca negativa.",
   "qr_jour.retard": "⏰ Llegaré tarde",
-  "qr_jour.retard_autre": "Otro…"
+  "qr_jour.retard_autre": "Otro…",
+  "notif.verifier_presence": "« {prenom} no fue escaneada en tu misión del {date}. ¿Vino? »",
+  "notif.absence_declaree": "Ausencia declarada por {lieu} para la misión del {date}: {n} marcas negativas. Si es un error, contacta a DamUp.",
+  "notif.absence_declaree_admin": "Ausencia declarada para {prenom} en la misión del {date} en {lieu}."
 }

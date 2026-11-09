@@ -141,6 +141,9 @@ begin
      and ((date + heure_fin + case when heure_fin <= heure_debut then interval '1 day' else interval '0' end)
           at time zone 'Europe/Paris') < now();
 
+  -- hôtesses non scannées : notifier l'établissement (une fois par candidature)
+  perform public.notifier_presences_non_scannees();
+
   -- invitations copine expirées
   perform public.expirer_invitations_copine();
 end; $$;

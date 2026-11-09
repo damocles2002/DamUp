@@ -483,9 +483,61 @@
         <button class="btn btn-primaire btn-block btn-sm" onclick="demarrerScan()" style="margin-top:12px">📷 Scanner un QR code</button>
         <div style="text-align:center;margin-top:10px"><a style="font-size:12px;color:var(--gris);text-decoration:underline;cursor:pointer" onclick="this.style.display='none';document.getElementById('zone-code-manuel').style.display='block'">Le scan ne marche pas ?</a></div>
         <div id="zone-code-manuel" style="display:none;margin-top:10px"><div class="champ"><input class="field" id="code-manuel" placeholder="Code QR"></div><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:8px" onclick="validerCodeManuel()">Valider</button></div>
+      </div>
+      <div class="pub"><h3>❓ À confirmer</h3>
+        <div style="font-size:12px;color:var(--gris);margin-bottom:6px">Hôtesses non scannées des missions terminées (dans les 24 h).</div>
+        <div id="liste-a-confirmer" class="vide">Chargement…</div>
       </div>`;
     chargerPresences();
+    chargerAConfirmer();
     abonnerPresences();
+  }
+
+  async function chargerAConfirmer() {
+    const zone = document.getElementById("liste-a-confirmer");
+    if (!zone) return;
+    const { data: cands } = await db.from("candidatures")
+      .select("id, hotesses(prenom, photos), missions(date, heure_debut, heure_fin)")
+      .eq("statut", "confirmee")
+      .eq("annulation", false)
+      .is("presente_a", null)
+      .is("absence_declaree_le", null);
+    const { data: mesMissions } = await db.from("missions").select("id").eq("etablissement_id", user.id);
+    const mesIds = new Set((mesMissions || []).map(m => m.id));
+    const maintenant = Date.now();
+    const liste = (cands || []).filter(c => {
+      if (!mesIds.has(c.mission_id)) return false;
+      const m = c.missions;
+      const fin = new Date(m.date + "T" + (m.heure_fin || "00:00"));
+      if (m.heure_fin <= m.heure_debut) fin.setDate(fin.getDate() + 1);
+      const diff = maintenant - fin.getTime();
+      return diff >= 0 && diff < 24 * 3600 * 1000;
+    });
+    zone.innerHTML = liste.length
+      ? liste.map(c => {
+          const h = c.hotesses;
+          const photo = urlPhoto(h?.photos?.[0]);
+          const d = c.missions?.date ? new Date(c.missions.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "";
+          return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F1E9DA">
+            <div style="width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--champagne);flex-shrink:0">${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : esc((h?.prenom || "?")[0])}</div>
+            <div style="flex:1;min-width:0"><b>${esc(h?.prenom || "?")}</b><div style="font-size:11px;color:var(--gris)">${d}</div></div>
+            <button class="btn btn-sm" style="background:#E7F5EC;color:#1E7A3C;white-space:nowrap" onclick="declarerAbsence('${c.id}', true)">✅ venue</button>
+            <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);white-space:nowrap" onclick="declarerAbsence('${c.id}', false)">❌ absente</button>
+          </div>`;
+        }).join("")
+      : '<div style="color:var(--gris);font-size:12.5px">Rien à confirmer.</div>';
+  }
+
+  async function declarerAbsence(candId, venue) {
+    if (!venue) {
+      const ok = await demander("Marquer cette hôtesse absente ?\nCela ajoutera 2 signes négatifs à son compte.", "Oui, absente");
+      if (!ok) return;
+    }
+    const { error } = await db.rpc("declarer_absence", { p_candidature: candId, p_venue: venue });
+    if (error) { toast(error.message); return; }
+    toast(venue ? "Présence enregistrée ✅" : "Absence déclarée.");
+    chargerAConfirmer();
+    chargerPresences();
   }
 
   async function chargerPresences() {

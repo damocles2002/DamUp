@@ -223,5 +223,8 @@
   "notif.retard_annonce": "⏰ {prenom} will arrive about {minutes} min late (expected around {heure}).",
   "notif.retard_sanction": "Unannounced delay of {minutes} min: one negative mark added.",
   "qr_jour.retard": "⏰ I will be late",
-  "qr_jour.retard_autre": "Other…"
+  "qr_jour.retard_autre": "Other…",
+  "notif.verifier_presence": "« {prenom} was not scanned at your mission on {date}. Did she come? »",
+  "notif.absence_declaree": "Absence declared by {lieu} for the mission on {date}: {n} negative marks. If this is a mistake, contact DamUp.",
+  "notif.absence_declaree_admin": "Absence declared for {prenom} at the mission on {date} at {lieu}."
 }
