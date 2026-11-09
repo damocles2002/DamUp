@@ -1,7 +1,8 @@
 // ============================================================
 //  DamUp : Edge Function "verifier-siret"
 //  Interroge l'annuaire officiel des entreprises (API publique
-//  et gratuite) pour contrôler un SIRET. Réservée à l'admin.
+//  et gratuite) pour contrôler un SIRET. Réservée aux membres
+//  de l'équipe (aal2 + droit valider_profils, ou propriétaire).
 // ============================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -15,45 +16,56 @@ function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
+const json = (req: Request, data: unknown, status = 200): Response =>
+  new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(req), "Content-Type": "application/json" } });
 
-function json(req, req: Request, data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders(req), "Content-Type": "application/json" },
-  });
+function decodeJwt(token: string): Record<string, unknown> {
+  const payload = token.split(".")[1];
+  return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
-
-  const url = Deno.env.get("SUPABASE_URL") ?? "";
-  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  const supabase = createClient(url, anon, {
-    global: { headers: { Authorization: req.headers.get("authorization") ?? "" } },
-  });
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return json(req, { erreur: "Non connecté." }, 401);
-
-  const { data: p } = await supabase.from("profiles").select("type").eq("id", user.id).single();
-  if (p?.type !== "admin") return json(req, { erreur: "Réservé à l'administrateur." }, 403);
-
-  let siret = "";
   try {
-    const body = await req.json(req, );
-    siret = (body?.siret ?? "").toString();
-  } catch (_) {
-    siret = new URL(req.url).searchParams.get("siret") ?? "";
-  }
-  const clean = siret.replace(/[^0-9]/g, "");
-  if (clean.length !== 14) return json(req, { introuvable: true, motif: "SIRET invalide (14 chiffres attendus)." });
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const caller = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-  try {
+    const { data: { user } } = await caller.auth.getUser();
+    if (!user) return json(req, { erreur: "Non connecté." }, 401);
+
+    // double vérification obligatoire (aal2)
+    try {
+      const claims = decodeJwt(authHeader.replace(/^Bearer\s+/i, ""));
+      if (claims.aal !== "aal2") return json(req, { erreur: "Double vérification requise" }, 403);
+    } catch {
+      return json(req, { erreur: "Jeton invalide" }, 401);
+    }
+
+    // membre actif de l'équipe + droit valider_profils (ou propriétaire)
+    const { data: membre } = await admin.from("equipe").select("*").eq("user_id", user.id).single();
+    if (!membre || membre.suspendu) return json(req, { erreur: "Réservé à l'équipe" }, 403);
+    const aDroit = membre.proprietaire === true || (membre.droits?.valider_profils === true);
+    if (!aDroit) return json(req, { erreur: "Droit insuffisant" }, 403);
+
+    let siret = "";
+    try {
+      const body = await req.json() as any;
+      siret = (body?.siret ?? "").toString();
+    } catch (_) {
+      siret = new URL(req.url).searchParams.get("siret") ?? "";
+    }
+    const clean = siret.replace(/[^0-9]/g, "");
+    if (clean.length !== 14) return json(req, { introuvable: true, motif: "SIRET invalide (14 chiffres attendus)." });
+
     const r = await fetch(
       `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(clean)}&per_page=1`,
     );
     if (!r.ok) return json(req, { erreur: "Annuaire indisponible, réessaie plus tard." }, 502);
-    const data = await r.json(req, );
+    const data = await r.json() as any;
     const entreprise = data?.results?.[0];
     if (!entreprise) return json(req, { introuvable: true });
 
@@ -71,7 +83,7 @@ Deno.serve(async (req) => {
       activite: entreprise.activite_principale || entreprise.libelle_activite_principale || "",
       etat: entreprise.etat_administratif === "A" ? "active" : "fermee",
     });
-  } catch (_) {
-    return json(req, { erreur: "Impossible d'interroger l'annuaire officiel." }, 502);
+  } catch (e) {
+    return json(req, { erreur: (e as Error).message }, 500);
   }
 });

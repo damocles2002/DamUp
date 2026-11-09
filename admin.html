@@ -113,6 +113,7 @@
   let monId = null;
   let mfaFactorId = null;
   let mfaSecret = "";
+  let sessionAal2 = false;
 
   async function init() {
     const { data } = await auth.getUser();
@@ -121,10 +122,12 @@
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
     if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
     // mot de passe provisoire → obliger à en choisir un nouveau
-    if (data.user.user_metadata?.doit_changer_mdp) { afficherChoixMdp(); return; }
+    if (data.user.user_metadata?.doit_changer_mdp) { sessionAal2 = false; afficherMenu(false); afficherChoixMdp(); return; }
     // double vérification obligatoire (TOTP)
     const { data: aal } = await auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal && aal.currentLevel === "aal1") { afficherMfa(); return; }
+    if (aal && aal.currentLevel === "aal1") { sessionAal2 = false; afficherMenu(false); afficherMfa(); return; }
+    sessionAal2 = true;
+    afficherMenu(true);
     try {
       const { data: moi, error } = await sb.functions.invoke("membres", { body: { action: "moi" } });
       if (error || !moi?.data) {
@@ -184,6 +187,18 @@
     if (err) { toast("Code incorrect.", "erreur"); return; }
     await auth.refreshSession();
     location.reload();
+  }
+
+  function afficherMenu(visible) {
+    document.querySelectorAll(".menu a[data-vue], .menu-mobile a[data-vue]").forEach(a => {
+      a.style.display = visible ? "" : "none";
+    });
+  }
+  async function afficherEcranSecurite() {
+    const { data } = await auth.getUser();
+    if (!data.user) { location.href = "login.html"; return; }
+    if (data.user.user_metadata?.doit_changer_mdp) { afficherChoixMdp(); return; }
+    afficherMfa();
   }
 
   function afficherChoixMdp() {
@@ -256,6 +271,7 @@
   ["mousemove", "keydown", "touchstart", "click"].forEach(ev => document.addEventListener(ev, reinitialiserInactivite, { passive: true }));
 
   function afficher() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     if (vue === "dashboard") return afficherDashboard();
     if (vue === "utilisateurs") return afficherUtilisateurs();
     if (vue === "missions") return afficherMissions();
@@ -268,6 +284,7 @@
 
   // ============ DASHBOARD ============
   async function afficherDashboard() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = "<h1>Tableau de bord</h1><div class='stats'>chargement…</div>";
     const [h, e, m, c] = await Promise.all([
       db.from("hotesses").select("id", { count: "exact", head: true }),
@@ -312,6 +329,7 @@
   let annuaireData = [];
 
   async function afficherUtilisateurs() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = `<h1>Utilisateurs</h1>
       <div style="display:flex;gap:8px;margin:12px 0">
         <button class="btn btn-sm ${annuaireType==='hotesses'?'btn-primaire':''}" onclick="setAnnuaireType('hotesses')">Hôtesses</button>
@@ -732,6 +750,7 @@
   // ============ SIGNALEMENTS ============
   let signalementsFiltre = "nouveau";
   async function afficherSignalements() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = "<h1>Signalements</h1><div style='margin:10px 0'><button class='btn btn-sm' onclick='filtrerSignalements(\"nouveau\")'>Nouveaux</button> <button class='btn btn-sm' onclick='filtrerSignalements(\"traite\")'>Traités</button> <button class='btn btn-sm' onclick='filtrerSignalements(\"tous\")'>Tous</button></div><div class='panneau'><div class='tete'>Reçus</div><div id='liste' class='vide'>Chargement…</div></div>";
     signalementsFiltre = "nouveau";
     chargerSignalements();
@@ -781,6 +800,7 @@
   // ============ RÉGLAGES ============
   const TITRES_SECTIONS = { abonnements: "Abonnements", missions: "Missions", inscriptions: "Inscriptions", informations: "Informations", recus: "Mentions sur les factures", maintenance: "Maintenance" };
   async function afficherReglages() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = `<h1>Réglages</h1>` + Object.keys(TITRES_SECTIONS).map(sec =>
       `<div class='panneau'><div class='tete'>${TITRES_SECTIONS[sec]}</div><div style="padding:20px" id="sec-${sec}">Chargement…</div></div>`).join("");
     const { data } = await db.from("settings").select("*");
@@ -893,6 +913,7 @@
   function voitRecette(m) { return membreA(m, 'voir_finances') || membreA(m, 'paiements'); }
 
   async function afficherEquipe() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     membreEnEdition = null;
     main.innerHTML = `<h1>Équipe & droits</h1>
       <div class='panneau'><div class='tete'>Membres de l'équipe</div><div id="liste-membres" class="vide">Chargement…</div></div>
@@ -1064,6 +1085,7 @@
 
   // ============ JOURNAL ============
   async function afficherJournal() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = "<h1>Journal</h1><div class='panneau'><div class='tete'>Actions récentes</div><div id='liste-journal' class='vide'>Chargement…</div></div>";
     const { data } = await db.from("journal_admin").select("*").order("created_at", { ascending: false }).limit(200);
     const zone = document.getElementById("liste-journal");
@@ -1079,6 +1101,7 @@
   // ============ MISSIONS ============
   let missionsAdminListe = [];
   async function afficherMissions() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = "<h1>Missions</h1><div class='panneau'><div class='tete'>À venir</div><div id='liste-missions' class='vide'>Chargement…</div></div>";
     const { data } = await db.from("missions").select("id, date, heure_debut, heure_fin, places_restantes, nb_hotesses, statut, medias, note, etablissements(nom)").order("date", { ascending: true });
     const aujourdhui = new Date().toISOString().slice(0, 10);
@@ -1130,6 +1153,7 @@
   let recettesOnglet = "paiements";
   function setRecettesOnglet(o) { recettesOnglet = o; afficherRecettes(); }
   async function afficherRecettes() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     if (recettesOnglet === "factures") return afficherFactures();
     main.innerHTML = `<h1>Recettes</h1>
       <div style="display:flex;gap:8px;margin:12px 0">
@@ -1151,6 +1175,7 @@
   }
 
   async function afficherFactures() {
+  if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = `<h1>Recettes : Factures</h1>
       <div style="display:flex;gap:8px;margin:12px 0">
         <button class="btn btn-sm" onclick="setRecettesOnglet('paiements')">Paiements</button>
