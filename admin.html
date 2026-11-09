@@ -526,26 +526,32 @@
     ouvrirFicheAdmin(annuaireType === "hotesses" ? "hotesse" : "etablissement", profilId);
   }
   async function reactiver(id) {
-    await db.from("profiles").update({ suspendu: false }).eq("id", id);
+    const { error } = await db.rpc("admin_reactiver_compte", { p_profil: id });
+    if (error) { toast(error.message, "erreur"); return; }
     toast("Compte réactivé ✅", "ok");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }
   async function suspendreCompte(id) {
     if (!await demander("Suspendre ce compte ?", "Suspendre")) return;
-    await db.from("profiles").update({ suspendu: true }).eq("id", id);
+    const { error } = await db.rpc("admin_suspendre_compte", { p_profil: id });
+    if (error) { toast(error.message, "erreur"); return; }
     toast("Compte suspendu", "info");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }
 
   async function valider(id) {
-    await db.from("hotesses").update({ verifie: true }).eq("id", id);
+    const { error } = await db.rpc("admin_valider_profil", { p_profil: id, p_type: "hotesse" });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Profil validé ✅");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }
   async function validerEtab(id) {
-    await db.from("etablissements").update({ verifie: true }).eq("id", id);
+    const { error } = await db.rpc("admin_valider_profil", { p_profil: id, p_type: "etablissement" });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Profil validé ✅");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }

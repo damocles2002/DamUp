@@ -82,7 +82,9 @@ create table public.equipe (
   "nom" text,
   "role" text,
   "droits" jsonb NOT NULL DEFAULT '{}'::jsonb,
-  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "suspendu" boolean NOT NULL DEFAULT false,
+  "proprietaire" boolean NOT NULL DEFAULT false
 );
 
 -- TABLE etablissements
@@ -159,6 +161,17 @@ create table public.invitations_copine (
   "prenom_indique" text NOT NULL,
   "statut" text NOT NULL DEFAULT 'envoyee'::text,
   "expire_le" timestamp with time zone NOT NULL DEFAULT (now() + '7 days'::interval),
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE journal_admin
+create table public.journal_admin (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "auteur_id" uuid,
+  "action" text NOT NULL,
+  "cible_type" text,
+  "cible_id" uuid,
+  "details" jsonb NOT NULL DEFAULT '{}'::jsonb,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
@@ -278,6 +291,20 @@ create table public.traductions (
 
 -- ============ FONCTIONS ============
 
+CREATE OR REPLACE FUNCTION public.a_le_droit(p_droit text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.equipe e
+    join public.profiles p on p.id = e.user_id
+    where e.user_id = auth.uid() and p.type = 'admin' and not e.suspendu and not p.suspendu
+      and (e.proprietaire or coalesce((e.droits ->> p_droit)::boolean, false))
+  );
+$function$;
+
 CREATE OR REPLACE FUNCTION public.abonnement_ok(p_uid uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -305,7 +332,7 @@ AS $function$
          (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1),
          p.reference_virement, e.photos, e.videos
     from public.etablissements e join public.profiles p on p.id = e.id
-   where public.is_admin()
+   where public.a_le_droit('voir_donnees')
    order by e.created_at desc;
 $function$;
 
@@ -320,7 +347,7 @@ AS $function$
          (select count(*) from public.candidatures c where c.hotesse_id = h.id and c.presente_a is not null),
          h.created_at, p.tarif, p.periode, p.actif_jusqu_a, h.photos
     from public.hotesses h join public.profiles p on p.id = h.id
-   where public.is_admin()
+   where public.a_le_droit('voir_donnees')
    order by h.created_at desc;
 $function$;
 
@@ -332,19 +359,16 @@ CREATE OR REPLACE FUNCTION public.admin_annuler_mission(p_mission uuid, p_motif 
 AS $function$
 declare v_etab uuid;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('gerer_missions') then raise exception 'Droit insuffisant.'; end if;
   update public.missions set statut = 'annulee' where id = p_mission;
   select etablissement_id into v_etab from public.missions where id = p_mission;
   if v_etab is null then raise exception 'Mission introuvable.'; end if;
-  perform public.notifier_utilisateur(v_etab, 'notif.mission_annulee_admin',
-    jsonb_build_object('motif', coalesce(p_motif, '')));
+  perform public.journaliser('mission_annulee', 'mission', p_mission, jsonb_build_object('motif', p_motif));
+  perform public.notifier_utilisateur(v_etab, 'notif.mission_annulee_admin', jsonb_build_object('motif', coalesce(p_motif, '')));
   insert into public.notifications (user_id, message, cle, params)
-  select c.hotesse_id,
-         public.traduire('notif.mission_annulee_admin', coalesce(p.langue, 'fr'),
-           jsonb_build_object('motif', coalesce(p_motif, ''))),
+  select c.hotesse_id, public.traduire('notif.mission_annulee_admin', coalesce(p.langue, 'fr'), jsonb_build_object('motif', coalesce(p_motif, ''))),
          'notif.mission_annulee_admin', jsonb_build_object('motif', coalesce(p_motif, ''))
-    from public.candidatures c
-    join public.profiles p on p.id = c.hotesse_id
+    from public.candidatures c join public.profiles p on p.id = c.hotesse_id
    where c.mission_id = p_mission and c.statut in ('acceptee', 'confirmee') and not c.annulation;
 end; $function$;
 
@@ -359,7 +383,7 @@ declare
   v_facture public.factures%rowtype;
   v_avoir_id uuid;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
   select * into v_p from public.paiements where id = p_id and mode in ('especes', 'virement', 'offert');
   if v_p.id is null then raise exception 'Paiement introuvable (les paiements en ligne s''annulent dans Stripe).'; end if;
   select * into v_facture from public.factures where paiement_id = p_id and type = 'facture';
@@ -371,6 +395,7 @@ begin
   end if;
   delete from public.paiements where id = p_id;
   update public.profiles set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_p.profil_id) where id = v_p.profil_id;
+  perform public.journaliser('paiement_annule', 'profil', v_p.profil_id, jsonb_build_object('paiement', p_id));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuler_sanction(p_candidature uuid, p_motif text)
@@ -383,7 +408,7 @@ declare
   v_c public.candidatures%rowtype;
   v_signes int;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('suspendre_utilisateurs') then raise exception 'Droit insuffisant.'; end if;
   if p_motif is null or trim(p_motif) = '' then raise exception 'Motif obligatoire.'; end if;
   select * into v_c from public.candidatures where id = p_candidature;
   if v_c.id is null then raise exception 'Candidature introuvable.'; end if;
@@ -392,6 +417,7 @@ begin
   if v_signes <= 0 then raise exception 'Aucune sanction à annuler sur cette candidature.'; end if;
   update public.candidatures set sanction_annulee_le = now() where id = p_candidature;
   update public.hotesses set signes_negatifs = greatest(0, signes_negatifs - v_signes) where id = v_c.hotesse_id;
+  perform public.journaliser('sanction_annulee', 'candidature', p_candidature, jsonb_build_object('motif', p_motif));
   perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.sanction_annulee', jsonb_build_object('motif', p_motif));
 end; $function$;
 
@@ -402,10 +428,11 @@ CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mo
  SET search_path TO 'public'
 AS $function$
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
   if p_mode not in ('especes', 'virement', 'offert') then raise exception 'Mode non autorisé ici.'; end if;
   if p_periode not in ('hebdomadaire', 'mensuel') then raise exception 'Période invalide.'; end if;
   if p_mode in ('especes', 'virement') and (p_montant is null or p_montant <= 0) then raise exception 'Montant invalide.'; end if;
+  perform public.journaliser('paiement_enregistre', 'profil', p_profil, jsonb_build_object('mode', p_mode, 'montant', p_montant));
   return public.prolonger_abonnement(
     p_profil, case when p_mode = 'offert' then 0 else p_montant end, p_mode, p_periode,
     coalesce(p_date::timestamp at time zone 'Europe/Paris', now()), null, p_note);
@@ -432,24 +459,19 @@ declare
   v_cible_type text;
   v_cible uuid;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
-  select signalant_id, cible_type, cible_id into v_signalant, v_cible_type, v_cible
-    from public.signalements where id = p_signalement;
+  if not public.a_le_droit('signalements') then raise exception 'Droit insuffisant.'; end if;
+  select signalant_id, cible_type, cible_id into v_signalant, v_cible_type, v_cible from public.signalements where id = p_signalement;
   if v_signalant is null then raise exception 'Signalement introuvable.'; end if;
-  if v_cible_type = 'mission' then
-    v_mission := v_cible;
+  if v_cible_type = 'mission' then v_mission := v_cible;
   elsif v_cible_type = 'hotesse' then
-    select m.id into v_mission
-      from public.missions m join public.candidatures c on c.mission_id = m.id
-     where m.etablissement_id = v_signalant and c.hotesse_id = v_cible
-     limit 1;
+    select m.id into v_mission from public.missions m join public.candidatures c on c.mission_id = m.id
+     where m.etablissement_id = v_signalant and c.hotesse_id = v_cible limit 1;
   else
-    select m.id into v_mission
-      from public.missions m join public.candidatures c on c.mission_id = m.id
-     where m.etablissement_id = v_cible and c.hotesse_id = v_signalant
-     limit 1;
+    select m.id into v_mission from public.missions m join public.candidatures c on c.mission_id = m.id
+     where m.etablissement_id = v_cible and c.hotesse_id = v_signalant limit 1;
   end if;
   if v_mission is null then return; end if;
+  perform public.journaliser('conversation_lue', 'signalement', p_signalement);
   return query select * from public.messages where mission_id = v_mission order by created_at;
 end; $function$;
 
@@ -461,14 +483,25 @@ CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jou
 AS $function$
 declare n int;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
-  if p_type not in ('etablissement', 'hotesse') or p_jours not between 1 and 90 then
-    raise exception 'Paramètres invalides.';
-  end if;
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  if p_type not in ('etablissement', 'hotesse') or p_jours not between 1 and 90 then raise exception 'Paramètres invalides.'; end if;
   update public.profiles set actif_jusqu_a = now() + make_interval(days => p_jours), rappel_fin_envoye_pour = null
    where type = p_type and (actif_jusqu_a is null or actif_jusqu_a < now());
   get diagnostics n = row_count;
+  perform public.journaliser('periode_offerte_groupe', null, null, jsonb_build_object('type', p_type, 'jours', p_jours, 'n', n));
   return n;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_reactiver_compte(p_profil uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('suspendre_utilisateurs') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set suspendu = false where id = p_profil;
+  perform public.journaliser('compte_reactivé', 'profil', p_profil);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_recettes()
@@ -495,7 +528,7 @@ CREATE OR REPLACE FUNCTION public.admin_refuser_profil(p_profil uuid, p_motif te
 AS $function$
 declare v_type text;
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('valider_profils') then raise exception 'Droit insuffisant.'; end if;
   select type into v_type from public.profiles where id = p_profil;
   if v_type = 'hotesse' then
     update public.hotesses set verifie = false where id = p_profil;
@@ -504,8 +537,8 @@ begin
   else
     raise exception 'Profil introuvable.';
   end if;
-  perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee',
-    jsonb_build_object('motif', coalesce(p_motif, '')));
+  perform public.journaliser('profil_refuse', 'profil', p_profil, jsonb_build_object('motif', p_motif));
+  perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee', jsonb_build_object('motif', coalesce(p_motif, '')));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_renvoyer_facture(p_facture_id uuid)
@@ -515,9 +548,21 @@ CREATE OR REPLACE FUNCTION public.admin_renvoyer_facture(p_facture_id uuid)
  SET search_path TO 'public'
 AS $function$
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
   update public.factures set envoyee_le = null, envoi_erreur = null where id = p_facture_id;
   perform public.envoyer_facture(p_facture_id);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_suspendre_compte(p_profil uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('suspendre_utilisateurs') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set suspendu = true where id = p_profil;
+  perform public.journaliser('compte_suspendu', 'profil', p_profil);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_valider_identite(p_profil uuid, p_type text, p_valide boolean, p_motif text DEFAULT NULL::text)
@@ -527,17 +572,34 @@ CREATE OR REPLACE FUNCTION public.admin_valider_identite(p_profil uuid, p_type t
  SET search_path TO 'public'
 AS $function$
 begin
-  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if not public.a_le_droit('valider_profils') then raise exception 'Droit insuffisant.'; end if;
   if p_type = 'hotesse' then
-    update public.hotesses set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null
-     where id = p_profil;
+    update public.hotesses set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null where id = p_profil;
   else
-    update public.etablissements set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null
-     where id = p_profil;
+    update public.etablissements set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null where id = p_profil;
   end if;
+  perform public.journaliser(case when p_valide then 'identite_validee' else 'identite_refusee' end, 'profil', p_profil, jsonb_build_object('motif', p_motif));
   if not p_valide then
     perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee', jsonb_build_object('motif', coalesce(p_motif, '')));
   end if;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_valider_profil(p_profil uuid, p_type text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('valider_profils') then raise exception 'Droit insuffisant.'; end if;
+  if p_type = 'hotesse' then
+    update public.hotesses set verifie = true where id = p_profil;
+  elsif p_type = 'etablissement' then
+    update public.etablissements set verifie = true where id = p_profil;
+  else
+    raise exception 'Type invalide.';
+  end if;
+  perform public.journaliser('profil_valide', 'profil', p_profil);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.annoncer_retard(p_candidature uuid, p_minutes integer)
@@ -1006,6 +1068,15 @@ begin
   );
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.est_proprietaire()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (select 1 from public.equipe where user_id = auth.uid() and proprietaire and not suspendu);
+$function$;
+
 CREATE OR REPLACE FUNCTION public.est_suspendu()
  RETURNS boolean
  LANGUAGE sql
@@ -1133,7 +1204,8 @@ CREATE OR REPLACE FUNCTION public.hotesse_prive(p_id uuid)
 AS $function$
   select h.telephone, h.instagram, h.signes_negatifs, h.missions_honorees, h.nb_retards, h.nb_absences
   from public.hotesses h
-  where h.id = p_id and (p_id = auth.uid() or public.is_admin());
+  where h.id = p_id and (p_id = auth.uid() or public.a_le_droit('voir_donnees')
+                         or (public.a_le_droit('valider_profils') and not h.verifie));
 $function$;
 
 CREATE OR REPLACE FUNCTION public.init_places_mission()
@@ -1152,7 +1224,20 @@ CREATE OR REPLACE FUNCTION public.is_admin()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select exists (select 1 from public.profiles where id = auth.uid() and type = 'admin');
+  select exists (
+    select 1 from public.profiles p join public.equipe e on e.user_id = p.id
+    where p.id = auth.uid() and p.type = 'admin' and not p.suspendu and not e.suspendu
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.journaliser(p_action text, p_cible_type text, p_cible_id uuid, p_details jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.journal_admin (auteur_id, action, cible_type, cible_id, details)
+  values (auth.uid(), p_action, p_cible_type, p_cible_id, coalesce(p_details, '{}'::jsonb));
 $function$;
 
 CREATE OR REPLACE FUNCTION public.lier_invitation_verifiee()
@@ -2042,6 +2127,9 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- invitations_copine.invitations_lecture (SELECT, to {)
   using (((marraine_id = auth.uid()) OR (copine_id = auth.uid())))
 
+-- journal_admin.journal_lecture (SELECT, to {)
+  using (a_le_droit('voir_journal'::text))
+
 -- messages.messages_ecriture (INSERT, to {)
   with check ((auth.uid() IS NOT NULL))
 
@@ -2073,6 +2161,9 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- notifications.notifications_update_own (UPDATE, to {)
   using ((user_id = auth.uid()))
 
+-- paiements.paiements_admin_lecture (SELECT, to {)
+  using ((a_le_droit('voir_finances'::text) OR a_le_droit('paiements'::text) OR (profil_id = auth.uid())))
+
 -- paiements.paiements_select (SELECT, to {)
   using (((profil_id = auth.uid()) OR is_admin()))
 
@@ -2085,6 +2176,9 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- profiles.profiles_update_admin (UPDATE, to {)
   using (is_admin())
+
+-- settings.settings_ecriture_reglages (UPDATE, to {)
+  using (a_le_droit('reglages'::text))
 
 -- settings.settings_select_anon (SELECT, to {)
   using (true)
