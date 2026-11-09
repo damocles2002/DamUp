@@ -473,16 +473,19 @@
 
   // ============ ACCUEIL (scan QR) ============
   let scanner = null;
+  let canalPresences = null;
+
   async function afficherAccueil() {
     contenu.innerHTML = `
       <div class="pub"><h3>📷 Accueil : présence du jour</h3>
+        <div id="compteur-presences" style="font-size:13px;color:var(--gris);margin-bottom:6px"></div>
         <div id="liste-presences" class="vide">Chargement…</div>
         <button class="btn btn-primaire btn-block btn-sm" onclick="demarrerScan()" style="margin-top:12px">📷 Scanner un QR code</button>
-        <div id="scan-zone" style="margin-top:12px"></div>
-        <div class="champ" style="margin-top:12px"><label class="label">Ou saisir le code</label><input class="field" id="code-manuel" placeholder="Code QR"><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:8px" onclick="validerCodeManuel()">Valider</button></div>
-        <div id="msg-scan" style="margin-top:12px;font-weight:600;text-align:center"></div>
+        <div style="text-align:center;margin-top:10px"><a style="font-size:12px;color:var(--gris);text-decoration:underline;cursor:pointer" onclick="this.style.display='none';document.getElementById('zone-code-manuel').style.display='block'">Le scan ne marche pas ?</a></div>
+        <div id="zone-code-manuel" style="display:none;margin-top:10px"><div class="champ"><input class="field" id="code-manuel" placeholder="Code QR"></div><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:8px" onclick="validerCodeManuel()">Valider</button></div>
       </div>`;
     chargerPresences();
+    abonnerPresences();
   }
 
   async function chargerPresences() {
@@ -494,34 +497,72 @@
     const { data: mesMissions } = await db.from("missions").select("id").eq("etablissement_id", user.id);
     const mesIds = new Set((mesMissions || []).map(m => m.id));
     const liste = (cands || []).filter(c => mesIds.has(c.mission_id) && c.missions?.date === aujourdhui);
+    const arrivees = liste.filter(c => c.presente_a).length;
+    const compteur = document.getElementById("compteur-presences");
+    if (compteur) compteur.textContent = `${arrivees} / ${liste.length} arrivée${liste.length > 1 ? "s" : ""}`;
     const zone = document.getElementById("liste-presences");
+    if (!zone) return;
     zone.innerHTML = liste.length
       ? liste.map(c => {
           const h = c.hotesses;
           const photo = urlPhoto(h?.photos?.[0]);
+          const statut = c.presente_a
+            ? `<span style="color:var(--ok);font-weight:600;white-space:nowrap">✅ ${new Date(c.presente_a).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>`
+            : `<span style="color:var(--gris);white-space:nowrap">⏳ attendue</span>`;
           return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F1E9DA">
-            <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--champagne)">
+            <div style="width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--champagne);flex-shrink:0">
               ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover">` : `<span style="display:flex;align-items:center;justify-content:center;height:100%">${esc((h?.prenom||"?")[0])}</span>`}
             </div>
             <div style="flex:1"><b>${esc(h?.prenom || "?")}</b></div>
-            <div>${c.presente_a ? "✅ arrivée" : ":"}</div>
+            <div style="font-size:12.5px">${statut}</div>
           </div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune hôtesse confirmée pour aujourd\'hui.</div>';
   }
 
+  async function abonnerPresences() {
+    if (canalPresences) { await db.removeChannel(canalPresences); }
+    canalPresences = db.channel("presences-etab")
+      .on("postgres_changes", { event: "*", schema: "public", table: "candidatures" }, () => chargerPresences())
+      .subscribe();
+  }
+
   async function demarrerScan() {
     if (!window.Html5Qrcode) { toast("Lecteur QR indisponible."); return; }
-    if (scanner) { await scanner.stop(); scanner.clear(); scanner = null; }
-    const zone = document.getElementById("scan-zone");
-    zone.innerHTML = '<div id="reader" style="width:100%"></div>';
+    if (scanner) { try { await scanner.stop(); scanner.clear(); } catch (e) {} scanner = null; }
+    const ov = document.createElement("div");
+    ov.id = "scan-overlay";
+    ov.style.cssText = "position:fixed;inset:0;background:#000;z-index:1000;display:flex;flex-direction:column";
+    ov.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;color:#fff">
+        <span style="font-size:15px;font-weight:600">Scanner un QR code</span>
+        <button onclick="arreterScan()" style="background:rgba(255,255,255,.18);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer">✕</button>
+      </div>
+      <div style="flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        <div id="reader" style="width:100%;max-width:430px"></div>
+        <div id="cadre-visee" style="position:absolute;width:230px;height:230px;border:3px solid #E7CFA8;border-radius:20px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);pointer-events:none"></div>
+      </div>
+      <div style="padding:12px 16px 30px;color:#fff;text-align:center;font-size:14px">Vise le QR code de l'hôtesse</div>`;
+    document.body.appendChild(ov);
     scanner = new Html5Qrcode("reader");
-    scanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 220 },
-      async (texteLu) => { await validerPresenceCode(texteLu); },
-      () => {}
-    ).catch(() => { zone.innerHTML = '<div style="color:var(--danger)">Impossible d\'accéder à la caméra. Utilise le champ de secours.</div>'; });
+    try {
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 230, height: 230 } },
+        async (texteLu) => { await validerPresenceCode(texteLu); },
+        () => {}
+      );
+    } catch (e) {
+      const cadre = document.getElementById("cadre-visee"); if (cadre) cadre.style.display = "none";
+      document.getElementById("reader").innerHTML = '<div style="color:#fff;text-align:center;padding:24px">Impossible d\'accéder à la caméra.<br><button class="btn btn-sm" style="margin-top:14px;background:var(--champagne);color:var(--aubergine)" onclick="arreterScan()">Fermer</button></div>';
+    }
+  }
+
+  function arreterScan() {
+    if (scanner) { try { scanner.stop(); scanner.clear(); } catch (e) {} scanner = null; }
+    document.getElementById("scan-overlay")?.remove();
+    document.getElementById("carte-resultat")?.remove();
+    chargerPresences();
   }
 
   async function validerCodeManuel() {
@@ -531,13 +572,60 @@
   }
 
   async function validerPresenceCode(code) {
-    const msg = document.getElementById("msg-scan");
     const t = (code || "").trim();
     const vraiCode = (t.match(/#scan=([a-zA-Z0-9]+)/) || [])[1] || t;
     const { data, error } = await db.rpc("valider_presence", { p_code: vraiCode });
-    if (error) { msg.style.color = "var(--danger)"; msg.textContent = error.message; }
-    else { msg.style.color = "var(--ok)"; msg.textContent = data; }
+    if (error) { toast(error.message); return; }
+    afficherResultatScan(data);
     chargerPresences();
+  }
+
+  function bip(freq, duree) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = freq; g.gain.value = 0.15;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + duree);
+    } catch (e) {}
+  }
+
+  function afficherResultatScan(res) {
+    if (scanner) { try { scanner.pause(); } catch (e) {} }
+    const vib = res.statut === "erreur" ? [130, 60, 130] : 80;
+    try { navigator.vibrate(vib); } catch (e) {}
+    if (res.statut === "ok") bip(880, 0.15);
+    else if (res.statut === "retard" || res.statut === "deja") bip(660, 0.15);
+    else bip(200, 0.3);
+
+    const cfg = {
+      ok:     { fond: "#1E7A3C", icone: "✅", titre: "Bienvenue " + esc(res.prenom || "") + " !" },
+      retard: { fond: "#E67E22", icone: "🟠", titre: esc(res.prenom || "") + " est arrivée avec " + (res.retard_min || 0) + " min de retard (" + (res.retard_prevenu ? "prévenu" : "non prévenu") + ")" },
+      deja:   { fond: "#E67E22", icone: "🟠", titre: esc(res.prenom || "") + " est déjà enregistrée (arrivée à " + (res.heure_arrivee || "") + ")" },
+      erreur: { fond: "#C0392B", icone: "🔴", titre: esc(res.message || "Erreur") },
+    }[res.statut] || { fond: "#C0392B", icone: "🔴", titre: esc(res.message || "Erreur") };
+    const photo = urlPhoto(res.photo);
+    const carte = document.createElement("div");
+    carte.id = "carte-resultat";
+    carte.style.cssText = "position:fixed;inset:0;z-index:1001";
+    carte.innerHTML = `
+      <div style="position:absolute;inset:0;background:${cfg.fond};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#fff">
+        <div style="font-size:56px">${cfg.icone}</div>
+        <div style="font-size:22px;font-weight:700;margin-top:14px;line-height:1.3;max-width:320px">${cfg.titre}</div>
+        ${photo ? `<img src="${photo}" style="width:150px;height:150px;border-radius:50%;object-fit:cover;margin-top:20px;border:3px solid rgba(255,255,255,.6)">` : ""}
+        ${res.date_mission ? `<div style="font-size:14px;margin-top:16px;opacity:.9">Mission du ${esc(res.date_mission)}</div>` : ""}
+        <div style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
+          ${res.statut !== "erreur" ? `<button class="btn" style="background:#fff;color:${cfg.fond};font-weight:600" onclick="relancerScan()">Scanner la suivante</button>` : ""}
+          <button class="btn" style="background:rgba(255,255,255,.22);color:#fff;font-weight:600" onclick="arreterScan()">Terminer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(carte);
+  }
+
+  function relancerScan() {
+    document.getElementById("carte-resultat")?.remove();
+    if (scanner) { try { scanner.resume(); } catch (e) {} return; }
+    demarrerScan();
   }
 
   // ============ À NOTER (avis) ============
