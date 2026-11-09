@@ -553,6 +553,34 @@ begin
   perform public.envoyer_facture(p_facture_id);
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_stats_membre(p_uid uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v jsonb;
+begin
+  if not public.est_proprietaire() then raise exception 'Réservé au propriétaire.'; end if;
+  select jsonb_build_object(
+    '30j', jsonb_build_object(
+      'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee') and j.created_at > now() - interval '30 days'),
+      'refus', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_refuse','identite_refusee') and j.created_at > now() - interval '30 days'),
+      'suspensions', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'compte_suspendu' and j.created_at > now() - interval '30 days'),
+      'paiements', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre' and j.created_at > now() - interval '30 days'),
+      'sanctions_annulees', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'sanction_annulee' and j.created_at > now() - interval '30 days'),
+      'exports', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'export_annuaire' and j.created_at > now() - interval '30 days'),
+      'conversations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'conversation_lue' and j.created_at > now() - interval '30 days')
+    ),
+    'total', jsonb_build_object(
+      'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee')),
+      'paiements', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre'),
+      'paiements_total', coalesce((select sum((j.details->>'montant')::numeric) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre'), 0)
+    )
+  ) into v;
+  return v;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.admin_suspendre_compte(p_profil uuid)
  RETURNS void
  LANGUAGE plpgsql

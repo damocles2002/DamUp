@@ -272,3 +272,33 @@ language sql stable security definer set search_path = public as $$
   where h.id = p_id and (p_id = auth.uid() or public.a_le_droit('voir_donnees')
                          or (public.a_le_droit('valider_profils') and not h.verifie));
 $$;
+
+-- journaliser appelable depuis les Edge Functions (service_role)
+grant execute on function public.journaliser(text, text, uuid, jsonb) to service_role;
+
+-- statistiques d'un membre (fiche membre, propriétaire uniquement)
+create or replace function public.admin_stats_membre(p_uid uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v jsonb;
+begin
+  if not public.est_proprietaire() then raise exception 'Réservé au propriétaire.'; end if;
+  select jsonb_build_object(
+    '30j', jsonb_build_object(
+      'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee') and j.created_at > now() - interval '30 days'),
+      'refus', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_refuse','identite_refusee') and j.created_at > now() - interval '30 days'),
+      'suspensions', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'compte_suspendu' and j.created_at > now() - interval '30 days'),
+      'paiements', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre' and j.created_at > now() - interval '30 days'),
+      'sanctions_annulees', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'sanction_annulee' and j.created_at > now() - interval '30 days'),
+      'exports', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'export_annuaire' and j.created_at > now() - interval '30 days'),
+      'conversations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'conversation_lue' and j.created_at > now() - interval '30 days')
+    ),
+    'total', jsonb_build_object(
+      'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee')),
+      'paiements', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre'),
+      'paiements_total', coalesce((select sum((j.details->>'montant')::numeric) from public.journal_admin j where j.auteur_id = p_uid and j.action = 'paiement_enregistre'), 0)
+    )
+  ) into v;
+  return v;
+end; $$;
+revoke execute on function public.admin_stats_membre(uuid) from public, anon;
+grant execute on function public.admin_stats_membre(uuid) to service_role;
