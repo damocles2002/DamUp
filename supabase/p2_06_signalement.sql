@@ -18,7 +18,10 @@ begin
     raise exception 'Trop de signalements aujourd''hui. Contacte DamUp directement.';
   end if;
   insert into public.notifications (user_id, message)
-  select p.id, '🚩 Nouveau signalement à traiter.' from public.profiles p where p.type = 'admin';
+  select e.user_id, '🚩 Nouveau signalement à traiter.'
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'signalements')::boolean, false));
   return new;
 end; $$;
 drop trigger if exists controle_signalement on public.signalements;

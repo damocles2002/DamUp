@@ -46,11 +46,13 @@ begin
     perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.absence_declaree',
       jsonb_build_object('lieu', v_lieu, 'date', to_char(v_m.date, 'DD/MM'), 'n', v_n));
     insert into public.notifications (user_id, message, cle, params)
-    select p.id, public.traduire('notif.absence_declaree_admin', 'fr',
+    select e.user_id, public.traduire('notif.absence_declaree_admin', 'fr',
              jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)),
            'notif.absence_declaree_admin',
            jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)
-      from public.profiles p where p.type = 'admin';
+      from public.equipe e join public.profiles p on p.id = e.user_id
+     where p.type = 'admin' and not e.suspendu and not p.suspendu
+       and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
   end if;
 end; $$;
 revoke execute on function public.declarer_absence(uuid, boolean) from public, anon;
@@ -62,6 +64,7 @@ declare
   v_debut timestamptz;
   v_h int;
   v_signes int := 1;
+  v_signes_final int;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
@@ -70,7 +73,19 @@ begin
       v_h := public.reglage_num('annulation_tardive_h', 3)::int;
       if v_debut - now() < make_interval(hours => v_h) then v_signes := 2; end if;
       update public.hotesses set signes_negatifs = signes_negatifs + v_signes, missions_honorees = 0
-       where id = new.hotesse_id;
+       where id = new.hotesse_id
+       returning signes_negatifs into v_signes_final;
+      if v_signes_final >= public.reglage_num('signes_avant_suspension', 3)::int then
+        update public.profiles set suspendu = true where id = new.hotesse_id;
+        perform public.notifier_utilisateur(new.hotesse_id, 'notif.suspension_hotesse',
+          jsonb_build_object('n', v_signes_final));
+        insert into public.notifications (user_id, message, cle, params)
+        select e.user_id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes_final)),
+               'notif.suspension_admin', jsonb_build_object('n', v_signes_final)
+          from public.equipe e join public.profiles p on p.id = e.user_id
+         where p.type = 'admin' and not e.suspendu and not p.suspendu
+           and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
+      end if;
       update public.candidatures set sanction_signes = v_signes where id = new.id;
       perform public.notifier_utilisateur(new.hotesse_id, 'notif.annulation_sanction',
         jsonb_build_object('n', v_signes));

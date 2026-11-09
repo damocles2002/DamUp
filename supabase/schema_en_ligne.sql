@@ -328,9 +328,14 @@ CREATE OR REPLACE FUNCTION public.admin_annuaire_etablissements()
 AS $function$
   select e.id, e.nom, e.type, e.ville, e.adresse, p.email, e.siret, e.verifie, p.suspendu,
          (select count(*) from public.missions m where m.etablissement_id = e.id),
-         e.created_at, p.tarif, p.periode, p.actif_jusqu_a,
-         (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1),
-         p.reference_virement, e.photos, e.videos
+         e.created_at,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.tarif else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.periode else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.actif_jusqu_a else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements')
+              then (select pa.mode from public.paiements pa where pa.profil_id = e.id order by pa.created_at desc limit 1) else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.reference_virement else null end,
+         e.photos, e.videos
     from public.etablissements e join public.profiles p on p.id = e.id
    where public.a_le_droit('voir_donnees')
    order by e.created_at desc;
@@ -345,7 +350,11 @@ AS $function$
   select h.id, h.prenom, h.age, h.ville, p.email, h.instagram, h.telephone,
          h.verifie, p.suspendu, h.note_moyenne, h.nb_avis, h.signes_negatifs,
          (select count(*) from public.candidatures c where c.hotesse_id = h.id and c.presente_a is not null),
-         h.created_at, p.tarif, p.periode, p.actif_jusqu_a, h.photos
+         h.created_at,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.tarif else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.periode else null end,
+         case when public.a_le_droit('voir_finances') or public.a_le_droit('paiements') then p.actif_jusqu_a else null end,
+         h.photos
     from public.hotesses h join public.profiles p on p.id = h.id
    where public.a_le_droit('voir_donnees')
    order by h.created_at desc;
@@ -408,7 +417,7 @@ declare
   v_c public.candidatures%rowtype;
   v_signes int;
 begin
-  if not public.a_le_droit('suspendre_utilisateurs') then raise exception 'Droit insuffisant.'; end if;
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
   if p_motif is null or trim(p_motif) = '' then raise exception 'Motif obligatoire.'; end if;
   select * into v_c from public.candidatures where id = p_candidature;
   if v_c.id is null then raise exception 'Candidature introuvable.'; end if;
@@ -417,7 +426,6 @@ begin
   if v_signes <= 0 then raise exception 'Aucune sanction à annuler sur cette candidature.'; end if;
   update public.candidatures set sanction_annulee_le = now() where id = p_candidature;
   update public.hotesses set signes_negatifs = greatest(0, signes_negatifs - v_signes) where id = v_c.hotesse_id;
-  perform public.journaliser('sanction_annulee', 'candidature', p_candidature, jsonb_build_object('motif', p_motif));
   perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.sanction_annulee', jsonb_build_object('motif', p_motif));
 end; $function$;
 
@@ -473,6 +481,30 @@ begin
   if v_mission is null then return; end if;
   perform public.journaliser('conversation_lue', 'signalement', p_signalement);
   return query select * from public.messages where mission_id = v_mission order by created_at;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set tarif = p_tarif where id = p_profil;
+  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif));
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
+  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
@@ -561,7 +593,7 @@ CREATE OR REPLACE FUNCTION public.admin_stats_membre(p_uid uuid)
 AS $function$
 declare v jsonb;
 begin
-  if not public.est_proprietaire() then raise exception 'Réservé au propriétaire.'; end if;
+  -- réservée au service_role (l'Edge vérifie déjà le propriétaire) : pas de contrôle auth.uid() ici
   select jsonb_build_object(
     '30j', jsonb_build_object(
       'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee') and j.created_at > now() - interval '30 days'),
@@ -674,6 +706,7 @@ declare
   v_debut timestamptz;
   v_h int;
   v_signes int := 1;
+  v_signes_final int;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
@@ -682,7 +715,19 @@ begin
       v_h := public.reglage_num('annulation_tardive_h', 3)::int;
       if v_debut - now() < make_interval(hours => v_h) then v_signes := 2; end if;
       update public.hotesses set signes_negatifs = signes_negatifs + v_signes, missions_honorees = 0
-       where id = new.hotesse_id;
+       where id = new.hotesse_id
+       returning signes_negatifs into v_signes_final;
+      if v_signes_final >= public.reglage_num('signes_avant_suspension', 3)::int then
+        update public.profiles set suspendu = true where id = new.hotesse_id;
+        perform public.notifier_utilisateur(new.hotesse_id, 'notif.suspension_hotesse',
+          jsonb_build_object('n', v_signes_final));
+        insert into public.notifications (user_id, message, cle, params)
+        select e.user_id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes_final)),
+               'notif.suspension_admin', jsonb_build_object('n', v_signes_final)
+          from public.equipe e join public.profiles p on p.id = e.user_id
+         where p.type = 'admin' and not e.suspendu and not p.suspendu
+           and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
+      end if;
       update public.candidatures set sanction_signes = v_signes where id = new.id;
       perform public.notifier_utilisateur(new.hotesse_id, 'notif.annulation_sanction',
         jsonb_build_object('n', v_signes));
@@ -872,9 +917,11 @@ begin
     raise exception 'Trop de signalements aujourd''hui. Contacte DamUp directement.';
   end if;
   insert into public.notifications (user_id, message, cle, params)
-  select p.id, public.traduire('notif.signalement_admin', 'fr', '{}'::jsonb),
+  select e.user_id, public.traduire('notif.signalement_admin', 'fr', '{}'::jsonb),
          'notif.signalement_admin', '{}'::jsonb
-    from public.profiles p where p.type = 'admin';
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'signalements')::boolean, false));
   return new;
 end; $function$;
 
@@ -1018,11 +1065,13 @@ begin
     perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.absence_declaree',
       jsonb_build_object('lieu', v_lieu, 'date', to_char(v_m.date, 'DD/MM'), 'n', v_n));
     insert into public.notifications (user_id, message, cle, params)
-    select p.id, public.traduire('notif.absence_declaree_admin', 'fr',
+    select e.user_id, public.traduire('notif.absence_declaree_admin', 'fr',
              jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)),
            'notif.absence_declaree_admin',
            jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)
-      from public.profiles p where p.type = 'admin';
+      from public.equipe e join public.profiles p on p.id = e.user_id
+     where p.type = 'admin' and not e.suspendu and not p.suspendu
+       and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
   end if;
 end; $function$;
 
@@ -1878,12 +1927,14 @@ begin
          jsonb_build_object('date', public.date_courte(a.actif_jusqu_a::date, a.langue))
     from a_prevenir a
   union all
-  select ad.id,
+  select e.user_id,
          public.traduire('notif.fin_abonnement_admin', 'fr', jsonb_build_object('n', (select count(*) from a_prevenir))),
          'notif.fin_abonnement_admin',
          jsonb_build_object('n', (select count(*) from a_prevenir))
-    from public.profiles ad
-   where ad.type = 'admin' and exists (select 1 from a_prevenir);
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'voir_finances')::boolean, false) or coalesce((e.droits->>'paiements')::boolean, false))
+     and exists (select 1 from a_prevenir);
 
   -- missions terminées
   update public.missions set statut = 'terminee'

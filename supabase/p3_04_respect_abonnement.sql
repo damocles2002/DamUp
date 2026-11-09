@@ -124,9 +124,11 @@ begin
              || to_char(actif_jusqu_a at time zone 'Europe/Paris', 'DD/MM') || '. Pense à le renouveler.'
     from a_prevenir
   union all
-  select ad.id, '💶 ' || (select count(*) from a_prevenir) || ' abonnement(s) se terminent dans moins de 3 jours.'
-    from public.profiles ad
-   where ad.type = 'admin' and exists (select 1 from a_prevenir);
+  select e.user_id, '💶 ' || (select count(*) from a_prevenir) || ' abonnement(s) se terminent dans moins de 3 jours.'
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'voir_finances')::boolean, false) or coalesce((e.droits->>'paiements')::boolean, false))
+     and exists (select 1 from a_prevenir);
 
   -- rappel confirmation
   with a_rappeler as (

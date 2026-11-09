@@ -135,6 +135,8 @@
   }
 
   function ai(d) { return jeSuisProprio || mesDroits[d] === true; }
+  function jePeux(d) { return ai(d); }
+  function membreA(m, d) { return m?.proprietaire === true || m?.droits?.[d] === true; }
   function adapterMenu() {
     if (!droitsCharges) return; // on ne cache rien tant que les droits ne sont pas connus
     const visibilite = {
@@ -181,26 +183,33 @@
       db.from("missions").select("id", { count: "exact", head: true }),
       db.from("candidatures").select("id", { count: "exact", head: true }),
     ]);
-    const { data: paiements } = await db.from("paiements").select("*");
-    const mois = new Date().toISOString().slice(0, 7);
-    const recettesMois = (paiements || []).filter(p => new Date(p.created_at).toISOString().slice(0, 7) === mois);
-    const totalRecettes = recettesMois.reduce((s, p) => s + Number(p.montant), 0);
-    const { data: profils } = await db.from("profiles").select("id, actif_jusqu_a");
-    const aRenouveler = (profils || []).filter(p => p.actif_jusqu_a && new Date(p.actif_jusqu_a) > Date.now() && new Date(p.actif_jusqu_a) - Date.now() < 7 * 86400000).length;
+    const voitFinances = jePeux('voir_finances') || jePeux('paiements');
+    let totalRecettes = 0, aRenouveler = 0;
+    if (voitFinances) {
+      const { data: paiements } = await db.from("paiements").select("*");
+      const mois = new Date().toISOString().slice(0, 7);
+      const recettesMois = (paiements || []).filter(p => new Date(p.created_at).toISOString().slice(0, 7) === mois);
+      totalRecettes = recettesMois.reduce((s, p) => s + Number(p.montant), 0);
+      const { data: profils } = await db.from("profiles").select("id, actif_jusqu_a");
+      aRenouveler = (profils || []).filter(p => p.actif_jusqu_a && new Date(p.actif_jusqu_a) > Date.now() && new Date(p.actif_jusqu_a) - Date.now() < 7 * 86400000).length;
+    }
     main.innerHTML = `<h1>Tableau de bord</h1>
       <div class="stats">
         <div class="stat"><div class="v">${h.count ?? 0}</div><div class="l">Hôtesses inscrites</div></div>
         <div class="stat"><div class="v">${e.count ?? 0}</div><div class="l">Établissements</div></div>
         <div class="stat"><div class="v">${m.count ?? 0}</div><div class="l">Missions publiées</div></div>
         <div class="stat"><div class="v">${c.count ?? 0}</div><div class="l">Candidatures</div></div>
+        ${voitFinances ? `
         <div class="stat" style="cursor:pointer" onclick="vue='recettes';afficherRecettes()"><div class="v">${montantFormat(totalRecettes)}</div><div class="l">Recettes du mois</div></div>
-        <div class="stat" style="cursor:pointer" onclick="vue='utilisateurs';afficherUtilisateurs()"><div class="v">${aRenouveler}</div><div class="l">Abonnements à renouveler</div></div>
+        <div class="stat" style="cursor:pointer" onclick="vue='utilisateurs';afficherUtilisateurs()"><div class="v">${aRenouveler}</div><div class="l">Abonnements à renouveler</div></div>` : ""}
       </div>
-      <div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>`;
-    const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
-    document.getElementById("a-valider").innerHTML = (nonVerif && nonVerif.length)
-      ? nonVerif.map(h => `<div style="padding:10px 20px;border-top:1px solid #F5EEE2">✨ ${esc(h.prenom)}, ${h.age} : ${esc(h.ville)} (photo à valider)</div>`).join("")
-      : "Aucun profil en attente.";
+      ${jePeux('valider_profils') ? `<div class="panneau"><div class="tete">À valider</div><div id="a-valider" class="vide">Chargement…</div></div>` : ""}`;
+    if (jePeux('valider_profils')) {
+      const { data: nonVerif } = await db.from("hotesses").select("prenom, age, ville").eq("verifie", false).limit(5);
+      document.getElementById("a-valider").innerHTML = (nonVerif && nonVerif.length)
+        ? nonVerif.map(h => `<div style="padding:10px 20px;border-top:1px solid #F5EEE2">✨ ${esc(h.prenom)}, ${h.age} : ${esc(h.ville)} (photo à valider)</div>`).join("")
+        : "Aucun profil en attente.";
+    }
   }
 
   // ============ UTILISATEURS ============
@@ -380,15 +389,15 @@
     } else {
       const { data } = await db.rpc("admin_annuaire_etablissements");
       annuaireData = data || [];
+      const voitFin = jePeux('voir_finances') || jePeux('paiements');
       const f = annuaireData.filter(e => filtreAnnuaire(e) && chercheAnnuaire(e.nom + " " + (e.email||"") + " " + (e.ville||"") + " " + (e.reference_virement||"")));
-      zone.innerHTML = f.length ? `<table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>E-mail</th><th>Tarif</th><th>Actif jusqu'au</th><th></th></tr>
+      zone.innerHTML = f.length ? `<table><tr><th>Établissement</th><th>Type</th><th>Ville</th><th>E-mail</th>${voitFin ? `<th>Tarif</th><th>Actif jusqu'au</th>` : ""}<th></th></tr>
         ${f.map(e => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('etablissement','${e.id}')">
           <td><div class="cell">${avatarPhoto(e.photos?.[0], e.nom)}${esc(e.nom)}</div></td>
           <td>${esc(e.type || ":")}</td>
           <td>${esc(e.ville || ":")}</td>
           <td style="font-size:12.5px"><a href="mailto:${esc(e.email||"")}">${esc(e.email||"")}</a></td>
-          <td>${e.tarif ?? ":"} €</td>
-          <td>${statutAbo(e.actif_jusqu_a)}</td>
+          ${voitFin ? `<td>${e.tarif ?? ":"} €</td><td>${statutAbo(e.actif_jusqu_a)}</td>` : ""}
           <td><button class="btn btn-sm btn-primaire" onclick="event.stopPropagation();ouvrirFicheAdmin('etablissement','${e.id}')">Fiche</button></td>
         </tr>`).join("")}</table>` : '<div class="vide">Aucun résultat.</div>';
     }
@@ -396,13 +405,20 @@
 
   function exporterAnnuaire() {
     const sep = ";";
+    const voitFin = jePeux('voir_finances') || jePeux('paiements');
     let lignes;
     if (annuaireType === "hotesses") {
       lignes = [["Prénom","Âge","E-mail","Instagram"]];
       annuaireData.forEach(h => lignes.push([h.prenom,h.age,h.email,h.instagram]));
     } else {
-      lignes = [["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le","Tarif","Actif jusqu'au","Dernier mode"]];
-      annuaireData.forEach(e => lignes.push([e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):"",e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode]));
+      const entete = ["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le"];
+      if (voitFin) entete.push("Tarif","Actif jusqu'au","Dernier mode");
+      lignes = [entete];
+      annuaireData.forEach(e => {
+        const l = [e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):""];
+        if (voitFin) l.push(e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode);
+        lignes.push(l);
+      });
     }
     const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(sep)).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -410,9 +426,18 @@
   }
 
   function exporterAnnuaireXlsx() {
+    const voitFin = jePeux('voir_finances') || jePeux('paiements');
     const lignes = annuaireType === "hotesses"
       ? [["Prénom","Âge","E-mail","Instagram"]].concat(annuaireData.map(h => [h.prenom,h.age,h.email,h.instagram]))
-      : [["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le","Tarif","Actif jusqu'au","Dernier mode"]].concat(annuaireData.map(e => [e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):"",e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode]));
+      : (() => {
+          const entete = ["Nom","Type","Ville","Adresse","Email","SIRET","Verifie","Suspendu","Missions","Inscrit le"];
+          if (voitFin) entete.push("Tarif","Actif jusqu'au","Dernier mode");
+          return [entete].concat(annuaireData.map(e => {
+            const l = [e.nom,e.type,e.ville,e.adresse,e.email,e.siret,e.verifie?"oui":"non",e.suspendu?"oui":"non",e.missions_publiees,e.inscrit_le?new Date(e.inscrit_le).toLocaleDateString("fr-FR"):""];
+            if (voitFin) l.push(e.tarif,e.actif_jusqu_a?new Date(e.actif_jusqu_a).toLocaleDateString("fr-FR"):"",e.dernier_mode);
+            return l;
+          }));
+        })();
     exporterXlsx(lignes, "annuaire-" + annuaireType + ".xlsx");
   }
 
@@ -420,26 +445,30 @@
   async function ouvrirFicheAdmin(type, id) {
     const x = (annuaireData || []).find(r => r.id === id);
     if (!x) return;
-    const { data: paiements } = await db.from("paiements").select("*").eq("profil_id", id).order("created_at", { ascending: false });
+    const voitFin = jePeux('voir_finances') || jePeux('paiements');
+    const peutPayer = jePeux('paiements');
+    const { data: paiements } = voitFin ? await db.from("paiements").select("*").eq("profil_id", id).order("created_at", { ascending: false }) : { data: [] };
     let reference = "";
-    if (type === "etablissement") {
+    if (type === "etablissement" && voitFin) {
       const { data: r } = await db.rpc("reference_virement", { p_uid: id });
       reference = r || "";
     }
-    // documents d'identité éventuels
+    // documents d'identité éventuels (valider_profils)
     let docRecto = "", docSelfie = "";
-    try {
-      const table = type === "hotesse" ? "hotesses" : "etablissements";
-      const { data: d } = await db.from(table).select("id_document").eq("id", id).single();
-      if (d?.id_document) {
-        const r1 = await sb.storage.from("documents").createSignedUrl(d.id_document.recto, 600);
-        const r2 = await sb.storage.from("documents").createSignedUrl(d.id_document.selfie, 600);
-        docRecto = r1.data?.signedUrl || ""; docSelfie = r2.data?.signedUrl || "";
-      }
-    } catch (e) {}
-    // contrôle SIRET (établissement uniquement) via l'annuaire officiel
+    if (jePeux('valider_profils')) {
+      try {
+        const table = type === "hotesse" ? "hotesses" : "etablissements";
+        const { data: d } = await db.from(table).select("id_document").eq("id", id).single();
+        if (d?.id_document) {
+          const r1 = await sb.storage.from("documents").createSignedUrl(d.id_document.recto, 600);
+          const r2 = await sb.storage.from("documents").createSignedUrl(d.id_document.selfie, 600);
+          docRecto = r1.data?.signedUrl || ""; docSelfie = r2.data?.signedUrl || "";
+        }
+      } catch (e) {}
+    }
+    // contrôle SIRET (valider_profils)
     let siretInfo = null;
-    if (type === "etablissement" && x.siret) {
+    if (type === "etablissement" && x.siret && jePeux('valider_profils')) {
       try {
         const { data: r } = await sb.functions.invoke("verifier-siret", { body: { siret: x.siret } });
         siretInfo = r;
@@ -502,31 +531,32 @@
           ${sanctions.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA"><span>${esc(s.missions?.etablissements?.nom || "")} (${s.missions?.date ? new Date(s.missions.date + "T00:00:00").toLocaleDateString("fr-FR") : ""}) : ${s.sanction_signes} signe(s)</span><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);white-space:nowrap" onclick="annulerSanction('${s.id}')">Annuler cette sanction</button></div>`).join("")}
         </div>` : ""}
 
-        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
+        ${voitFin ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
           <div style="font-size:13px;margin:8px 0">Statut : ${x.actif_jusqu_a ? "Actif jusqu'au " + new Date(x.actif_jusqu_a).toLocaleDateString("fr-FR") : "Essai / jamais payé"}</div>
+          ${peutPayer ? `
           <div class="champ-inline"><label>Tarif (€)</label><input class="field" id="f-tarif" type="number" value="${x.tarif ?? ""}" style="max-width:120px"></div>
           <div class="champ-inline"><label>Période</label><select class="field" id="f-periode" style="max-width:160px"><option value="mensuel" ${x.periode==="mensuel"?"selected":""}>Mensuel</option><option value="hebdomadaire" ${x.periode==="hebdomadaire"?"selected":""}>Hebdomadaire</option></select></div>
-          <button class="btn btn-sm btn-primaire" onclick="sauverTarif('${id}')">Enregistrer le tarif</button>
-        </div>
+          <button class="btn btn-sm btn-primaire" onclick="sauverTarif('${id}')">Enregistrer le tarif</button>` : ""}
+        </div>` : ""}
 
-        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Paiement</b>
+        ${peutPayer ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Paiement</b>
           ${reference ? `<div style="font-size:12.5px;margin:8px 0;display:flex;justify-content:space-between;align-items:center"><span>Référence virement : <b style="font-family:monospace">${esc(reference)}</b></span><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="navigator.clipboard.writeText('${reference}')">Copier</button></div>` : ""}
           <div class="champ-inline"><label>Mode</label><select class="field" id="f-mode" style="max-width:160px"><option value="especes">Espèces</option><option value="virement">Virement</option><option value="offert">Offert</option></select></div>
           <div class="champ-inline"><label>Montant (€)</label><input class="field" id="f-montant" type="number" value="${x.tarif ?? ""}" style="max-width:120px"></div>
           <div class="champ-inline"><label>Note</label><input class="field" id="f-note" style="max-width:240px"></div>
           <button class="btn btn-sm btn-primaire" onclick="enregistrerPaiement('${id}')">Enregistrer le paiement</button>
-        </div>
+        </div>` : ""}
 
-        <div style="border-top:1px solid #EEE;padding:12px 0"><b>Historique des paiements</b>
+        ${voitFin ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Historique des paiements</b>
           ${(paiements && paiements.length) ? paiements.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA">
             <span>${p.numero_recu} · ${libelleMode(p.mode)} · ${montantFormat(p.montant)}</span>
             <span><a href="recu.html?id=${p.id}" target="_blank" style="color:var(--aubergine)">Reçu</a> ${(p.mode==="especes"||p.mode==="virement"||p.mode==="offert") ? `<a style="color:var(--danger);cursor:pointer" onclick="annulerPaiement('${p.id}','${id}')">Annuler</a>` : ""}</span>
           </div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucun paiement.</div>'}
-        </div>
+        </div>` : ""}
 
         <div style="border-top:1px solid #EEE;padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
-          ${!estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="${type === "etablissement" ? "validerEtab" : "valider"}('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
-          ${estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`}
+          ${jePeux('valider_profils') && !estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="${type === "etablissement" ? "validerEtab" : "valider"}('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
+          ${jePeux('suspendre_utilisateurs') ? (estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`) : ""}
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -535,7 +565,7 @@
   async function sauverTarif(id) {
     const tarif = parseFloat(document.getElementById("f-tarif").value);
     const periode = document.getElementById("f-periode").value;
-    const { error } = await db.from("profiles").update({ tarif: tarif || null, periode }).eq("id", id);
+    const { error } = await db.rpc("admin_modifier_tarif", { p_profil: id, p_tarif: tarif || null, p_periode: periode });
     if (error) { toast(error.message, "erreur"); return; }
     toast("Tarif enregistré ✅", "ok");
   }
@@ -629,7 +659,7 @@
           <button class="btn btn-sm btn-primaire" onclick="traiterSignalement('${s.id}')">Marquer traité</button>
           <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="voirConversationSignalement('${s.id}')">💬 Voir la conversation</button>
           <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCible('${s.id}','${s.cible_id}')">Suspendre</button>
-          ${s.cible_type === 'mission' ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionSignalement('${s.cible_id}')">Annuler la mission</button>` : ""}
+          ${jePeux('gerer_missions') && s.cible_type === 'mission' ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionSignalement('${s.cible_id}')">Annuler la mission</button>` : ""}
         </div>
       </div>`).join("") : "Aucun signalement.";
   }
@@ -768,7 +798,7 @@
   let membresListe = [];
   let membreEnEdition = null;
 
-  function voitRecette(m) { return jeSuisProprio || m.droits?.voir_finances === true || m.droits?.paiements === true; }
+  function voitRecette(m) { return membreA(m, 'voir_finances') || membreA(m, 'paiements'); }
 
   async function afficherEquipe() {
     membreEnEdition = null;
@@ -878,19 +908,21 @@
     if (!data || data.error) { toast(data?.error || "Erreur", "erreur"); return; }
     const d = data.data;
     const m = d.membre, s = d.stats || {}, act = d.actions || [];
-    const accesArgent = m.droits?.voir_finances === true || m.droits?.paiements === true;
+    const voitRec = membreA(m, 'voir_finances') || membreA(m, 'paiements');
+    const encaisse = membreA(m, 'paiements');
+    const change = membreA(m, 'paiements') || membreA(m, 'reglages');
     const modal = document.createElement("div");
     modal.id = "modal-fiche-membre";
     modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center";
     modal.innerHTML = `<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;padding:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="font-family:var(--font-titre);font-size:20px">${esc(m.nom || "")}</h3><button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche-membre').remove()">✕</button></div>
       <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(d.email || "")} · créé le ${d.created_at ? new Date(d.created_at).toLocaleDateString("fr-FR") : "?"} · ${d.last_sign_in_at ? "dernière connexion " + new Date(d.last_sign_in_at).toLocaleString("fr-FR") : "jamais connecté"}</div>
-      <div style="padding:12px;border-radius:12px;background:${accesArgent ? "#FBE4E1" : "#E7F5EC"};margin-bottom:14px">
+      <div style="padding:12px;border-radius:12px;background:${voitRec ? "#FBE4E1" : "#E7F5EC"};margin-bottom:14px">
         <div style="font-weight:700">💶 Accès à l'argent</div>
-        <div style="font-size:13px;margin-top:4px">💶 Voit la recette : ${accesArgent ? "Oui" : "Non"}<br>💳 Peut encaisser et annuler : ${m.droits?.paiements === true ? "Oui" : "Non"}<br>⚙️ Peut changer tarifs/réglages : ${(m.droits?.paiements === true || m.droits?.reglages === true) ? "Oui" : "Non"}</div>
-        ${accesArgent ? `<button class="btn btn-sm" style="background:var(--danger);color:#fff;margin-top:8px" onclick="retirerAccesRecette('${m.id}')">Retirer l'accès à la recette</button>` : ""}
+        <div style="font-size:13px;margin-top:4px">💶 Voit la recette : ${voitRec ? "Oui" : "Non"}<br>💳 Peut encaisser et annuler : ${encaisse ? "Oui" : "Non"}<br>⚙️ Peut changer tarifs/réglages : ${change ? "Oui" : "Non"}</div>
+        ${m.proprietaire ? '<div style="font-size:12.5px;color:var(--gris);margin-top:6px">Propriétaire : tous les droits, non modifiables.</div>' : (voitRec ? `<button class="btn btn-sm" style="background:var(--danger);color:#fff;margin-top:8px" onclick="retirerAccesRecette('${m.id}')">Retirer l'accès à la recette</button>` : "")}
       </div>
-      <div style="margin-bottom:12px"><b>Droits :</b><div style="font-size:12.5px;margin-top:4px">${DROITS_DISPONIBLES.map(x => `<div>${m.proprietaire || m.droits?.[x.key] ? "✅" : "❌"} ${x.label}</div>`).join("")}</div></div>
+      <div style="margin-bottom:12px"><b>Droits :</b><div style="font-size:12.5px;margin-top:4px">${DROITS_DISPONIBLES.map(x => `<div>${membreA(m, x.key) ? "✅" : "❌"} ${x.label}</div>`).join("")}</div></div>
       <div style="margin-bottom:12px"><b>Chiffres (30 j)</b><div style="font-size:12.5px;margin-top:4px">${s["30j"] ? `Validations ${s["30j"].validations} · refus ${s["30j"].refus} · suspensions ${s["30j"].suspensions} · paiements ${s["30j"].paiements} · sanctions annulées ${s["30j"].sanctions_annulees} · exports ${s["30j"].exports} · conversations lues ${s["30j"].conversations}` : "…"}</div></div>
       <div><b>Dernières actions</b>${(act || []).length ? act.slice(0, 5).map(a => `<div style="font-size:12px;color:var(--gris);padding:3px 0">${esc(a.action)} · ${new Date(a.created_at).toLocaleString("fr-FR")}</div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucune action.</div>'}</div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${!m.proprietaire ? `
@@ -941,7 +973,7 @@
         <td>${formatHeure(m.heure_debut)}–${formatHeure(m.heure_fin)}</td>
         <td>${m.places_restantes ?? m.nb_hotesses}/${m.nb_hotesses}</td>
         <td><span class="badge badge-aubergine">${esc(m.statut)}</span></td>
-        <td><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="voirDetailMission('${m.id}')">📷 Détail</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionAdmin('${m.id}')">Annuler</button></td>
+        <td><button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="voirDetailMission('${m.id}')">📷 Détail</button> ${jePeux('gerer_missions') ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="annulerMissionAdmin('${m.id}')">Annuler</button>` : ""}</td>
       </tr>`).join("")}
       </table>` : "Aucune mission à venir.";
   }

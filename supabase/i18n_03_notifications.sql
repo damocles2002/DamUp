@@ -69,9 +69,11 @@ begin
         perform public.notifier_utilisateur(new.hotesse_id, 'notif.suspension_hotesse',
           jsonb_build_object('n', v_signes));
         insert into public.notifications (user_id, message, cle, params)
-        select p.id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes)),
+        select e.user_id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes)),
                'notif.suspension_admin', jsonb_build_object('n', v_signes)
-          from public.profiles p where p.type = 'admin';
+          from public.equipe e join public.profiles p on p.id = e.user_id
+         where p.type = 'admin' and not e.suspendu and not p.suspendu
+           and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
       end if;
     end if;
     select m.etablissement_id, m.date, coalesce(p.langue, 'fr') into v_etab, v_date_m, v_langue
@@ -128,12 +130,14 @@ begin
          jsonb_build_object('date', public.date_courte(a.actif_jusqu_a::date, a.langue))
     from a_prevenir a
   union all
-  select ad.id,
+  select e.user_id,
          public.traduire('notif.fin_abonnement_admin', 'fr', jsonb_build_object('n', (select count(*) from a_prevenir))),
          'notif.fin_abonnement_admin',
          jsonb_build_object('n', (select count(*) from a_prevenir))
-    from public.profiles ad
-   where ad.type = 'admin' and exists (select 1 from a_prevenir);
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'voir_finances')::boolean, false) or coalesce((e.droits->>'paiements')::boolean, false))
+     and exists (select 1 from a_prevenir);
 
   -- missions terminées
   update public.missions set statut = 'terminee'
@@ -202,9 +206,11 @@ begin
     raise exception 'Trop de signalements aujourd''hui. Contacte DamUp directement.';
   end if;
   insert into public.notifications (user_id, message, cle, params)
-  select p.id, public.traduire('notif.signalement_admin', 'fr', '{}'::jsonb),
+  select e.user_id, public.traduire('notif.signalement_admin', 'fr', '{}'::jsonb),
          'notif.signalement_admin', '{}'::jsonb
-    from public.profiles p where p.type = 'admin';
+    from public.equipe e join public.profiles p on p.id = e.user_id
+   where p.type = 'admin' and not e.suspendu and not p.suspendu
+     and (e.proprietaire or coalesce((e.droits->>'signalements')::boolean, false));
   return new;
 end; $$;
 drop trigger if exists controle_signalement on public.signalements;

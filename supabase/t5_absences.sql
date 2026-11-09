@@ -71,11 +71,13 @@ begin
     perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.absence_declaree',
       jsonb_build_object('lieu', v_lieu, 'date', to_char(v_m.date, 'DD/MM'), 'n', v_n));
     insert into public.notifications (user_id, message, cle, params)
-    select p.id, public.traduire('notif.absence_declaree_admin', 'fr',
+    select e.user_id, public.traduire('notif.absence_declaree_admin', 'fr',
              jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)),
            'notif.absence_declaree_admin',
            jsonb_build_object('prenom', v_prenom, 'date', to_char(v_m.date, 'DD/MM'), 'lieu', v_lieu)
-      from public.profiles p where p.type = 'admin';
+      from public.equipe e join public.profiles p on p.id = e.user_id
+     where p.type = 'admin' and not e.suspendu and not p.suspendu
+       and (e.proprietaire or coalesce((e.droits->>'suspendre_utilisateurs')::boolean, false));
   end if;
 end; $$;
 revoke execute on function public.declarer_absence(uuid, boolean) from public, anon;
