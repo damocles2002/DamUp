@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const body = await req.json() as any;
     const { action } = body;
     const journal = (action: string, cible: string | null, cibleId: string | null, details: unknown) =>
-      admin.rpc("journaliser", { p_action: action, p_cible_type: cible, p_cible_id: cibleId, p_details: details ?? {} });
+      admin.from("journal_admin").insert({ auteur_id: user.id, action, cible_type: cible, cible_id: cibleId, details: details ?? {} });
 
     // ---- mes propres infos (droits + propriétaire) ----
     if (action === "moi") {

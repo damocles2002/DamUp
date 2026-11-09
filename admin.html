@@ -108,10 +108,12 @@
   let mesDroits = {};
   let jeSuisProprio = false;
   let droitsCharges = false;
+  let monId = null;
 
   async function init() {
     const { data } = await auth.getUser();
     if (!data.user) { location.href = "login.html"; return; }
+    monId = data.user.id;
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
     if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
     try {
@@ -812,14 +814,15 @@
   }
 
   async function chargerMembres() {
-    const { data } = await sb.functions.invoke("membres", { body: { action: "list" } });
-    membresListe = data?.data || [];
     const zone = document.getElementById("liste-membres");
     if (!zone) return;
+    const { data, error } = await sb.functions.invoke("membres", { body: { action: "list" } });
+    if (error || !data || data.error) { zone.innerHTML = "Impossible de charger l'équipe, recharge la page."; return; }
+    membresListe = data.data || [];
     if (!membresListe.length) { zone.innerHTML = "Aucun membre."; return; }
     zone.innerHTML = `<table><tr><th>Membre</th><th>Statut</th><th>Droits</th><th></th></tr>
       ${membresListe.map(m => {
-        const estMoi = m.user_id === user.id;
+        const estMoi = m.user_id === monId;
         const pastilles = DROITS_DISPONIBLES.filter(d => m.droits && m.droits[d.key]).map(d => d.label).join(", ");
         return `<tr style="cursor:${jeSuisProprio ? "pointer" : "default"}" onclick="${jeSuisProprio ? `ficheMembre('${m.id}')` : ""}">
         <td>${m.proprietaire ? '<span class="badge badge-champagne">Propriétaire</span> ' : '<span class="badge badge-aubergine">Membre</span> '}<b>${esc(m.nom || ":")}</b>${voitRecette(m) ? " 💶" : ""}<div style="font-size:12px;color:var(--gris)">${esc(m.email || "")}</div></td>

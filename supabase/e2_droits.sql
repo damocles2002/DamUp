@@ -281,7 +281,7 @@ create or replace function public.admin_stats_membre(p_uid uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v jsonb;
 begin
-  if not public.est_proprietaire() then raise exception 'Réservé au propriétaire.'; end if;
+  -- réservée au service_role (l'Edge vérifie déjà le propriétaire) : pas de contrôle auth.uid() ici
   select jsonb_build_object(
     '30j', jsonb_build_object(
       'validations', (select count(*) from public.journal_admin j where j.auteur_id = p_uid and j.action in ('profil_valide','identite_validee') and j.created_at > now() - interval '30 days'),
