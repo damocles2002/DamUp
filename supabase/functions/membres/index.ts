@@ -42,13 +42,14 @@ Deno.serve(async (req) => {
     const jeSuisProprio = moi.proprietaire === true;
     const ai = (d: string) => jeSuisProprio || mesDroits[d] === true;
 
-    const { action } = await req.json();
+    const body = await req.json() as any;
+    const { action } = body;
     const journal = (action: string, cible: string | null, cibleId: string | null, details: unknown) =>
       admin.rpc("journaliser", { p_action: action, p_cible_type: cible, p_cible_id: cibleId, p_details: details ?? {} });
 
     // ---- mes propres infos (droits + propriétaire) ----
     if (action === "moi") {
-      return json({ data: { nom: moi.nom, proprietaire: moi.proprietaire, suspendu: moi.suspendu, droits: moi.droits ?? {} } });
+      return json(req, { data: { nom: moi.nom, proprietaire: moi.proprietaire, suspendu: moi.suspendu, droits: moi.droits ?? {} } });
     }
 
     // ---- lister l'équipe ----
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
     // ---- créer un membre ----
     if (action === "create") {
       if (!ai("gerer_equipe")) return json(req, { error: "Droit insuffisant" }, 403);
-      const { email, password, nom, droits } = await req.json() as any;
+      const { email, password, nom, droits } = body;
       if (!email || !password) return json(req, { error: "E-mail et mot de passe requis" }, 400);
       const demandes: string[] = Object.keys((droits ?? {})).filter(k => (droits[k] === true));
       // droits = sous-ensemble des miens ; gerer_equipe réservé au propriétaire
@@ -88,7 +89,7 @@ Deno.serve(async (req) => {
     // ---- modifier un membre ----
     if (action === "update") {
       if (!ai("gerer_equipe")) return json(req, { error: "Droit insuffisant" }, 403);
-      const { id, nom, droits } = await req.json() as any;
+      const { id, nom, droits } = body;
       const { data: cible } = await admin.from("equipe").select("*").eq("id", id).single();
       if (!cible) return json(req, { error: "Membre introuvable" }, 404);
       if (cible.proprietaire) return json(req, { error: "Le propriétaire ne peut pas être modifié" }, 403);
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
     // ---- suspendre / réactiver ----
     if (action === "suspend" || action === "reactivate") {
       if (!ai("gerer_equipe")) return json(req, { error: "Droit insuffisant" }, 403);
-      const { id, motif } = await req.json() as any;
+      const { id, motif } = body;
       const { data: cible } = await admin.from("equipe").select("*").eq("id", id).single();
       if (!cible) return json(req, { error: "Membre introuvable" }, 404);
       if (cible.proprietaire) return json(req, { error: "Le propriétaire ne peut pas être suspendu" }, 403);
@@ -126,7 +127,7 @@ Deno.serve(async (req) => {
     // ---- supprimer un membre ----
     if (action === "delete") {
       if (!ai("gerer_equipe")) return json(req, { error: "Droit insuffisant" }, 403);
-      const { id } = await req.json() as any;
+      const { id } = body;
       const { data: cible } = await admin.from("equipe").select("*").eq("id", id).single();
       if (!cible) return json(req, { error: "Membre introuvable" }, 404);
       if (cible.proprietaire) return json(req, { error: "Le propriétaire ne peut pas être supprimé" }, 403);
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
     // ---- détail d'un membre (propriétaire uniquement) ----
     if (action === "detail") {
       if (!jeSuisProprio) return json(req, { error: "Réservé au propriétaire" }, 403);
-      const { id } = await req.json() as any;
+      const { id } = body;
       const { data: cible } = await admin.from("equipe").select("*").eq("id", id).single();
       if (!cible) return json(req, { error: "Membre introuvable" }, 404);
       const { data: authUser } = await admin.auth.admin.getUserById(cible.user_id);

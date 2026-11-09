@@ -107,6 +107,7 @@
   let vue = "dashboard";
   let mesDroits = {};
   let jeSuisProprio = false;
+  let droitsCharges = false;
 
   async function init() {
     const { data } = await auth.getUser();
@@ -114,15 +115,26 @@
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
     if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
     try {
-      const { data: moi } = await sb.functions.invoke("membres", { body: { action: "moi" } });
-      if (moi?.data) { mesDroits = moi.data.droits || {}; jeSuisProprio = !!moi.data.proprietaire; }
-    } catch (e) {}
+      const { data: moi, error } = await sb.functions.invoke("membres", { body: { action: "moi" } });
+      if (error || !moi?.data) {
+        toast("Impossible de charger tes droits, recharge la page.", "erreur");
+        droitsCharges = false;
+      } else {
+        mesDroits = moi.data.droits || {};
+        jeSuisProprio = !!moi.data.proprietaire;
+        droitsCharges = true;
+      }
+    } catch (e) {
+      toast("Impossible de charger tes droits, recharge la page.", "erreur");
+      droitsCharges = false;
+    }
     adapterMenu();
     afficher();
   }
 
   function ai(d) { return jeSuisProprio || mesDroits[d] === true; }
   function adapterMenu() {
+    if (!droitsCharges) return; // on ne cache rien tant que les droits ne sont pas connus
     const visibilite = {
       dashboard: true,
       utilisateurs: ai("voir_donnees") || ai("valider_profils") || ai("suspendre_utilisateurs"),
