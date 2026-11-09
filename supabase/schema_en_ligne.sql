@@ -558,31 +558,25 @@ CREATE OR REPLACE FUNCTION public.apres_annulation()
  SET search_path TO 'public'
 AS $function$
 declare
-  v_signes int;
-  v_etab uuid;
-  v_date_m date;
-  v_langue text;
+  v_debut timestamptz;
+  v_h int;
+  v_signes int := 1;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
-      update public.hotesses set signes_negatifs = signes_negatifs + 1, missions_honorees = 0
-       where id = new.hotesse_id
-       returning signes_negatifs into v_signes;
-      if v_signes >= public.reglage_num('signes_avant_suspension', 3)::int then
-        update public.profiles set suspendu = true where id = new.hotesse_id;
-        perform public.notifier_utilisateur(new.hotesse_id, 'notif.suspension_hotesse',
-          jsonb_build_object('n', v_signes));
-        insert into public.notifications (user_id, message, cle, params)
-        select p.id, public.traduire('notif.suspension_admin', 'fr', jsonb_build_object('n', v_signes)),
-               'notif.suspension_admin', jsonb_build_object('n', v_signes)
-          from public.profiles p where p.type = 'admin';
-      end if;
+      select (m.date + m.heure_debut) at time zone 'Europe/Paris' into v_debut
+        from public.missions m where m.id = new.mission_id;
+      v_h := public.reglage_num('annulation_tardive_h', 3)::int;
+      if v_debut - now() < make_interval(hours => v_h) then v_signes := 2; end if;
+      update public.hotesses set signes_negatifs = signes_negatifs + v_signes, missions_honorees = 0
+       where id = new.hotesse_id;
+      perform public.notifier_utilisateur(new.hotesse_id, 'notif.annulation_sanction',
+        jsonb_build_object('n', v_signes));
     end if;
-    select m.etablissement_id, m.date, coalesce(p.langue, 'fr') into v_etab, v_date_m, v_langue
-      from public.missions m join public.profiles p on p.id = m.etablissement_id
-     where m.id = new.mission_id;
-    perform public.notifier_utilisateur(v_etab, 'notif.annulation_etab',
-      jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
+    insert into public.notifications (user_id, message)
+    select m.etablissement_id, '⚠️ Une hôtesse a annulé sa venue : une place se libère sur ta mission du '
+           || to_char(m.date, 'DD/MM') || '.'
+      from public.missions m where m.id = new.mission_id;
   end if;
   return new;
 end; $function$;

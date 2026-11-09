@@ -352,11 +352,25 @@
   }
 
   async function annulerMission(id) {
-    const { data: c } = await db.from("candidatures").select("statut").eq("id", id).single();
+    const { data: c } = await db.from("candidatures").select("statut, missions(date, heure_debut)").eq("id", id).single();
     const dejaConfirmee = c?.statut === "confirmee";
-    const msg = dejaConfirmee
-      ? "Annuler après avoir confirmé te donne un signe négatif. Continuer ?"
-      : "Annuler ta candidature pour cette mission ?";
+    let msg;
+    if (!dejaConfirmee) {
+      msg = "Annuler ta candidature pour cette mission ?";
+    } else {
+      const m = c?.missions;
+      const debut = new Date((m?.date || "") + "T" + (m?.heure_debut || "00:00"));
+      let heures = 3;
+      try {
+        const { data: r } = await db.from("settings").select("value").eq("key", "annulation_tardive_h").single();
+        heures = parseInt(r?.value || "3", 10) || 3;
+      } catch (e) {}
+      const tardive = debut.getTime() - Date.now() < heures * 3600 * 1000;
+      const n = tardive ? 2 : 1;
+      msg = tardive
+        ? `Annuler maintenant te donne ${n} signes négatifs (moins de ${heures} h avant le début). Continuer ?`
+        : `Annuler après avoir confirmé te donne ${n} signe négatif. Continuer ?`;
+    }
     if (!await demander(msg)) return;
     const { error } = await db.from("candidatures").update({ annulation: true }).eq("id", id);
     if (error) { toast(error.message, "erreur"); return; }

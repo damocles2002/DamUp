@@ -226,5 +226,6 @@
   "qr_jour.retard_autre": "Autre…",
   "notif.verifier_presence": "« {prenom} n'a pas été scannée à ta mission du {date}. Est-elle venue ? »",
   "notif.absence_declaree": "Absence déclarée par {lieu} pour la mission du {date} : {n} signes négatifs. Si c'est une erreur, contacte DamUp.",
-  "notif.absence_declaree_admin": "Absence déclarée pour {prenom} à la mission du {date} chez {lieu}."
+  "notif.absence_declaree_admin": "Absence déclarée pour {prenom} à la mission du {date} chez {lieu}.",
+  "notif.annulation_sanction": "Tu as annulé ta mission confirmée : {n} signe(s) négatif(s)."
 }

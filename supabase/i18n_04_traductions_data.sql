@@ -204,6 +204,12 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.absence_declaree_admin', 'es', 'Ausencia declarada para {prenom} en la misión del {date} en {lieu}.'),
 ('notif.absence_declaree_admin', 'zh', '已申报 {prenom} 缺席 {date} 在 {lieu} 的场次。'),
 
+-- annulation
+('notif.annulation_sanction', 'fr', 'Tu as annulé ta mission confirmée : {n} signe(s) négatif(s).'),
+('notif.annulation_sanction', 'en', 'You cancelled your confirmed mission: {n} negative mark(s).'),
+('notif.annulation_sanction', 'es', 'Cancelaste tu misión confirmada: {n} marca(s) negativa(s).'),
+('notif.annulation_sanction', 'zh', '您取消了已确认的任务：{n} 个负面标记。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

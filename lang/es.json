@@ -226,5 +226,6 @@
   "qr_jour.retard_autre": "Otro…",
   "notif.verifier_presence": "« {prenom} no fue escaneada en tu misión del {date}. ¿Vino? »",
   "notif.absence_declaree": "Ausencia declarada por {lieu} para la misión del {date}: {n} marcas negativas. Si es un error, contacta a DamUp.",
-  "notif.absence_declaree_admin": "Ausencia declarada para {prenom} en la misión del {date} en {lieu}."
+  "notif.absence_declaree_admin": "Ausencia declarada para {prenom} en la misión del {date} en {lieu}.",
+  "notif.annulation_sanction": "Cancelaste tu misión confirmada: {n} marca(s) negativa(s)."
 }
