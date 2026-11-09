@@ -210,6 +210,12 @@ insert into public.traductions (cle, langue, texte) values
 ('notif.annulation_sanction', 'es', 'Cancelaste tu misión confirmada: {n} marca(s) negativa(s).'),
 ('notif.annulation_sanction', 'zh', '您取消了已确认的任务：{n} 个负面标记。'),
 
+-- sanction annulée
+('notif.sanction_annulee', 'fr', 'Une sanction a été annulée par DamUp : {motif}.'),
+('notif.sanction_annulee', 'en', 'A sanction was cancelled by DamUp: {motif}.'),
+('notif.sanction_annulee', 'es', 'DamUp anuló una sanción: {motif}.'),
+('notif.sanction_annulee', 'zh', 'DamUp 取消了一项处罚：{motif}。'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

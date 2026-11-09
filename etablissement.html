@@ -328,7 +328,7 @@
     contenu.innerHTML = '<div class="swipe-titre"><h3>Candidates à tes missions</h3><span class="cpt">Chargement…</span></div><div id="swipe-zone"></div>';
     // candidatures en attente sur les missions de cet établissement
     const { data: cands } = await db.from("candidatures")
-      .select("*, hotesses(prenom, age, ville, note_moyenne, nb_avis, photos), missions(date, heure_debut)")
+      .select("*, hotesses(prenom, age, ville, note_moyenne, nb_avis, photos, missions_honorees, nb_retards, nb_absences), missions(date, heure_debut)")
       .eq("statut", "en_attente")
       .order("created_at");
     // filtrer : missions de CET établissement
@@ -353,6 +353,7 @@
         <div class="infos">
           <h3>${esc(h.prenom)}, ${h.age}</h3>
           <div class="sous">📍 ${esc(h.ville || "")} · ⭐ ${h.note_moyenne ?? 5} (${h.nb_avis ?? 0} avis)</div>
+          <div class="sous">🛡️ ${h.missions_honorees ?? 0} missions · ${h.nb_retards ?? 0} retard · ${h.nb_absences ?? 0} absence</div>
           <div class="sous">Mission du ${formatDate(c.missions?.date)} à ${formatHeure(c.missions?.heure_debut)}</div>
         </div>
       </div>

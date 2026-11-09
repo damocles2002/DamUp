@@ -403,6 +403,15 @@
         siretInfo = r;
       } catch (e) {}
     }
+    // sanctions actives (hôtesse)
+    let sanctions = [];
+    if (type === "hotesse") {
+      const { data: s } = await db.from("candidatures")
+        .select("id, sanction_signes, sanction_annulee_le, missions(date, etablissements(nom))")
+        .eq("hotesse_id", id)
+        .not("sanction_signes", "is", null);
+      sanctions = (s || []).filter(s => !s.sanction_annulee_le);
+    }
     const nom = type === "hotesse" ? (x.prenom || "?") : (x.nom || "?");
     const estVerifie = x.verifie;
     const estSuspendu = x.suspendu;
@@ -445,6 +454,10 @@
             <button class="btn btn-sm" style="background:#E7F5EC;color:#1E7A3C" onclick="validerIdentite('${type}','${id}',true)">Valider</button>
             <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="validerIdentite('${type}','${id}',false)">Refuser</button>
           </div>
+        </div>` : ""}
+
+        ${type === "hotesse" && sanctions.length ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Sanctions actives</b>
+          ${sanctions.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid #F1E9DA"><span>${esc(s.missions?.etablissements?.nom || "")} (${s.missions?.date ? new Date(s.missions.date + "T00:00:00").toLocaleDateString("fr-FR") : ""}) : ${s.sanction_signes} signe(s)</span><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);white-space:nowrap" onclick="annulerSanction('${s.id}')">Annuler cette sanction</button></div>`).join("")}
         </div>` : ""}
 
         <div style="border-top:1px solid #EEE;padding:12px 0"><b>Abonnement</b>
@@ -620,6 +633,10 @@
       <div class="champ-inline"><label>Hôtesses max par mission</label><input class="field" id="s-max_hotesses_mission" type="number" value="${val("max_hotesses_mission", 50)}" style="max-width:140px"></div>
       <div class="champ-inline"><label>Missions honorées pour retirer un signe</label><input class="field" id="s-missions_pour_retirer_signe" type="number" value="${val("missions_pour_retirer_signe", 3)}" style="max-width:140px"></div>
       <div class="champ-inline"><label>Signes avant suspension auto</label><input class="field" id="s-signes_avant_suspension" type="number" value="${val("signes_avant_suspension", 3)}" style="max-width:140px"></div>
+      <div class="champ-inline"><label>Retard toléré sans conséquence (min)</label><input class="field" id="s-tolerance_retard_min" type="number" value="${val("tolerance_retard_min", 15)}" style="max-width:140px"><div style="font-size:11.5px;color:var(--gris)">Arrivée dans ce délai = considérée à l'heure.</div></div>
+      <div class="champ-inline"><label>Retard non prévenu sanctionné (min)</label><input class="field" id="s-retard_sanction_min" type="number" value="${val("retard_sanction_min", 30)}" style="max-width:140px"><div style="font-size:11.5px;color:var(--gris)">Au-delà et sans prévenir = 1 signe négatif.</div></div>
+      <div class="champ-inline"><label>Annulation tardive (heures avant début)</label><input class="field" id="s-annulation_tardive_h" type="number" value="${val("annulation_tardive_h", 3)}" style="max-width:140px"><div style="font-size:11.5px;color:var(--gris)">Annulation confirmée dans ce délai = 2 signes.</div></div>
+      <div class="champ-inline"><label>Signes pour une absence</label><input class="field" id="s-signes_absence" type="number" value="${val("signes_absence", 2)}" style="max-width:140px"><div style="font-size:11.5px;color:var(--gris)">Absence sans prévenir déclarée par l'établissement.</div></div>
       <button class="btn btn-primaire btn-sm" onclick="sauverSection('missions')">Enregistrer</button>`;
 
     document.getElementById("sec-inscriptions").innerHTML = `
@@ -990,6 +1007,16 @@
       ${(data && data.length) ? data.map(m => `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--gris);margin-bottom:2px">${esc(m.expediteur_type === "etablissement" ? "Établissement" : "Hôtesse")} · ${new Date(m.created_at).toLocaleString("fr-FR")}</div><div style="background:#F4E8D6;border-radius:12px;padding:9px 13px;font-size:13.5px;white-space:pre-line">${esc(m.contenu || (m.photo_url ? "📷 photo" : ""))}</div></div>`).join("") : '<div class="vide">Aucun message dans cette conversation.</div>'}
     </div>`;
     document.body.appendChild(modal);
+  }
+
+  async function annulerSanction(candId) {
+    const motif = prompt("Motif de l'annulation de la sanction (obligatoire) :") || "";
+    if (!motif) return;
+    const { error } = await db.rpc("admin_annuler_sanction", { p_candidature: candId, p_motif: motif });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Sanction annulée ✅ L'hôtesse est prévenue.");
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
   }
 
   init();

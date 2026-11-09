@@ -56,7 +56,8 @@ create table public.candidatures (
   "retard_annonce_le" timestamp with time zone,
   "retard_min" integer,
   "absence_declaree_le" timestamp with time zone,
-  "sanction_annulee_le" timestamp with time zone
+  "sanction_annulee_le" timestamp with time zone,
+  "sanction_signes" integer
 );
 
 -- TABLE compteurs
@@ -372,6 +373,28 @@ begin
   update public.profiles set actif_jusqu_a = (select max(periode_fin) from public.paiements where profil_id = v_p.profil_id) where id = v_p.profil_id;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_annuler_sanction(p_candidature uuid, p_motif text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_c public.candidatures%rowtype;
+  v_signes int;
+begin
+  if not public.is_admin() then raise exception 'Réservé à l''administrateur.'; end if;
+  if p_motif is null or trim(p_motif) = '' then raise exception 'Motif obligatoire.'; end if;
+  select * into v_c from public.candidatures where id = p_candidature;
+  if v_c.id is null then raise exception 'Candidature introuvable.'; end if;
+  if v_c.sanction_annulee_le is not null then raise exception 'Cette sanction a déjà été annulée.'; end if;
+  v_signes := coalesce(v_c.sanction_signes, 0);
+  if v_signes <= 0 then raise exception 'Aucune sanction à annuler sur cette candidature.'; end if;
+  update public.candidatures set sanction_annulee_le = now() where id = p_candidature;
+  update public.hotesses set signes_negatifs = greatest(0, signes_negatifs - v_signes) where id = v_c.hotesse_id;
+  perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.sanction_annulee', jsonb_build_object('motif', p_motif));
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mode text, p_periode text, p_montant numeric, p_date date DEFAULT NULL::date, p_note text DEFAULT NULL::text)
  RETURNS paiements
  LANGUAGE plpgsql
@@ -570,6 +593,7 @@ begin
       if v_debut - now() < make_interval(hours => v_h) then v_signes := 2; end if;
       update public.hotesses set signes_negatifs = signes_negatifs + v_signes, missions_honorees = 0
        where id = new.hotesse_id;
+      update public.candidatures set sanction_signes = v_signes where id = new.id;
       perform public.notifier_utilisateur(new.hotesse_id, 'notif.annulation_sanction',
         jsonb_build_object('n', v_signes));
     end if;
@@ -889,18 +913,16 @@ begin
   if now() > v_fin + interval '24 hours' then raise exception 'Délai de déclaration dépassé (24 h).'; end if;
 
   if p_venue then
-    -- elle est venue, scan oublié : présence à l'heure de début, sans retard
     v_debut := (v_m.date + v_m.heure_debut) at time zone 'Europe/Paris';
     update public.candidatures set presente_a = v_debut, retard_min = 0 where id = p_candidature;
     update public.hotesses set missions_honorees = missions_honorees + 1 where id = v_c.hotesse_id;
     update public.hotesses set signes_negatifs = signes_negatifs - 1, missions_honorees = 0
      where id = v_c.hotesse_id and missions_honorees >= 3 and signes_negatifs > 0;
   else
-    -- absence : +signes_absence signes négatifs
     v_n := public.reglage_num('signes_absence', 2)::int;
     select prenom into v_prenom from public.hotesses where id = v_c.hotesse_id;
     select nom into v_lieu from public.etablissements where id = v_m.etablissement_id;
-    update public.candidatures set absence_declaree_le = now() where id = p_candidature;
+    update public.candidatures set absence_declaree_le = now(), sanction_signes = v_n where id = p_candidature;
     update public.hotesses set nb_absences = nb_absences + 1, signes_negatifs = signes_negatifs + v_n, missions_honorees = 0
      where id = v_c.hotesse_id;
     perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.absence_declaree',
@@ -1831,19 +1853,20 @@ begin
   v_tol := public.reglage_num('tolerance_retard_min', 15)::int;
   v_sanction := public.reglage_num('retard_sanction_min', 30)::int;
   v_prevenu := c.retard_annonce_min is not null;
+  v_sanctionne := (v_retard_min > v_tol and not v_prevenu and v_retard_min > v_sanction);
 
-  update public.candidatures set presente_a = now(), retard_min = v_retard_min where id = c.id;
+  update public.candidatures set presente_a = now(), retard_min = v_retard_min,
+    sanction_signes = case when v_sanctionne then 1 else null end
+  where id = c.id;
 
   if v_retard_min > v_tol then
     update public.hotesses set nb_retards = nb_retards + 1 where id = c.hotesse_id;
-    if not v_prevenu and v_retard_min > v_sanction then
+    if v_sanctionne then
       update public.hotesses set signes_negatifs = signes_negatifs + 1, missions_honorees = 0 where id = c.hotesse_id;
-      v_sanctionne := true;
       perform public.notifier_utilisateur(c.hotesse_id, 'notif.retard_sanction', jsonb_build_object('minutes', v_retard_min));
     end if;
   end if;
 
-  -- mission honorée : compte pour le retrait des signes, SAUF si sanctionnée
   if not v_sanctionne then
     update public.hotesses set missions_honorees = missions_honorees + 1 where id = c.hotesse_id;
     update public.hotesses set signes_negatifs = signes_negatifs - 1, missions_honorees = 0

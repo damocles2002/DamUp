@@ -100,7 +100,7 @@
   </div>
 
   <div class="section"><h2 data-i18n="profil.avis">Avis des établissements</h2><div id="avis"></div></div>
-  <div class="section"><h2 data-i18n="profil.mes_missions">Mes missions</h2><div id="mes-missions"></div></div>
+  <div class="section"><h2 data-i18n="profil.mes_missions">Mes missions</h2><div id="fiabilite" style="padding-bottom:8px"></div><div id="mes-missions"></div></div>
   <div class="section"><h2 data-i18n="profil.ma_mission">Ma mission, à présenter à l'entrée</h2></div>
   <div class="qrcard" id="qr"></div>
 
@@ -135,6 +135,7 @@
     await chargerProfil();
     chargerAvis();
     chargerMesMissions();
+    chargerFiabilite();
     chargerQR();
     afficherBlocAbonnement("bloc-abonnement");
     chargerNotifications("notifications");
@@ -270,17 +271,46 @@
     chargerProfil();
   }
 
+  function statutPresence(c) {
+    if (c.absence_declaree_le) return "❌ absence";
+    if (c.annulation) return "🚫 annulée";
+    if (c.presente_a) return c.retard_min > 0 ? `⏰ ${c.retard_min} min de retard (${c.retard_annonce_min ? "prévenu" : "non prévenu"})` : "✅ à l'heure";
+    return "";
+  }
+
   async function chargerMesMissions() {
     const { data } = await db.from("candidatures")
-      .select("statut, created_at, missions(date, heure_debut, heure_fin, adresse, note, etablissements(id, nom))")
+      .select("statut, annulation, presente_a, retard_min, retard_annonce_min, absence_declaree_le, sanction_signes, sanction_annulee_le, created_at, missions(date, heure_debut, heure_fin, adresse, note, etablissements(id, nom))")
       .eq("hotesse_id", user.id).order("created_at", { ascending: false });
     const statuts = { en_attente: "🕓 En attente", acceptee: "✅ Acceptée", confirmee: "💚 Confirmée", refusee: "❌ Refusée" };
     document.getElementById("mes-missions").innerHTML = (data && data.length)
       ? data.map(c => {
           const m = c.missions;
-          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div>${m?.note ? `<div class="txt" style="white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
+          const presence = statutPresence(c);
+          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div>${presence ? `<div class="txt" style="font-weight:600">${presence}</div>` : ""}${m?.note ? `<div class="txt" style="white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
+  }
+
+  async function chargerFiabilite() {
+    const zone = document.getElementById("fiabilite");
+    if (!zone) return;
+    const { data: priv } = await db.rpc("hotesse_prive", { p_id: user.id });
+    const p = (priv && priv.length) ? priv[0] : {};
+    const { data: sanctions } = await db.from("candidatures")
+      .select("sanction_signes, sanction_annulee_le, missions(date, etablissements(nom))")
+      .eq("hotesse_id", user.id)
+      .not("sanction_signes", "is", null)
+      .order("created_at", { ascending: false });
+    const actives = (sanctions || []).filter(s => !s.sanction_annulee_le);
+    zone.innerHTML = `
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px">
+        <div><b>${p.missions_honorees ?? 0}</b> missions</div>
+        <div><b>${p.nb_retards ?? 0}</b> retards</div>
+        <div><b>${p.nb_absences ?? 0}</b> absences</div>
+        <div><b>${p.signes_negatifs ?? 0}</b> signe(s) négatif(s)</div>
+      </div>
+      ${actives.length ? `<div style="font-size:12.5px;color:var(--gris);margin-top:6px">Signes en cours :<br>${actives.map(s => `· ${esc(s.missions?.etablissements?.nom || "")} (${formatDate(s.missions?.date)}) : ${s.sanction_signes} signe(s)`).join("<br>")}</div>` : ""}`;
   }
 
   async function chargerAvis() {

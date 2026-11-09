@@ -227,5 +227,6 @@
   "notif.verifier_presence": "« {prenom} 在 {date} 的场次没有被扫描。她来了吗？ »",
   "notif.absence_declaree": "{lieu} 已申报您缺席 {date} 的场次：{n} 个负面标记。如有误请联系 DamUp。",
   "notif.absence_declaree_admin": "已申报 {prenom} 缺席 {date} 在 {lieu} 的场次。",
-  "notif.annulation_sanction": "您取消了已确认的任务：{n} 个负面标记。"
+  "notif.annulation_sanction": "您取消了已确认的任务：{n} 个负面标记。",
+  "notif.sanction_annulee": "DamUp 取消了一项处罚：{motif}。"
 }

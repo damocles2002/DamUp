@@ -227,5 +227,6 @@
   "notif.verifier_presence": "« {prenom} was not scanned at your mission on {date}. Did she come? »",
   "notif.absence_declaree": "Absence declared by {lieu} for the mission on {date}: {n} negative marks. If this is a mistake, contact DamUp.",
   "notif.absence_declaree_admin": "Absence declared for {prenom} at the mission on {date} at {lieu}.",
-  "notif.annulation_sanction": "You cancelled your confirmed mission: {n} negative mark(s)."
+  "notif.annulation_sanction": "You cancelled your confirmed mission: {n} negative mark(s).",
+  "notif.sanction_annulee": "A sanction was cancelled by DamUp: {motif}."
 }
