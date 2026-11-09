@@ -228,5 +228,17 @@
   "notif.absence_declaree": "Absence déclarée par {lieu} pour la mission du {date} : {n} signes négatifs. Si c'est une erreur, contacte DamUp.",
   "notif.absence_declaree_admin": "Absence déclarée pour {prenom} à la mission du {date} chez {lieu}.",
   "notif.annulation_sanction": "Tu as annulé ta mission confirmée : {n} signe(s) négatif(s).",
-  "notif.sanction_annulee": "Une sanction a été annulée par DamUp : {motif}."
+  "notif.sanction_annulee": "Une sanction a été annulée par DamUp : {motif}.",
+  "mdp.faible": "Faible",
+  "mdp.moyen": "Moyen",
+  "mdp.fort": "Fort",
+  "mdp.regle_longueur": "Au moins 10 caractères",
+  "mdp.regle_minuscule": "Une minuscule",
+  "mdp.regle_majuscule": "Une majuscule",
+  "mdp.regle_chiffre": "Un chiffre",
+  "mdp.regle_symbole": "Un symbole",
+  "mdp.regle_personnel": "Pas ton prénom, nom ni e-mail",
+  "mdp.regle_courant": "Pas un mot de passe courant",
+  "mdp.regles_requises": "Mot de passe trop faible : respecte toutes les règles.",
+  "mdp.compromis": "Ce mot de passe a été compromis. Choisis-en un autre."
 }

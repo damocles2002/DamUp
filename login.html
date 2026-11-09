@@ -91,14 +91,29 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/motdepasse.js"></script>
 <script>
   let mode = "connexion";
   let role = "hotesse";
   let codeInvitation = null;
+  let verifierMdp = null;
   const msg = document.getElementById("msg");
   const champsRole = document.getElementById("champs-role");
 
   function afficherMsg(txt, type) { msg.textContent = txt; msg.className = "msg " + type; }
+
+  function afficherIndicateurMdp(visible) {
+    const z = document.getElementById("zone-mdp-mdp");
+    const o = document.getElementById("oeil-mdp-mdp");
+    if (z) z.style.display = visible ? "" : "none";
+    if (o) o.style.display = visible ? "" : "none";
+  }
+  document.getElementById("mdp").addEventListener("input", () => {
+    if (mode === "inscription" && verifierMdp) btn.disabled = !verifierMdp().ok;
+  });
+  document.getElementById("email").addEventListener("input", () => {
+    if (mode === "inscription" && verifierMdp) btn.disabled = !verifierMdp().ok;
+  });
 
   // --- choix du rôle ---
   document.querySelectorAll("#choix-role .role").forEach(el => {
@@ -153,6 +168,8 @@
       choixRole.style.display = "grid";
       champsRole.classList.add("visible");
       document.getElementById("bloc-cgu").style.display = "block";
+      afficherIndicateurMdp(true);
+      if (verifierMdp) btn.disabled = !verifierMdp().ok;
     } else {
       btn.textContent = t("login.se_connecter");
       txtBascule.textContent = t("login.pas_encore");
@@ -161,6 +178,8 @@
       choixRole.style.display = "none";
       champsRole.classList.remove("visible");
       document.getElementById("bloc-cgu").style.display = "none";
+      afficherIndicateurMdp(false);
+      btn.disabled = false;
     }
   }
   lienBascule.addEventListener("click", () => setMode(mode === "inscription" ? "connexion" : "inscription"));
@@ -248,6 +267,12 @@
     rendreCGU();
     adapterChamps();
     appliquerLangueDOM();
+    // indicateur de solidité du mot de passe (inscription)
+    verifierMdp = brancherIndicateurMdp(document.getElementById("mdp"), () => ({
+      email: document.getElementById("email").value,
+      prenom: document.getElementById("prenom")?.value || "",
+      nom: document.getElementById("etab-nom")?.value || "",
+    }), null);
     setMode("connexion");
 
     // Ouverture directe depuis l'accueil : login.html?mode=inscription&role=etablissement|hotesse

@@ -228,5 +228,17 @@
   "notif.absence_declaree": "Absence declared by {lieu} for the mission on {date}: {n} negative marks. If this is a mistake, contact DamUp.",
   "notif.absence_declaree_admin": "Absence declared for {prenom} at the mission on {date} at {lieu}.",
   "notif.annulation_sanction": "You cancelled your confirmed mission: {n} negative mark(s).",
-  "notif.sanction_annulee": "A sanction was cancelled by DamUp: {motif}."
+  "notif.sanction_annulee": "A sanction was cancelled by DamUp: {motif}.",
+  "mdp.faible": "Weak",
+  "mdp.moyen": "Medium",
+  "mdp.fort": "Strong",
+  "mdp.regle_longueur": "At least 10 characters",
+  "mdp.regle_minuscule": "A lowercase letter",
+  "mdp.regle_majuscule": "An uppercase letter",
+  "mdp.regle_chiffre": "A number",
+  "mdp.regle_symbole": "A symbol",
+  "mdp.regle_personnel": "Not your name or email",
+  "mdp.regle_courant": "Not a common password",
+  "mdp.regles_requises": "Password too weak: meet all the requirements.",
+  "mdp.compromis": "This password has been compromised. Choose another one."
 }

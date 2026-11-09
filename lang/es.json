@@ -228,5 +228,17 @@
   "notif.absence_declaree": "Ausencia declarada por {lieu} para la misión del {date}: {n} marcas negativas. Si es un error, contacta a DamUp.",
   "notif.absence_declaree_admin": "Ausencia declarada para {prenom} en la misión del {date} en {lieu}.",
   "notif.annulation_sanction": "Cancelaste tu misión confirmada: {n} marca(s) negativa(s).",
-  "notif.sanction_annulee": "DamUp anuló una sanción: {motif}."
+  "notif.sanction_annulee": "DamUp anuló una sanción: {motif}.",
+  "mdp.faible": "Débil",
+  "mdp.moyen": "Medio",
+  "mdp.fort": "Fuerte",
+  "mdp.regle_longueur": "Al menos 10 caracteres",
+  "mdp.regle_minuscule": "Una minúscula",
+  "mdp.regle_majuscule": "Una mayúscula",
+  "mdp.regle_chiffre": "Un número",
+  "mdp.regle_symbole": "Un símbolo",
+  "mdp.regle_personnel": "Sin tu nombre ni email",
+  "mdp.regle_courant": "No una contraseña común",
+  "mdp.regles_requises": "Contraseña demasiado débil: cumple todas las reglas.",
+  "mdp.compromis": "Esta contraseña ha sido comprometida. Elige otra."
 }

@@ -228,5 +228,17 @@
   "notif.absence_declaree": "{lieu} 已申报您缺席 {date} 的场次：{n} 个负面标记。如有误请联系 DamUp。",
   "notif.absence_declaree_admin": "已申报 {prenom} 缺席 {date} 在 {lieu} 的场次。",
   "notif.annulation_sanction": "您取消了已确认的任务：{n} 个负面标记。",
-  "notif.sanction_annulee": "DamUp 取消了一项处罚：{motif}。"
+  "notif.sanction_annulee": "DamUp 取消了一项处罚：{motif}。",
+  "mdp.faible": "弱",
+  "mdp.moyen": "中等",
+  "mdp.fort": "强",
+  "mdp.regle_longueur": "至少 10 个字符",
+  "mdp.regle_minuscule": "一个小写字母",
+  "mdp.regle_majuscule": "一个大写字母",
+  "mdp.regle_chiffre": "一个数字",
+  "mdp.regle_symbole": "一个符号",
+  "mdp.regle_personnel": "不含您的姓名或邮箱",
+  "mdp.regle_courant": "不是常见密码",
+  "mdp.regles_requises": "密码太弱：请满足所有规则。",
+  "mdp.compromis": "此密码已被泄露，请更换。"
 }

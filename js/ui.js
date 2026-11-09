@@ -11,6 +11,9 @@ function messageErreur(error) {
     ["Invalid login credentials", "login.msg_email_incorrect"],
     ["User already registered", "login.msg_deja_compte"],
     ["Email not confirmed", "login.msg_confirme"],
+    ["Password should be", "mdp.regles_requises"],
+    ["breach", "mdp.compromis"],
+    ["weak", "mdp.regles_requises"],
     ["JWT", "err.session"],
   ];
   for (const [frag, cle] of map) {

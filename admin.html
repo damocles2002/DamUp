@@ -100,6 +100,7 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/motdepasse.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
@@ -808,7 +809,7 @@
         <div style="padding:20px">
           <div class="champ-inline"><label>Nom</label><input class="field" id="m-nom" style="max-width:240px"></div>
           <div class="champ-inline"><label>E-mail</label><input class="field" id="m-email" type="email" style="max-width:240px"></div>
-          <div class="champ-inline" id="ligne-mdp"><label>Mot de passe</label><input class="field" id="m-mdp" style="max-width:240px"></div>
+          <div class="champ-inline" id="ligne-mdp"><label>Mot de passe</label><input class="field" id="m-mdp" style="max-width:240px"><button type="button" class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-left:6px" onclick="genererMdpProvisoire()">Générer</button></div>
           <div style="margin:14px 0 8px;font-size:14px;font-weight:600">Droits accordés :</div>
           <div id="m-droits" style="display:flex;flex-direction:column;gap:8px">
             ${DROITS_DISPONIBLES.map(d => {
@@ -821,6 +822,18 @@
         </div>
       </div>`;
     chargerMembres();
+    brancherIndicateurMdp(document.getElementById("m-mdp"), () => ({ email: document.getElementById("m-email")?.value || "", nom: document.getElementById("m-nom")?.value || "" }), document.getElementById("btn-membre"));
+  }
+
+  function genererMdpProvisoire() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+    const arr = new Uint32Array(14);
+    window.crypto.getRandomValues(arr);
+    let mdp = "";
+    for (let i = 0; i < 14; i++) mdp += chars[arr[i] % chars.length];
+    const el = document.getElementById("m-mdp");
+    el.value = mdp;
+    el.dispatchEvent(new Event("input"));
   }
 
   async function creerMembre() {
