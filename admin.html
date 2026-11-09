@@ -80,6 +80,7 @@
     </nav>
     <div class="profil">Connecté en <b>Administrateur</b></div>
     <a class="logout" id="logout"><span class="ico">🚪</span>Se déconnecter</a>
+    <a class="logout" id="logout-global"><span class="ico">🔒</span>Déconnecter partout</a>
   </aside>
 
   <div class="menu-mobile">
@@ -119,6 +120,8 @@
     monId = data.user.id;
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
     if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
+    // mot de passe provisoire → obliger à en choisir un nouveau
+    if (data.user.user_metadata?.doit_changer_mdp) { afficherChoixMdp(); return; }
     // double vérification obligatoire (TOTP)
     const { data: aal } = await auth.mfa.getAuthenticatorAssuranceLevel();
     if (aal && aal.currentLevel === "aal1") { afficherMfa(); return; }
@@ -137,6 +140,7 @@
       droitsCharges = false;
     }
     adapterMenu();
+    reinitialiserInactivite();
     afficher();
   }
 
@@ -182,6 +186,28 @@
     location.reload();
   }
 
+  function afficherChoixMdp() {
+    main.innerHTML = `<div style="max-width:440px;margin:0 auto;padding:20px">
+      <h1>Choisis ton mot de passe</h1>
+      <p style="color:var(--gris);line-height:1.6">Ton mot de passe provisoire ne peut plus être utilisé. Choisis un nouveau mot de passe solide.</p>
+      <div class="champ"><label class="label">Nouveau mot de passe</label><input class="field" id="nouveau-mdp" type="password"></div>
+      <div class="champ"><label class="label">Confirme le mot de passe</label><input class="field" id="nouveau-mdp2" type="password"></div>
+      <button class="btn btn-primaire btn-block" id="btn-choix-mdp" onclick="changerMdpProvisoire()">Enregistrer</button>
+      <div style="text-align:center;margin-top:14px"><a style="color:var(--aubergine);cursor:pointer" onclick="deconnecter()">Se déconnecter</a></div>
+    </div>`;
+    brancherIndicateurMdp(document.getElementById("nouveau-mdp"), {}, document.getElementById("btn-choix-mdp"));
+  }
+
+  async function changerMdpProvisoire() {
+    const m1 = document.getElementById("nouveau-mdp").value;
+    const m2 = document.getElementById("nouveau-mdp2").value;
+    if (!verifierMotDePasse(m1).ok) { toast("Mot de passe trop faible.", "erreur"); return; }
+    if (m1 !== m2) { toast("Les deux mots de passe ne correspondent pas.", "erreur"); return; }
+    const { error } = await auth.updateUser({ password: m1, data: { doit_changer_mdp: false } });
+    if (error) { toast(messageErreur(error), "erreur"); return; }
+    location.reload();
+  }
+
   function ai(d) { return jeSuisProprio || mesDroits[d] === true; }
   function jePeux(d) { return ai(d); }
   function membreA(m, d) { return m?.proprietaire === true || m?.droits?.[d] === true; }
@@ -210,6 +236,24 @@
   async function deconnecter() { await auth.signOut(); location.href = "login.html"; }
   document.getElementById("logout").addEventListener("click", deconnecter);
   document.getElementById("logout-mobile").addEventListener("click", deconnecter);
+  document.getElementById("logout-global").addEventListener("click", async () => {
+    if (!await demander("Déconnecter toutes tes sessions, sur tous tes appareils ?")) return;
+    await auth.signOut({ scope: "global" });
+    location.href = "login.html";
+  });
+
+  // ---- déconnexion automatique après 30 min d'inactivité ----
+  let timerInactivite = null;
+  let timerAvertissement = null;
+  function reinitialiserInactivite() {
+    clearTimeout(timerInactivite);
+    clearTimeout(timerAvertissement);
+    timerAvertissement = setTimeout(() => {
+      toast("Ton back-office va se déconnecter dans 1 minute sans activité.", "info");
+    }, 29 * 60 * 1000);
+    timerInactivite = setTimeout(() => { deconnecter(); }, 30 * 60 * 1000);
+  }
+  ["mousemove", "keydown", "touchstart", "click"].forEach(ev => document.addEventListener(ev, reinitialiserInactivite, { passive: true }));
 
   function afficher() {
     if (vue === "dashboard") return afficherDashboard();

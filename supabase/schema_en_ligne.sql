@@ -67,6 +67,15 @@ create table public.compteurs (
   "valeur" integer NOT NULL DEFAULT 0
 );
 
+-- TABLE connexions_admin
+create table public.connexions_admin (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "user_id" uuid NOT NULL,
+  "appareil" text NOT NULL,
+  "navigateur" text,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
 -- TABLE email_erreurs
 create table public.email_erreurs (
   "id" bigint NOT NULL,

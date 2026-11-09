@@ -102,6 +102,12 @@
 
   function afficherMsg(txt, type) { msg.textContent = txt; msg.className = "msg " + type; }
 
+  function appareilId() {
+    let id = localStorage.getItem("damup_appareil");
+    if (!id) { id = (window.crypto?.randomUUID?.() || ("dev-" + Date.now() + "-" + Math.random().toString(36).slice(2))); localStorage.setItem("damup_appareil", id); }
+    return id;
+  }
+
   function afficherIndicateurMdp(visible) {
     const z = document.getElementById("zone-mdp-mdp");
     const o = document.getElementById("oeil-mdp-mdp");
@@ -252,6 +258,9 @@
         }
         if (p && p.langue) appliquerLangueCompte(p.langue);
         const type = p && p.type;
+        if (type === "admin") {
+          sb.functions.invoke("connexion", { body: { appareil: appareilId() } }).catch(() => {});
+        }
         setTimeout(() => location.href = type === "etablissement" ? "etablissement.html" : (type === "admin" ? "admin.html" : "hotesse.html"), 600);
       }
     } catch (e) {

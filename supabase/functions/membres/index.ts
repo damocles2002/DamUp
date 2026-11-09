@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
         if (demandes.some(d => !DROITS.includes(d) || mesDroits[d] !== true)) return json(req, { error: "Tu ne peux pas accorder un droit que tu n'as pas" }, 403);
       }
       const { data: created, error: err } = await admin.auth.admin.createUser({
-        email, password, email_confirm: true, app_metadata: { role: "admin" },
+        email, password, email_confirm: true, app_metadata: { role: "admin" }, user_metadata: { doit_changer_mdp: true },
       });
       if (err) return json(req, { error: err.message }, 400);
       const { error: err2 } = await admin.from("equipe").insert({
