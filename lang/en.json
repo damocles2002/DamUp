@@ -219,5 +219,9 @@
   "qr_jour.carte": "My mission today",
   "qr_jour.carte_demain": "My mission tomorrow",
   "qr_jour.bouton": "📱 Show my QR code",
-  "qr_jour.luminosite": "Turn up your screen brightness"
+  "qr_jour.luminosite": "Turn up your screen brightness",
+  "notif.retard_annonce": "⏰ {prenom} will arrive about {minutes} min late (expected around {heure}).",
+  "notif.retard_sanction": "Unannounced delay of {minutes} min: one negative mark added.",
+  "qr_jour.retard": "⏰ I will be late",
+  "qr_jour.retard_autre": "Other…"
 }

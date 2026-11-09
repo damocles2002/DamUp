@@ -172,6 +172,24 @@ insert into public.traductions (cle, langue, texte) values
 ('qr_jour.luminosite', 'es', 'Sube el brillo de tu pantalla'),
 ('qr_jour.luminosite', 'zh', '调高屏幕亮度'),
 
+-- retards
+('notif.retard_annonce', 'fr', '⏰ {prenom} arrivera avec environ {minutes} min de retard (prévue vers {heure}).'),
+('notif.retard_annonce', 'en', '⏰ {prenom} will arrive about {minutes} min late (expected around {heure}).'),
+('notif.retard_annonce', 'es', '⏰ {prenom} llegará unos {minutes} min tarde (prevista hacia las {heure}).'),
+('notif.retard_annonce', 'zh', '⏰ {prenom} 将迟到约 {minutes} 分钟（预计 {heure} 到达）。'),
+('notif.retard_sanction', 'fr', 'Retard de {minutes} min non prévenu : un signe négatif a été ajouté.'),
+('notif.retard_sanction', 'en', 'Unannounced delay of {minutes} min: one negative mark added.'),
+('notif.retard_sanction', 'es', 'Retraso de {minutes} min sin aviso: se añadió una marca negativa.'),
+('notif.retard_sanction', 'zh', '迟到 {minutes} 分钟未通知：已添加一个负面标记。'),
+('qr_jour.retard', 'fr', '⏰ Je serai en retard'),
+('qr_jour.retard', 'en', '⏰ I will be late'),
+('qr_jour.retard', 'es', '⏰ Llegaré tarde'),
+('qr_jour.retard', 'zh', '⏰ 我会迟到'),
+('qr_jour.retard_autre', 'fr', 'Autre…'),
+('qr_jour.retard_autre', 'en', 'Other…'),
+('qr_jour.retard_autre', 'es', 'Otro…'),
+('qr_jour.retard_autre', 'zh', '其他…'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

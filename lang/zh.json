@@ -219,5 +219,9 @@
   "qr_jour.carte": "我今天的任务",
   "qr_jour.carte_demain": "我明天的任务",
   "qr_jour.bouton": "📱 显示我的二维码",
-  "qr_jour.luminosite": "调高屏幕亮度"
+  "qr_jour.luminosite": "调高屏幕亮度",
+  "notif.retard_annonce": "⏰ {prenom} 将迟到约 {minutes} 分钟（预计 {heure} 到达）。",
+  "notif.retard_sanction": "迟到 {minutes} 分钟未通知：已添加一个负面标记。",
+  "qr_jour.retard": "⏰ 我会迟到",
+  "qr_jour.retard_autre": "其他…"
 }

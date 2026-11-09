@@ -219,5 +219,9 @@
   "qr_jour.carte": "Ma mission aujourd'hui",
   "qr_jour.carte_demain": "Ma mission demain",
   "qr_jour.bouton": "📱 Afficher mon QR code",
-  "qr_jour.luminosite": "Monte la luminosité de ton écran"
+  "qr_jour.luminosite": "Monte la luminosité de ton écran",
+  "notif.retard_annonce": "⏰ {prenom} arrivera avec environ {minutes} min de retard (prévue vers {heure}).",
+  "notif.retard_sanction": "Retard de {minutes} min non prévenu : un signe négatif a été ajouté.",
+  "qr_jour.retard": "⏰ Je serai en retard",
+  "qr_jour.retard_autre": "Autre…"
 }

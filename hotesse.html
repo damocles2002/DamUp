@@ -200,7 +200,7 @@
     const demain = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const heure = new Date().getHours();
     const { data: cands } = await db.from("candidatures")
-      .select("qr_code, missions(date, heure_debut, heure_fin, etablissements(nom))")
+      .select("id, qr_code, missions(date, heure_debut, heure_fin, etablissements(nom))")
       .eq("hotesse_id", user.id)
       .eq("statut", "confirmee")
       .eq("annulation", false);
@@ -213,6 +213,7 @@
     const m = c.missions, e = m?.etablissements;
     const estDemain = m?.date === demain;
     window._qr_code_du_jour = c.qr_code;
+    window._candidature_du_jour = c.id;
     zone.style.display = "block";
     zone.innerHTML = `
       <div style="background:linear-gradient(135deg, var(--aubergine), #4A2540);color:#fff;border-radius:16px;padding:16px;box-shadow:0 6px 20px rgba(42,17,32,.18)">
@@ -220,6 +221,7 @@
         <div style="font-size:17px;font-weight:700;margin-top:8px">📍 ${esc(e?.nom || "")}</div>
         <div style="font-size:13px;margin-top:3px;opacity:.9">🕗 ${formatHeure(m?.heure_debut)} – ${formatHeure(m?.heure_fin)}</div>
         <button class="btn btn-champagne btn-block" style="margin-top:12px;font-weight:700" onclick="afficherMonQR()">${esc(t("qr_jour.bouton"))}</button>
+        <button class="btn" style="margin-top:8px;background:rgba(255,255,255,.15);color:#fff;font-weight:600;width:100%" onclick="annoncerRetard()">${esc(t("qr_jour.retard"))}</button>
       </div>`;
   }
 
@@ -241,6 +243,46 @@
         width: 260, height: 260, colorDark: "#2A1120"
       });
     }, 50);
+  }
+
+  // --- annoncer un retard (choix 15 min / 30 min / 1 h / autre) ---
+  function annoncerRetard() {
+    if (!window._candidature_du_jour) return;
+    const ov = document.createElement("div");
+    ov.id = "overlay-retard";
+    ov.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:flex-end;justify-content:center";
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:430px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 style="font-family:var(--font-titre);font-size:18px">${esc(t("qr_jour.retard"))}</h3><button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('overlay-retard').remove()">✕</button></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn" style="background:var(--champagne);color:var(--aubergine);font-weight:600" onclick="choisirRetard(15)">15 min</button>
+          <button class="btn" style="background:var(--champagne);color:var(--aubergine);font-weight:600" onclick="choisirRetard(30)">30 min</button>
+          <button class="btn" style="background:var(--champagne);color:var(--aubergine);font-weight:600" onclick="choisirRetard(60)">1 h</button>
+          <button class="btn" style="background:var(--ivoire);color:var(--aubergine)" onclick="choisirRetardAutre()">${esc(t("qr_jour.retard_autre"))}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  }
+
+  function choisirRetard(min) {
+    document.getElementById("overlay-retard")?.remove();
+    envoyerRetard(min);
+  }
+
+  function choisirRetardAutre() {
+    const min = parseInt(prompt("Retard en minutes (5 à 180) :") || "", 10);
+    if (isNaN(min)) return;
+    document.getElementById("overlay-retard")?.remove();
+    envoyerRetard(min);
+  }
+
+  async function envoyerRetard(min) {
+    const candId = window._candidature_du_jour;
+    if (!candId) return;
+    const { error } = await db.rpc("annoncer_retard", { p_candidature: candId, p_minutes: min });
+    if (error) { toast(error.message); return; }
+    toast("Retard annoncé ✅ L'établissement est prévenu.");
+    chargerQRJour();
   }
 
   // --- postuler : crée une candidature "en attente" ---
