@@ -154,6 +154,24 @@ insert into public.traductions (cle, langue, texte) values
 ('verif.rappel', 'es', 'No olvides verificar tu identidad (documento + selfie) para completar tu perfil.'),
 ('verif.rappel', 'zh', '请记得验证身份（证件 + 自拍）以完成您的资料。'),
 
+-- QR code du jour
+('qr_jour.carte', 'fr', 'Ma mission aujourd''hui'),
+('qr_jour.carte', 'en', 'My mission today'),
+('qr_jour.carte', 'es', 'Mi misión de hoy'),
+('qr_jour.carte', 'zh', '我今天的任务'),
+('qr_jour.carte_demain', 'fr', 'Ma mission demain'),
+('qr_jour.carte_demain', 'en', 'My mission tomorrow'),
+('qr_jour.carte_demain', 'es', 'Mi misión de mañana'),
+('qr_jour.carte_demain', 'zh', '我明天的任务'),
+('qr_jour.bouton', 'fr', '📱 Afficher mon QR code'),
+('qr_jour.bouton', 'en', '📱 Show my QR code'),
+('qr_jour.bouton', 'es', '📱 Mostrar mi código QR'),
+('qr_jour.bouton', 'zh', '📱 显示我的二维码'),
+('qr_jour.luminosite', 'fr', 'Monte la luminosité de ton écran'),
+('qr_jour.luminosite', 'en', 'Turn up your screen brightness'),
+('qr_jour.luminosite', 'es', 'Sube el brillo de tu pantalla'),
+('qr_jour.luminosite', 'zh', '调高屏幕亮度'),
+
 -- e-mail
 ('email.sujet', 'fr', 'DamUp : nouvelle notification'),
 ('email.sujet', 'en', 'DamUp : new notification'),

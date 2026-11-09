@@ -215,5 +215,9 @@
   "verif.piece": "Anverso del documento",
   "verif.selfie": "Selfie",
   "verif.envoyer": "Enviar mis documentos",
-  "verif.envoye": "Documentos enviados, en espera de revisión."
+  "verif.envoye": "Documentos enviados, en espera de revisión.",
+  "qr_jour.carte": "Mi misión de hoy",
+  "qr_jour.carte_demain": "Mi misión de mañana",
+  "qr_jour.bouton": "📱 Mostrar mi código QR",
+  "qr_jour.luminosite": "Sube el brillo de tu pantalla"
 }

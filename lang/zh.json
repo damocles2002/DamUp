@@ -215,5 +215,9 @@
   "verif.piece": "证件正面",
   "verif.selfie": "自拍",
   "verif.envoyer": "发送我的文件",
-  "verif.envoye": "文件已发送，等待审核。"
+  "verif.envoye": "文件已发送，等待审核。",
+  "qr_jour.carte": "我今天的任务",
+  "qr_jour.carte_demain": "我明天的任务",
+  "qr_jour.bouton": "📱 显示我的二维码",
+  "qr_jour.luminosite": "调高屏幕亮度"
 }

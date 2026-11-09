@@ -215,5 +215,9 @@
   "verif.piece": "Recto de la pièce d'identité",
   "verif.selfie": "Selfie",
   "verif.envoyer": "Envoyer mes documents",
-  "verif.envoye": "Documents envoyés, en attente de validation."
+  "verif.envoye": "Documents envoyés, en attente de validation.",
+  "qr_jour.carte": "Ma mission aujourd'hui",
+  "qr_jour.carte_demain": "Ma mission demain",
+  "qr_jour.bouton": "📱 Afficher mon QR code",
+  "qr_jour.luminosite": "Monte la luminosité de ton écran"
 }

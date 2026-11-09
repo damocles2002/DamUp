@@ -215,5 +215,9 @@
   "verif.piece": "Front of your ID",
   "verif.selfie": "Selfie",
   "verif.envoyer": "Send my documents",
-  "verif.envoye": "Documents sent, awaiting review."
+  "verif.envoye": "Documents sent, awaiting review.",
+  "qr_jour.carte": "My mission today",
+  "qr_jour.carte_demain": "My mission tomorrow",
+  "qr_jour.bouton": "📱 Show my QR code",
+  "qr_jour.luminosite": "Turn up your screen brightness"
 }
