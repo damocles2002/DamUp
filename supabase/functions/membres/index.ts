@@ -35,6 +35,15 @@ Deno.serve(async (req) => {
     });
     const { data: { user } } = await caller.auth.getUser();
     if (!user) return json(req, { error: "Non authentifié" }, 401);
+    // exiger la double vérification (aal2)
+    try {
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const payload = token.split(".")[1];
+      const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+      if (claims.aal !== "aal2") return json(req, { error: "Double vérification requise" }, 403);
+    } catch {
+      return json(req, { error: "Jeton invalide" }, 401);
+    }
 
     const { data: moi } = await admin.from("equipe").select("*").eq("user_id", user.id).single();
     if (!moi || moi.suspendu) return json(req, { error: "Membre inactif ou introuvable" }, 403);
@@ -147,9 +156,31 @@ Deno.serve(async (req) => {
       if (!cible) return json(req, { error: "Membre introuvable" }, 404);
       const { data: authUser } = await admin.auth.admin.getUserById(cible.user_id);
       const au = authUser?.user ?? {};
+      let mfa_active = false;
+      try {
+        const { data: f } = await admin.auth.admin.mfa.listFactors({ userId: cible.user_id });
+        mfa_active = (f?.factors || []).some(x => x.status === "verified");
+      } catch {}
       const { data: stats } = await admin.rpc("admin_stats_membre", { p_uid: cible.user_id });
       const { data: actions } = await admin.from("journal_admin").select("*").eq("auteur_id", cible.user_id).order("created_at", { ascending: false }).limit(20);
-      return json(req, { data: { membre: cible, email: au.email ?? "", created_at: au.created_at ?? "", last_sign_in_at: au.last_sign_in_at ?? null, stats, actions } });
+      return json(req, { data: { membre: cible, email: au.email ?? "", created_at: au.created_at ?? "", last_sign_in_at: au.last_sign_in_at ?? null, mfa_active, stats, actions } });
+    }
+
+    // ---- réinitialiser la double vérification d'un membre (propriétaire) ----
+    if (action === "reset_mfa") {
+      if (!jeSuisProprio) return json(req, { error: "Réservé au propriétaire" }, 403);
+      const { id } = body;
+      const { data: cible } = await admin.from("equipe").select("*").eq("id", id).single();
+      if (!cible) return json(req, { error: "Membre introuvable" }, 404);
+      if (cible.proprietaire) return json(req, { error: "Impossible de réinitialiser la double vérification du propriétaire" }, 403);
+      try {
+        const { data: f } = await admin.auth.admin.mfa.listFactors({ userId: cible.user_id });
+        for (const factor of (f?.factors || [])) {
+          await admin.auth.admin.mfa.deleteFactor({ userId: cible.user_id, id: factor.id });
+        }
+      } catch (e) { return json(req, { error: (e as Error).message }, 400); }
+      await journal("mfa_reset", "equipe", id, {});
+      return json(req, { ok: true });
     }
 
     return json(req, { error: "Action inconnue" }, 400);

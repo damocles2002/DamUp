@@ -110,6 +110,8 @@
   let jeSuisProprio = false;
   let droitsCharges = false;
   let monId = null;
+  let mfaFactorId = null;
+  let mfaSecret = "";
 
   async function init() {
     const { data } = await auth.getUser();
@@ -117,6 +119,9 @@
     monId = data.user.id;
     const { data: p } = await db.from("profiles").select("type").eq("id", data.user.id).single();
     if (!p || p.type !== "admin") { toast("Accès réservé à l'administrateur."); location.href = "index.html"; return; }
+    // double vérification obligatoire (TOTP)
+    const { data: aal } = await auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.currentLevel === "aal1") { afficherMfa(); return; }
     try {
       const { data: moi, error } = await sb.functions.invoke("membres", { body: { action: "moi" } });
       if (error || !moi?.data) {
@@ -133,6 +138,48 @@
     }
     adapterMenu();
     afficher();
+  }
+
+  function afficherMfa() {
+    auth.mfa.listFactors().then(async ({ data: facteurs }) => {
+      const totp = (facteurs?.totp || []).find(f => f.status === "verified") || (facteurs?.totp || []).find(f => f.status === "unverified");
+      if (!totp) {
+        const { data, error } = await auth.mfa.enroll({ factorType: "totp" });
+        if (error) { toast(error.message, "erreur"); return; }
+        mfaFactorId = data.id;
+        mfaSecret = data.totp.secret;
+        main.innerHTML = `<div style="max-width:440px;margin:0 auto;padding:20px">
+          <h1>Protège ton compte</h1>
+          <p style="color:var(--gris);line-height:1.6">La double vérification est obligatoire pour accéder au back-office. Scanne ce QR code avec Google Authenticator, Microsoft Authenticator ou Authy.</p>
+          <div style="display:flex;justify-content:center;margin:16px 0">${data.totp.qr_code}</div>
+          <p style="font-size:13px;color:var(--gris)">Clé manuelle (si tu ne peux pas scanner) : <code style="word-break:break-all">${esc(mfaSecret)}</code></p>
+          <div style="padding:10px;background:#FFF3E0;border-radius:8px;font-size:12.5px;color:#9A5B00;margin:12px 0">Note ta clé de secours dans un endroit sûr (hors du téléphone) : sans elle, si tu perds ton téléphone, seule une intervention dans Supabase pourra te rendre l'accès.</div>
+          <div class="champ"><label class="label">Code à 6 chiffres</label><input class="field" id="mfa-code" inputmode="numeric" placeholder="123456"></div>
+          <button class="btn btn-primaire btn-block" onclick="verifierMfa()">Activer la double vérification</button>
+          <div style="text-align:center;margin-top:14px"><a style="color:var(--aubergine);cursor:pointer" onclick="deconnecter()">Se déconnecter</a></div>
+        </div>`;
+      } else {
+        mfaFactorId = totp.id;
+        main.innerHTML = `<div style="max-width:440px;margin:0 auto;padding:20px">
+          <h1>Code de vérification</h1>
+          <p style="color:var(--gris);line-height:1.6">Entre le code à 6 chiffres de ton application d'authentification.</p>
+          <div class="champ"><label class="label">Code à 6 chiffres</label><input class="field" id="mfa-code" inputmode="numeric" placeholder="123456"></div>
+          <button class="btn btn-primaire btn-block" onclick="verifierMfa()">Vérifier</button>
+          <div style="text-align:center;margin-top:14px"><a style="color:var(--aubergine);cursor:pointer" onclick="deconnecter()">Se déconnecter</a></div>
+        </div>`;
+      }
+    });
+  }
+
+  async function verifierMfa() {
+    const code = document.getElementById("mfa-code").value.trim();
+    if (code.length !== 6) { toast("Entre le code à 6 chiffres.", "erreur"); return; }
+    const { data: challenge, error } = await auth.mfa.challenge({ factorId: mfaFactorId });
+    if (error) { toast(error.message, "erreur"); return; }
+    const { error: err } = await auth.mfa.verify({ factorId: mfaFactorId, challengeId: challenge.id, code });
+    if (err) { toast("Code incorrect.", "erreur"); return; }
+    await auth.refreshSession();
+    location.reload();
   }
 
   function ai(d) { return jeSuisProprio || mesDroits[d] === true; }
@@ -935,6 +982,11 @@
         <div style="font-size:13px;margin-top:4px">💶 Voit la recette : ${voitRec ? "Oui" : "Non"}<br>💳 Peut encaisser et annuler : ${encaisse ? "Oui" : "Non"}<br>⚙️ Peut changer tarifs/réglages : ${change ? "Oui" : "Non"}</div>
         ${m.proprietaire ? '<div style="font-size:12.5px;color:var(--gris);margin-top:6px">Propriétaire : tous les droits, non modifiables.</div>' : (voitRec ? `<button class="btn btn-sm" style="background:var(--danger);color:#fff;margin-top:8px" onclick="retirerAccesRecette('${m.id}')">Retirer l'accès à la recette</button>` : "")}
       </div>
+      <div style="padding:12px;border-radius:12px;background:#F4E8D6;margin-bottom:14px">
+        <div style="font-weight:700">🔐 Double vérification</div>
+        <div style="font-size:13px;margin-top:4px">${d.mfa_active ? "Activée ✅" : "Non activée ⚠️"}</div>
+        ${!m.proprietaire && d.mfa_active ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:6px" onclick="resetMfa('${m.id}')">Réinitialiser sa double vérification</button>` : ""}
+      </div>
       <div style="margin-bottom:12px"><b>Droits :</b><div style="font-size:12.5px;margin-top:4px">${DROITS_DISPONIBLES.map(x => `<div>${membreA(m, x.key) ? "✅" : "❌"} ${x.label}</div>`).join("")}</div></div>
       <div style="margin-bottom:12px"><b>Chiffres (30 j)</b><div style="font-size:12.5px;margin-top:4px">${s["30j"] ? `Validations ${s["30j"].validations} · refus ${s["30j"].refus} · suspensions ${s["30j"].suspensions} · paiements ${s["30j"].paiements} · sanctions annulées ${s["30j"].sanctions_annulees} · exports ${s["30j"].exports} · conversations lues ${s["30j"].conversations}` : "…"}</div></div>
       <div><b>Dernières actions</b>${(act || []).length ? act.slice(0, 5).map(a => `<div style="font-size:12px;color:var(--gris);padding:3px 0">${esc(a.action)} · ${new Date(a.created_at).toLocaleString("fr-FR")}</div>`).join("") : '<div style="font-size:12.5px;color:var(--gris)">Aucune action.</div>'}</div>
@@ -953,6 +1005,15 @@
     const { data, error } = await sb.functions.invoke("membres", { body: { action: "update", id, nom: m.nom, droits } });
     if (error || (data && data.error)) { toast(data?.error || error?.message, "erreur"); return; }
     toast("Accès à la recette retiré ✅");
+    document.getElementById("modal-fiche-membre")?.remove();
+    chargerMembres();
+  }
+
+  async function resetMfa(id) {
+    if (!await demander("Réinitialiser la double vérification de ce membre ? Il devra la réactiver à sa prochaine connexion.")) return;
+    const { data, error } = await sb.functions.invoke("membres", { body: { action: "reset_mfa", id } });
+    if (error || (data && data.error)) { toast(data?.error || error?.message, "erreur"); return; }
+    toast("Double vérification réinitialisée ✅");
     document.getElementById("modal-fiche-membre")?.remove();
     chargerMembres();
   }

@@ -301,6 +301,7 @@ AS $function$
     select 1 from public.equipe e
     join public.profiles p on p.id = e.user_id
     where e.user_id = auth.uid() and p.type = 'admin' and not e.suspendu and not p.suspendu
+      and coalesce(auth.jwt() ->> 'aal', '') = 'aal2'
       and (e.proprietaire or coalesce((e.droits ->> p_droit)::boolean, false))
   );
 $function$;
@@ -1151,7 +1152,9 @@ CREATE OR REPLACE FUNCTION public.est_proprietaire()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select exists (select 1 from public.equipe where user_id = auth.uid() and proprietaire and not suspendu);
+  select exists (select 1 from public.equipe
+                  where user_id = auth.uid() and proprietaire and not suspendu
+                    and coalesce(auth.jwt() ->> 'aal', '') = 'aal2');
 $function$;
 
 CREATE OR REPLACE FUNCTION public.est_suspendu()
@@ -1304,6 +1307,7 @@ AS $function$
   select exists (
     select 1 from public.profiles p join public.equipe e on e.user_id = p.id
     where p.id = auth.uid() and p.type = 'admin' and not p.suspendu and not e.suspendu
+      and coalesce(auth.jwt() ->> 'aal', '') = 'aal2'
   );
 $function$;
 
