@@ -107,6 +107,7 @@
   <div id="bloc-abonnement"></div>
   <div id="partenaire-suivi" style="text-align:center;margin:14px 0"></div>
   <div style="text-align:center;margin:8px 0 14px"><a style="color:var(--aubergine);cursor:pointer;font-weight:600" onclick="demanderInstallation()" data-i18n="commun.installer">📲 Installer l'application</a></div>
+  <div class="section"><h2>🔐 Sécuriser mon compte</h2><div id="securite-compte"></div></div>
   <div id="notifications"></div>
 
   <nav class="bottomnav">
@@ -121,6 +122,7 @@
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/mfa.js"></script>
 <script src="js/install.js"></script>
 <script src="js/push.js"></script>
 <script>
@@ -141,6 +143,49 @@
     chargerNotifications("notifications");
     chargerCodeDamup();
     chargerVerification();
+    chargerSecurite();
+  }
+
+  // ---- double vérification (facultative) ----
+  async function chargerSecurite() {
+    const zone = document.getElementById("securite-compte");
+    if (!zone) return;
+    const actif = await mfaActif();
+    zone.innerHTML = actif
+      ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span>Double vérification : <b style="color:var(--ok)">activée</b></span><button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="desactiverMfa()">Désactiver</button></div>`
+      : `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span>Double vérification : <b>non activée</b></span><button class="btn btn-sm btn-primaire" onclick="activerMfa()">Sécuriser</button></div>`;
+  }
+  async function activerMfa() {
+    const data = await mfaEnroller();
+    const modal = document.createElement("div");
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:center;justify-content:center;padding:20px";
+    modal.innerHTML = `<div style="background:#fff;border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:90vh;overflow-y:auto">
+      <h3 style="font-family:var(--font-titre)">Activer la double vérification</h3>
+      <p style="font-size:13px;color:var(--gris)">Scanne ce QR code avec Google Authenticator, Microsoft Authenticator ou Authy.</p>
+      <div style="display:flex;justify-content:center;margin:14px 0">${data.totp.qr_code}</div>
+      <p style="font-size:12px;color:var(--gris)">Clé manuelle : <code style="word-break:break-all">${esc(data.totp.secret)}</code></p>
+      <div class="champ"><label class="label">Code à 6 chiffres</label><input class="field" id="mfa-code-h" inputmode="numeric" placeholder="123456"></div>
+      <button class="btn btn-primaire btn-block" onclick="confirmerMfaH('${data.id}')">Activer</button>
+      <button class="btn btn-block" style="margin-top:8px" onclick="this.closest('div[style*=fixed]').remove()">Annuler</button>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  async function confirmerMfaH(factorId) {
+    const code = document.getElementById("mfa-code-h").value.trim();
+    try {
+      await mfaVerifier(factorId, code);
+      toast("Double vérification activée ✅", "ok");
+      document.querySelector("div[style*='fixed']")?.remove();
+      chargerSecurite();
+    } catch (e) {
+      toast("Code incorrect.", "erreur");
+    }
+  }
+  async function desactiverMfa() {
+    if (!await demander("Désactiver la double vérification ?")) return;
+    await mfaDesactiver();
+    toast("Double vérification désactivée.");
+    chargerSecurite();
   }
 
   async function chargerVerification() {
