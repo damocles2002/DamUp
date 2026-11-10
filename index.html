@@ -87,6 +87,8 @@
   </nav>
 </header>
 
+<div id="partenaire-bandeau" class="wrap" style="display:none;text-align:center;padding:12px 20px 0;font-size:13px;color:var(--champagne)"></div>
+
 <main>
   <!-- Section 1 : Accroche -->
   <section class="hero wrap">
@@ -232,6 +234,10 @@
       pf.style.display = "inline";
       pf.href = lien;
       pf.textContent = "@" + compte;
+      // bandeau en haut de page
+      const bandeau = document.getElementById("partenaire-bandeau");
+      bandeau.style.display = "block";
+      bandeau.innerHTML = t("partenaire.avec", { nom: '<a href="' + lien + '" target="_blank" rel="noopener" style="color:var(--champagne);font-weight:700;text-decoration:underline">' + esc(nom) + '</a>' });
     });
   } catch (e) {}
 

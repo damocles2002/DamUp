@@ -16,9 +16,9 @@
 <link rel="stylesheet" href="css/style.css">
 <style>
   body { background: radial-gradient(120% 120% at 50% 0%, #4E223F 0%, #2A1120 55%, #1E0C17 100%);
-         color: var(--ivoire); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+         color: var(--ivoire); min-height: 100vh; min-height: 100dvh; display: flex; justify-content: center; padding: 20px; padding-top: max(20px, env(safe-area-inset-top)); box-sizing: border-box; }
   .carte-auth { width: 100%; max-width: 440px; background: var(--blanc); color: var(--encre);
-                border-radius: 22px; padding: 30px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+                border-radius: 22px; padding: 30px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.4); margin: auto 0; }
   .logo { text-align: center; margin-bottom: 6px; }
   .logo img { width: 56px; margin: 0 auto; }
   .logo h1 { font-family: var(--font-titre); font-size: 28px; margin-top: 4px; }
@@ -51,6 +51,8 @@
   </div>
   <div class="sous" id="sous-titre"></div>
 
+  <div id="partenaire-login" style="display:none;text-align:center;font-size:12.5px;color:var(--gris);margin:-6px 0 12px"></div>
+
   <div class="choix-role" id="choix-role">
     <div class="role on" data-role="hotesse" data-i18n="login.hotesse">✨ Hôtesse</div>
     <div class="role" data-role="etablissement" data-i18n="login.etablissement">🏠 Établissement</div>
@@ -65,9 +67,9 @@
   </div>
   <div class="champ">
     <label class="label" data-i18n="login.mdp">Mot de passe</label>
-    <input class="field" type="password" id="mdp" data-i18n-placeholder="login.mdp_placeholder" placeholder="6 caractères minimum">
+    <input class="field" type="password" id="mdp" minlength="10" data-i18n-placeholder="login.mdp_placeholder" placeholder="10 caractères minimum">
   </div>
-  <div style="text-align:right;margin:-6px 0 10px"><a id="lien-oubli" style="color:var(--aubergine);font-size:12.5px;font-weight:600;cursor:pointer" data-i18n="login.oubli">Mot de passe oublié ?</a></div>
+  <div id="ligne-oubli" style="text-align:right;margin:-6px 0 10px"><a id="lien-oubli" style="color:var(--aubergine);font-size:12.5px;font-weight:600;cursor:pointer" data-i18n="login.oubli">Mot de passe oublié ?</a></div>
 
   <!-- champs selon le rôle (renseignements obligatoires du cahier des charges) -->
   <div id="champs-role" class="visible"></div>
@@ -174,6 +176,7 @@
       choixRole.style.display = "grid";
       champsRole.classList.add("visible");
       document.getElementById("bloc-cgu").style.display = "block";
+      document.getElementById("ligne-oubli").style.display = "none";
       afficherIndicateurMdp(true);
       if (verifierMdp) btn.disabled = !verifierMdp().ok;
     } else {
@@ -184,6 +187,7 @@
       choixRole.style.display = "none";
       champsRole.classList.remove("visible");
       document.getElementById("bloc-cgu").style.display = "none";
+      document.getElementById("ligne-oubli").style.display = "";
       afficherIndicateurMdp(false);
       btn.disabled = false;
     }
@@ -276,6 +280,16 @@
     rendreCGU();
     adapterChamps();
     appliquerLangueDOM();
+    // partenaire (bandeau au-dessus des boutons)
+    db.from("settings").select("key, value").in("key", ["partenaire_nom", "partenaire_lien"]).then(({ data }) => {
+      const s = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+      const lien = (s.partenaire_lien || "").trim();
+      if (!lien) return;
+      const nom = (s.partenaire_nom || "Le Barreau des Barmans").trim();
+      const el = document.getElementById("partenaire-login");
+      el.style.display = "block";
+      el.innerHTML = t("partenaire.avec", { nom: '<a href="' + lien + '" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:700">' + esc(nom) + '</a>' });
+    });
     // indicateur de solidité du mot de passe (inscription)
     verifierMdp = brancherIndicateurMdp(document.getElementById("mdp"), () => ({
       email: document.getElementById("email").value,

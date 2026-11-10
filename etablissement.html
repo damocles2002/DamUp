@@ -797,12 +797,14 @@
 
   function chargerPartenaire() {
     try {
-      db.from("settings").select("value").eq("key", "partenaire_lien").single().then(({ data }) => {
-        const lien = (data && data.value || "").trim();
+      db.from("settings").select("key, value").in("key", ["partenaire_nom", "partenaire_lien"]).then(({ data }) => {
+        const s = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+        const lien = (s.partenaire_lien || "").trim();
         const zone = document.getElementById("partenaire-suivi");
         if (!zone) return;
         if (!lien) { zone.innerHTML = ""; return; }
-        zone.innerHTML = `<a href="${esc(lien)}" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:600">📸 Suivre notre partenaire</a>`;
+        const nom = (s.partenaire_nom || "Le Barreau des Barmans").trim();
+        zone.innerHTML = t("partenaire.avec", { nom: '<a href="' + lien + '" target="_blank" rel="noopener" style="color:var(--aubergine);font-weight:700">' + esc(nom) + '</a>' });
       });
     } catch (e) {}
   }

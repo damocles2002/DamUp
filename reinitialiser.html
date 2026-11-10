@@ -15,8 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <style>
-  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; }
-  .carte-auth { background: var(--ivoire-2); width: 100%; max-width: 430px; min-height: 100vh; padding: 40px 24px; }
+  body { background: #140A11; display: flex; justify-content: center; min-height: 100vh; min-height: 100dvh; }
+  .carte-auth { background: var(--ivoire-2); width: 100%; max-width: 430px; min-height: 100vh; min-height: 100dvh; padding: 40px 24px; }
   .logo { text-align: center; margin-bottom: 24px; }
   .logo img { width: 64px; margin: 0 auto 8px; }
   .logo h1 { font-family: var(--font-titre); font-size: 26px; }
@@ -33,7 +33,7 @@
 <div class="carte-auth">
   <div class="logo"><img src="assets/logo-couronne.png" alt="DamUp"><h1>DamUp</h1></div>
   <div class="msg" id="msg"></div>
-  <div class="champ"><label class="label" data-i18n="reinit.nouveau">Nouveau mot de passe</label><input class="field" type="password" id="mdp1" data-i18n-placeholder="reinit.placeholder" placeholder="8 caractères minimum"></div>
+  <div class="champ"><label class="label" data-i18n="reinit.nouveau">Nouveau mot de passe</label><input class="field" type="password" id="mdp1" minlength="10" data-i18n-placeholder="reinit.placeholder" placeholder="10 caractères minimum"></div>
   <div class="champ"><label class="label" data-i18n="reinit.confirme">Confirme le mot de passe</label><input class="field" type="password" id="mdp2" data-i18n-placeholder="reinit.identique" placeholder="Identique"></div>
   <button class="btn btn-primaire btn-block" id="btn-changer" onclick="changer()" data-i18n="reinit.bouton">Changer mon mot de passe</button>
 </div>
