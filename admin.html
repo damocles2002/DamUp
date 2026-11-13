@@ -79,6 +79,9 @@
       <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
     </nav>
     <div class="profil">Connecté en <b>Administrateur</b></div>
+    <label style="display:flex;gap:8px;align-items:center;padding:8px 14px;font-size:12.5px;cursor:pointer;border-top:1px solid rgba(255,255,255,.12)">
+      <input type="checkbox" id="email-equipe" onchange="sauverPrefEmailEquipe()" style="accent-color:var(--champagne)"> E-mails d'alerte
+    </label>
     <a class="logout" id="logout"><span class="ico">🚪</span>Se déconnecter</a>
     <a class="logout" id="logout-global"><span class="ico">🔒</span>Déconnecter partout</a>
   </aside>
@@ -144,6 +147,7 @@
     }
     adapterMenu();
     reinitialiserInactivite();
+    chargerPrefEmailEquipe();
     // navigation par hash (clic sur une notification équipe)
     if (location.hash === "#missions" || location.hash === "#utilisateurs") {
       vue = location.hash.slice(1);
@@ -204,6 +208,20 @@
     if (!data.user) { location.href = "login.html"; return; }
     if (data.user.user_metadata?.doit_changer_mdp) { afficherChoixMdp(); return; }
     afficherMfa();
+  }
+
+  async function chargerPrefEmailEquipe() {
+    const cb = document.getElementById("email-equipe");
+    if (!cb || !monId) return;
+    const { data } = await db.from("preferences_notif").select("email_equipe").eq("user_id", monId).single();
+    cb.checked = data?.email_equipe !== false;
+  }
+  async function sauverPrefEmailEquipe() {
+    const cb = document.getElementById("email-equipe");
+    if (!cb || !monId) return;
+    const { error } = await db.from("preferences_notif").upsert({ user_id: monId, email_equipe: cb.checked, updated_at: new Date().toISOString() });
+    if (error) { toast(error.message, "erreur"); cb.checked = !cb.checked; return; }
+    toast("Préférence enregistrée ✅");
   }
 
   function afficherChoixMdp() {
