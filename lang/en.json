@@ -207,8 +207,8 @@
   "err.session": "Your session has expired, sign in again.",
   "notif.message.nouveau": "💬 {nom} sent you a message.",
   "copine.proposee": "👯 {prenom} invites you to join her at {lieu} on {date}.",
-  "copine.acceptee": "Invitation accepted ✅",
-  "copine.refusee": "Invitation declined.",
+  "copine.acceptee": "✅ {prenom} accepted your invitation at {lieu}.",
+  "copine.refusee": "{prenom} declined your invitation.",
   "copine.candidate": "👯 {prenom}'s friend applied to your mission.",
   "verif.rappel": "Don't forget to verify your identity (ID + selfie) to complete your profile.",
   "verif.titre": "Verify my identity",
@@ -250,7 +250,7 @@
   "copine.envoyer": "Send",
   "copine.choix_lien_titre": "She's not signed up yet",
   "copine.prenom_placeholder": "Your friend's first name",
-  "copine.whatsapp": "Invite on WhatsApp",
+  "copine.whatsapp": "Send on WhatsApp",
   "copine.copier_lien": "Copy link",
   "copine.plus_tard": "Later",
   "copine.envoyee": "Invitation sent to your friend ✅",
@@ -271,5 +271,9 @@
   "copine.accepter_deux": "Accept both",
   "copine.une_place_restante": "Only one spot left",
   "copine.statut_a_accepter": "invitation received",
-  "copine.photos_min": "Add at least 4 photos to your profile before applying (minimum)."
+  "copine.photos_min": "Add at least 4 photos to your profile before applying (minimum).",
+  "copine.toast_acceptee": "Invitation accepted ✅",
+  "copine.toast_refusee": "Invitation declined.",
+  "copine.creer": "Create invitation",
+  "copine.partager": "Share…"
 }

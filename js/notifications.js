@@ -33,9 +33,15 @@ function initCloche(containerId, userId) {
     if (!data || !data.length) {
       menu.innerHTML = '<div style="padding:16px;color:var(--gris);font-size:13px">Aucune notification</div>';
     } else {
+      const routesCopine = {
+        "copine.proposee": "hotesse.html#invitations",
+        "copine.acceptee": "hotesse-profil.html",
+        "copine.refusee": "hotesse-profil.html",
+        "copine.candidate": "etablissement.html",
+      };
       menu.innerHTML = data.map(n => {
-        const estCopine = (n.cle || "").startsWith("copine.");
-        return `<div style="padding:12px 14px;border-bottom:1px solid #F1E9DA;font-size:13.5px;${n.lu ? "" : "background:#FFF8EE;font-weight:500"}${estCopine ? ";cursor:pointer" : ""}"${estCopine ? ` onclick="location.href='hotesse.html#invitations'"` : ""}>${esc(n.message)}</div>`;
+        const dest = routesCopine[n.cle || ""];
+        return `<div style="padding:12px 14px;border-bottom:1px solid #F1E9DA;font-size:13.5px;${n.lu ? "" : "background:#FFF8EE;font-weight:500"}${dest ? ";cursor:pointer" : ""}"${dest ? ` onclick="location.href='${dest}'"` : ""}>${esc(n.message)}</div>`;
       }).join("") +
         `<div style="padding:10px;text-align:center"><a style="color:var(--aubergine);font-size:12.5px;font-weight:600;cursor:pointer" onclick="toutLu()">Tout marquer comme lu</a></div>`;
     }

@@ -51,8 +51,12 @@ async function ouvrirProposerCopine(candidatureId) {
       <div style="border:1.5px solid #EADFCC;border-radius:12px;padding:12px">
         <div style="font-weight:700;font-size:13.5px;margin-bottom:8px">${t("copine.choix_lien_titre")}</div>
         <input class="field" id="copine-prenom" placeholder="${t("copine.prenom_placeholder")}">
-        <button class="btn btn-primaire btn-block btn-sm" style="margin-top:8px" onclick="envoyerCopineLien('${candidatureId}')">${t("copine.whatsapp")}</button>
-        <button class="btn btn-block btn-sm" id="btn-copier-lien" style="margin-top:6px;background:var(--ivoire);color:var(--aubergine);display:none">${t("copine.copier_lien")}</button>
+        <button class="btn btn-primaire btn-block btn-sm" id="btn-creer-invitation" style="margin-top:8px" onclick="creerInvitation('${candidatureId}')">${t("copine.creer")}</button>
+        <div id="actions-invitation" style="display:none;margin-top:8px">
+          <a class="btn btn-block btn-sm" id="lien-whatsapp" target="_blank" rel="noopener" style="background:#25D366;color:#fff">${t("copine.whatsapp")}</a>
+          <button class="btn btn-block btn-sm" style="margin-top:6px;background:var(--champagne);color:var(--aubergine)" onclick="partagerInvitation()">${t("copine.partager")}</button>
+          <button class="btn btn-block btn-sm" style="margin-top:6px;background:var(--ivoire);color:var(--aubergine)" onclick="copierLienInvitation()">${t("copine.copier_lien")}</button>
+        </div>
       </div>
       <button class="btn btn-block" style="margin-top:12px;background:transparent;color:var(--gris)" onclick="document.getElementById('overlay-copine').remove()">${t("copine.plus_tard")}</button>
     </div>`;
@@ -68,20 +72,31 @@ async function envoyerCopineCode(candidatureId) {
   toast(t("copine.envoyee"));
 }
 
-async function envoyerCopineLien(candidatureId) {
+let _lienInvitation = "";
+let _texteInvitation = "";
+
+async function creerInvitation(candidatureId) {
   const prenom = (document.getElementById("copine-prenom")?.value || "").trim();
   if (!prenom) { toast(t("copine.prenom_manquant")); return; }
   const { data: codeInv, error } = await db.rpc("proposer_copine", { p_candidature: candidatureId, p_code_damup: null, p_prenom: prenom });
   if (error) { toast(error.message); return; }
   if (!codeInv) { document.getElementById("overlay-copine")?.remove(); toast(t("copine.envoyee")); return; }
-  const lien = SITE_URL + "/login.html?mode=inscription&role=hotesse&invitation=" + codeInv;
-  const texte = t("copine.texte_whatsapp", { lieu: window._copine_lieu || "", date: window._copine_date || "", lien });
-  window.open("https://wa.me/?text=" + encodeURIComponent(texte), "_blank");
-  const btn = document.getElementById("btn-copier-lien");
-  if (btn) {
-    btn.style.display = "block";
-    btn.onclick = () => { (navigator.clipboard ? navigator.clipboard.writeText(lien) : Promise.reject()).then(() => toast(t("commun.copie"))); };
-  }
+  _lienInvitation = SITE_URL + "/login.html?mode=inscription&role=hotesse&invitation=" + codeInv;
+  _texteInvitation = t("copine.texte_whatsapp", { lieu: window._copine_lieu || "", date: window._copine_date || "", lien: _lienInvitation });
+  // afficher des boutons prêts à l'emploi (pas de window.open après un await : Safari bloque)
+  document.getElementById("btn-creer-invitation").style.display = "none";
+  document.getElementById("actions-invitation").style.display = "block";
+  document.getElementById("lien-whatsapp").href = "https://wa.me/?text=" + encodeURIComponent(_texteInvitation);
+}
+
+function partagerInvitation() {
+  if (navigator.share) { navigator.share({ title: "DamUp", text: _texteInvitation }).catch(() => {}); }
+  else { copierLienInvitation(); }
+}
+
+function copierLienInvitation() {
+  (navigator.clipboard ? navigator.clipboard.writeText(_lienInvitation) : Promise.reject())
+    .then(() => toast(t("commun.copie")));
 }
 
 // --- Écran 2 : bloc « Invitations 👯 » ---
@@ -121,6 +136,6 @@ async function repondreInvitation(id, accepte) {
   }
   const { error } = await db.rpc("repondre_invitation", { p_invitation: id, p_accepte: accepte });
   if (error) { toast(error.message); return; }
-  toast(accepte ? t("copine.acceptee") : t("copine.refusee"));
+  toast(accepte ? t("copine.toast_acceptee") : t("copine.toast_refusee"));
   chargerInvitationsCopine("invitations-copine");
 }

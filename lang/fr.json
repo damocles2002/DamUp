@@ -207,8 +207,8 @@
   "err.session": "Ta session a expiré, reconnecte-toi.",
   "notif.message.nouveau": "💬 {nom} t'a écrit un message.",
   "copine.proposee": "👯 {prenom} te propose de venir avec elle chez {lieu} le {date}.",
-  "copine.acceptee": "Invitation acceptée ✅",
-  "copine.refusee": "Invitation refusée.",
+  "copine.acceptee": "✅ {prenom} a accepté ton invitation chez {lieu}.",
+  "copine.refusee": "{prenom} a refusé ton invitation.",
   "copine.candidate": "👯 La copine de {prenom} a postulé à ta mission.",
   "verif.rappel": "N'oublie pas de vérifier ton identité (pièce d'identité + selfie) pour finaliser ton profil.",
   "verif.titre": "Vérifier mon identité",
@@ -250,7 +250,7 @@
   "copine.envoyer": "Envoyer",
   "copine.choix_lien_titre": "Elle n'est pas encore inscrite",
   "copine.prenom_placeholder": "Prénom de ta copine",
-  "copine.whatsapp": "Inviter sur WhatsApp",
+  "copine.whatsapp": "Envoyer sur WhatsApp",
   "copine.copier_lien": "Copier le lien",
   "copine.plus_tard": "Plus tard",
   "copine.envoyee": "Invitation envoyée à ta copine ✅",
@@ -271,5 +271,9 @@
   "copine.accepter_deux": "Accepter les deux",
   "copine.une_place_restante": "Il ne reste qu'une place",
   "copine.statut_a_accepter": "invitation reçue",
-  "copine.photos_min": "Ajoute au moins 4 photos sur ton profil pour postuler (minimum requis)."
+  "copine.photos_min": "Ajoute au moins 4 photos sur ton profil pour postuler (minimum requis).",
+  "copine.toast_acceptee": "Invitation acceptée ✅",
+  "copine.toast_refusee": "Invitation refusée.",
+  "copine.creer": "Créer l'invitation",
+  "copine.partager": "Partager…"
 }

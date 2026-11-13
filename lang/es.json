@@ -207,8 +207,8 @@
   "err.session": "Tu sesión ha caducado, inicia sesión de nuevo.",
   "notif.message.nouveau": "💬 {nom} te ha enviado un mensaje.",
   "copine.proposee": "👯 {prenom} te propone venir con ella a {lieu} el {date}.",
-  "copine.acceptee": "Invitación aceptada ✅",
-  "copine.refusee": "Invitación rechazada.",
+  "copine.acceptee": "✅ {prenom} aceptó tu invitación en {lieu}.",
+  "copine.refusee": "{prenom} rechazó tu invitación.",
   "copine.candidate": "👯 La amiga de {prenom} se postuló a tu misión.",
   "verif.rappel": "No olvides verificar tu identidad (documento + selfie) para completar tu perfil.",
   "verif.titre": "Verificar mi identidad",
@@ -250,7 +250,7 @@
   "copine.envoyer": "Enviar",
   "copine.choix_lien_titre": "Todavía no está registrada",
   "copine.prenom_placeholder": "Nombre de tu amiga",
-  "copine.whatsapp": "Invitar por WhatsApp",
+  "copine.whatsapp": "Enviar por WhatsApp",
   "copine.copier_lien": "Copiar enlace",
   "copine.plus_tard": "Más tarde",
   "copine.envoyee": "Invitación enviada a tu amiga ✅",
@@ -271,5 +271,9 @@
   "copine.accepter_deux": "Aceptar a las dos",
   "copine.une_place_restante": "Solo queda una plaza",
   "copine.statut_a_accepter": "invitación recibida",
-  "copine.photos_min": "Añade al menos 4 fotos a tu perfil para postular (mínimo)."
+  "copine.photos_min": "Añade al menos 4 fotos a tu perfil para postular (mínimo).",
+  "copine.toast_acceptee": "Invitación aceptada ✅",
+  "copine.toast_refusee": "Invitación rechazada.",
+  "copine.creer": "Crear invitación",
+  "copine.partager": "Compartir…"
 }
