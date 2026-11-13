@@ -605,7 +605,7 @@
           <h3 style="font-family:var(--font-titre);font-size:20px">${esc(nom)}</h3>
           <button style="background:none;border:none;font-size:20px;cursor:pointer" onclick="document.getElementById('modal-fiche-admin').remove()">✕</button>
         </div>
-        <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(x.email || "")} · ${type === "hotesse" ? (x.ville || "") : (x.type || "") + " · " + (x.ville || "")} ${x.siret ? "· SIRET " + esc(x.siret) : ""}</div>
+        <div style="font-size:13px;color:var(--gris);margin-bottom:12px">${esc(x.email || "")} · ${type === "hotesse" ? esc(x.ville || "") : esc(x.type || "") + " · " + esc(x.ville || "")} ${x.siret ? "· SIRET " + esc(x.siret) : ""}</div>
 
         ${siretInfo ? `<div style="border-top:1px solid #EEE;padding:12px 0"><b>Contrôle SIRET (annuaire officiel)</b>
           ${siretInfo.introuvable

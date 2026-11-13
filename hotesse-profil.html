@@ -89,7 +89,7 @@
   <div id="form-edit">
     <div class="champ"><label class="label" data-i18n="commun.prenom">Prénom</label><input class="field" id="e-prenom"></div>
     <div class="ligne">
-      <div class="champ"><label class="label" data-i18n="commun.age">Âge</label><input class="field" type="number" id="e-age" min="18"></div>
+      <div class="champ"><label class="label" data-i18n="commun.age">Âge</label><span id="e-age-txt" style="display:block;padding:10px 0;font-weight:600">—</span></div>
       <div class="champ"><label class="label" data-i18n="commun.ville">Ville</label><input class="field" id="e-ville"></div>
     </div>
     <div class="ligne">
@@ -240,7 +240,7 @@
       <div class="note"><div class="n">${h?.note_moyenne ?? 5}</div><div class="s">★★★★★</div><div class="c">${h?.nb_avis ?? 0} avis</div></div>`;
     // formulaire d'édition pré-rempli
     document.getElementById("e-prenom").value = h?.prenom || "";
-    document.getElementById("e-age").value = h?.age || "";
+    document.getElementById("e-age-txt").textContent = h?.age || "—";
     document.getElementById("e-ville").value = h?.ville || "";
     document.getElementById("e-tel").value = h?.telephone || "";
     document.getElementById("e-insta").value = h?.instagram || "";
@@ -304,13 +304,15 @@
   async function sauverProfil() {
     const maj = {
       prenom: document.getElementById("e-prenom").value,
-      age: parseInt(document.getElementById("e-age").value) || null,
       ville: document.getElementById("e-ville").value,
       telephone: document.getElementById("e-tel").value || null,
       instagram: document.getElementById("e-insta").value || null,
     };
     if (!maj.prenom) { toast("Le prénom est obligatoire."); return; }
-    if (!maj.age || maj.age < 18) { toast("Âge invalide (18 ans minimum)."); return; }
+    // un prénom modifié impose une nouvelle vérification
+    if (profil?.verifie && maj.prenom !== profil.prenom) {
+      if (!await demander("Ton profil devra être revalidé par DamUp. Continuer ?")) return;
+    }
     const { error } = await db.from("hotesses").update(maj).eq("id", user.id);
     if (error) { toast(error.message, "erreur"); return; }
     document.getElementById("form-edit").classList.remove("visible");

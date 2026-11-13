@@ -797,6 +797,9 @@ begin
     if not exists (select 1 from public.hotesses h where h.id = auth.uid() and h.verifie) then
       raise exception 'Ton profil doit être validé par DamUp avant de postuler.';
     end if;
+    if not public.abonnement_ok(auth.uid()) then
+      raise exception 'Ton abonnement est terminé : renouvelle-le pour postuler.';
+    end if;
     if v_m.statut <> 'ouverte' or v_debut <= now() then
       raise exception 'Cette mission n''accepte plus de candidatures.';
     end if;
@@ -1677,6 +1680,32 @@ begin
   perform public.notifier_push(p_user, p_cle, v_message);
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.participant_conversation_chemin(p_nom text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  d text[] := storage.foldername(p_nom);
+  v_mission uuid;
+  v_hotesse uuid;
+begin
+  begin
+    v_mission := d[1]::uuid;
+    v_hotesse := d[2]::uuid;
+  exception when others then
+    return false;
+  end;
+  return exists (
+    select 1 from public.candidatures c
+    join public.missions m on m.id = c.mission_id
+    where c.mission_id = v_mission and c.hotesse_id = v_hotesse
+      and c.statut in ('acceptee', 'confirmee')
+      and (public.is_admin() or auth.uid() in (c.hotesse_id, m.etablissement_id))
+  );
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.prochain_numero(p_nom text)
  RETURNS text
  LANGUAGE plpgsql
@@ -1793,11 +1822,21 @@ begin
   if current_user in ('authenticated', 'anon') and not public.is_admin() then
     if new.id is distinct from old.id
        or new.verifie is distinct from old.verifie
+       or new.verifie_le is distinct from old.verifie_le
+       or new.verifie_par is distinct from old.verifie_par
        or new.abonnement_actif is distinct from old.abonnement_actif then
       raise exception 'Modification non autorisée.';
     end if;
-    -- un SIRET modifié doit être revérifié par l'admin
-    if new.siret is distinct from old.siret then new.verifie := false; end if;
+    if old.verifie and (new.id_document is distinct from old.id_document
+                        or new.id_document_resp is distinct from old.id_document_resp) then
+      raise exception 'Modification non autorisée.';
+    end if;
+    -- SIRET, nom ou responsable modifié : nouvelle vérification par l'admin
+    if new.siret is distinct from old.siret
+       or new.nom is distinct from old.nom
+       or new.responsable_nom is distinct from old.responsable_nom then
+      new.verifie := false;
+    end if;
   end if;
   return new;
 end; $function$;
@@ -1810,13 +1849,25 @@ begin
   if current_user in ('authenticated', 'anon') and not public.is_admin() then
     if new.id is distinct from old.id
        or new.verifie is distinct from old.verifie
+       or new.verifie_le is distinct from old.verifie_le
+       or new.verifie_par is distinct from old.verifie_par
        or new.note_moyenne is distinct from old.note_moyenne
        or new.nb_avis is distinct from old.nb_avis
        or new.signes_negatifs is distinct from old.signes_negatifs
        or new.missions_honorees is distinct from old.missions_honorees
        or new.nb_retards is distinct from old.nb_retards
-       or new.nb_absences is distinct from old.nb_absences then
+       or new.nb_absences is distinct from old.nb_absences
+       or new.code_damup is distinct from old.code_damup
+       or new.age is distinct from old.age then
       raise exception 'Modification non autorisée.';
+    end if;
+    -- une fois vérifiée, les pièces ne se remplacent plus
+    if old.verifie and new.id_document is distinct from old.id_document then
+      raise exception 'Modification non autorisée.';
+    end if;
+    -- un prénom modifié doit être revérifié
+    if old.verifie and new.prenom is distinct from old.prenom then
+      new.verifie := false;
     end if;
   end if;
   return new;
@@ -1831,11 +1882,34 @@ begin
     if tg_op = 'UPDATE' and new.etablissement_id is distinct from old.etablissement_id then
       raise exception 'Modification non autorisée.';
     end if;
+
     if tg_op = 'INSERT' then
-      if new.date < current_date then raise exception 'La date de la mission est déjà passée.'; end if;
-      if new.nb_hotesses not between 1 and 50 then raise exception 'Le nombre d''hôtesses doit être entre 1 et 50.'; end if;
+      if new.etablissement_id is distinct from auth.uid() then
+        raise exception 'Modification non autorisée.';
+      end if;
+      if public.est_suspendu() then
+        raise exception 'Ton compte est suspendu. Contacte DamUp.';
+      end if;
+      if not exists (
+        select 1 from public.profiles p
+        join public.etablissements e on e.id = p.id
+        where p.id = auth.uid() and p.type = 'etablissement' and e.verifie
+      ) then
+        raise exception 'Ton établissement doit être validé par DamUp avant de publier.';
+      end if;
+      if not public.abonnement_ok(auth.uid()) then
+        raise exception 'Ton abonnement est terminé : renouvelle-le pour publier de nouvelles missions.';
+      end if;
+      if new.date < current_date then
+        raise exception 'La date de la mission est déjà passée.';
+      end if;
+      if new.nb_hotesses not between 1 and public.reglage_num('max_hotesses_mission', 50)::int then
+        raise exception 'Le nombre d''hôtesses doit être entre 1 et %.',
+          public.reglage_num('max_hotesses_mission', 50)::int;
+      end if;
       new.statut := 'ouverte';
     end if;
+
     if coalesce(new.note, '') ~ '(\+33|0[1-9][ .\-]?[0-9]{2}[ .\-]?[0-9]{2}[ .\-]?[0-9]{2}[ .\-]?[0-9]{2})' then
       raise exception 'Les numéros de téléphone ne sont pas autorisés dans la note.' using hint = 'note_coordonnees';
     end if;
@@ -1883,6 +1957,23 @@ begin
     update public.profiles set reference_virement = v_ref where id = p_uid;
   end if;
   return v_ref;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.refuse_balises()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if tg_table_name = 'hotesses' then
+    if concat_ws(' ', new.prenom, new.ville, new.instagram, new.telephone) ~ '[<>]' then
+      raise exception 'Les caractères < et > ne sont pas autorisés.';
+    end if;
+  else
+    if concat_ws(' ', new.nom, new.ville, new.adresse, new.responsable_nom, new.siret) ~ '[<>]' then
+      raise exception 'Les caractères < et > ne sont pas autorisés.';
+    end if;
+  end if;
+  return new;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.reglage_bool(p_cle text, p_defaut boolean)
@@ -2166,6 +2257,9 @@ CREATE TRIGGER nettoie_document_etab BEFORE UPDATE ON public.etablissements FOR 
 -- etablissements: protege_etablissement
 CREATE TRIGGER protege_etablissement BEFORE UPDATE ON public.etablissements FOR EACH ROW EXECUTE FUNCTION protege_etablissement();
 
+-- etablissements: refuse_balises
+CREATE TRIGGER refuse_balises BEFORE INSERT OR UPDATE ON public.etablissements FOR EACH ROW EXECUTE FUNCTION refuse_balises();
+
 -- hotesses: generer_code_damup
 CREATE TRIGGER generer_code_damup BEFORE INSERT ON public.hotesses FOR EACH ROW EXECUTE FUNCTION generer_code_damup();
 
@@ -2177,6 +2271,9 @@ CREATE TRIGGER nettoie_document_hotesse BEFORE UPDATE ON public.hotesses FOR EAC
 
 -- hotesses: protege_hotesse
 CREATE TRIGGER protege_hotesse BEFORE UPDATE ON public.hotesses FOR EACH ROW EXECUTE FUNCTION protege_hotesse();
+
+-- hotesses: refuse_balises
+CREATE TRIGGER refuse_balises BEFORE INSERT OR UPDATE ON public.hotesses FOR EACH ROW EXECUTE FUNCTION refuse_balises();
 
 -- messages: bloque_infos_contact
 CREATE TRIGGER bloque_infos_contact BEFORE INSERT OR UPDATE ON public.messages FOR EACH ROW EXECUTE FUNCTION bloque_infos_contact();
@@ -2331,10 +2428,12 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
   using (a_le_droit('reglages'::text))
 
 -- settings.settings_select_anon (SELECT, to {)
-  using (true)
+  using ((key = ANY (ARRAY['annonce'::text, 'contact_email'::text, 'partenaire_nom'::text, 'partenaire_lien'::text, 'partenaire_logo'::text, 'maintenance'::text, 'villes'::text, 'inscriptions_ouvertes'::text])))
 
 -- settings.settings_select_auth (SELECT, to {)
-  using ((auth.role() = 'authenticated'::text))
+  using (((key <> ALL (ARRAY['iban'::text, 'bic'::text, 'titulaire_iban'::text, 'vendeur_nom'::text, 'vendeur_adresse'::text, 'vendeur_siret'::text])) OR is_admin() OR (EXISTS ( SELECT 1
+   FROM profiles p
+  WHERE ((p.id = auth.uid()) AND (p.type = 'etablissement'::text))))))
 
 -- settings.settings_write_admin (ALL, to {)
   using (is_admin())
@@ -2351,3 +2450,298 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- traductions.traductions_lecture (SELECT, to {)
   using (true)
+
+
+-- ============ STORAGE POLICIES (objects) ============
+
+-- documents_depot_perso (INSERT, to {)
+  with check (((bucket_id = 'documents'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)))
+
+-- documents_lecture_admin (SELECT, to {)
+  using (((bucket_id = 'documents'::text) AND a_le_droit('valider_profils'::text)))
+
+-- documents_suppression_admin (DELETE, to {)
+  using (((bucket_id = 'documents'::text) AND is_admin()))
+
+-- factures_lecture_storage (SELECT, to {)
+  using (((bucket_id = 'factures'::text) AND (is_admin() OR ((storage.foldername(name))[1] = (auth.uid())::text))))
+
+-- messages_photos_insert (INSERT, to {)
+  with check (((bucket_id = 'messages'::text) AND participant_conversation_chemin(name)))
+
+-- messages_photos_select (SELECT, to {)
+  using (((bucket_id = 'messages'::text) AND participant_conversation_chemin(name)))
+
+-- photos_delete_perso (DELETE, to {)
+  using (((bucket_id = 'photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)))
+
+-- photos_insert_perso (INSERT, to {)
+  with check (((bucket_id = 'photos'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)))
+
+
+-- ============ DROITS SUR LES FONCTIONS ============
+
+-- a_le_droit -> PUBLIC (EXECUTE)
+-- a_le_droit -> anon (EXECUTE)
+-- a_le_droit -> authenticated (EXECUTE)
+-- a_le_droit -> postgres (EXECUTE)
+-- a_le_droit -> service_role (EXECUTE)
+-- abonnement_ok -> PUBLIC (EXECUTE)
+-- abonnement_ok -> anon (EXECUTE)
+-- abonnement_ok -> authenticated (EXECUTE)
+-- abonnement_ok -> postgres (EXECUTE)
+-- abonnement_ok -> service_role (EXECUTE)
+-- admin_annuaire_etablissements -> PUBLIC (EXECUTE)
+-- admin_annuaire_etablissements -> authenticated (EXECUTE)
+-- admin_annuaire_etablissements -> postgres (EXECUTE)
+-- admin_annuaire_etablissements -> service_role (EXECUTE)
+-- admin_annuaire_hotesses -> PUBLIC (EXECUTE)
+-- admin_annuaire_hotesses -> authenticated (EXECUTE)
+-- admin_annuaire_hotesses -> postgres (EXECUTE)
+-- admin_annuaire_hotesses -> service_role (EXECUTE)
+-- admin_annuler_mission -> authenticated (EXECUTE)
+-- admin_annuler_mission -> postgres (EXECUTE)
+-- admin_annuler_mission -> service_role (EXECUTE)
+-- admin_annuler_paiement -> authenticated (EXECUTE)
+-- admin_annuler_paiement -> postgres (EXECUTE)
+-- admin_annuler_paiement -> service_role (EXECUTE)
+-- admin_annuler_sanction -> authenticated (EXECUTE)
+-- admin_annuler_sanction -> postgres (EXECUTE)
+-- admin_annuler_sanction -> service_role (EXECUTE)
+-- admin_enregistrer_paiement -> authenticated (EXECUTE)
+-- admin_enregistrer_paiement -> postgres (EXECUTE)
+-- admin_enregistrer_paiement -> service_role (EXECUTE)
+-- admin_hotesses -> PUBLIC (EXECUTE)
+-- admin_hotesses -> authenticated (EXECUTE)
+-- admin_hotesses -> postgres (EXECUTE)
+-- admin_hotesses -> service_role (EXECUTE)
+-- admin_lire_conversation -> authenticated (EXECUTE)
+-- admin_lire_conversation -> postgres (EXECUTE)
+-- admin_lire_conversation -> service_role (EXECUTE)
+-- admin_modifier_tarif -> authenticated (EXECUTE)
+-- admin_modifier_tarif -> authenticated (EXECUTE)
+-- admin_modifier_tarif -> postgres (EXECUTE)
+-- admin_modifier_tarif -> postgres (EXECUTE)
+-- admin_modifier_tarif -> service_role (EXECUTE)
+-- admin_modifier_tarif -> service_role (EXECUTE)
+-- admin_offrir_periode_groupe -> authenticated (EXECUTE)
+-- admin_offrir_periode_groupe -> postgres (EXECUTE)
+-- admin_offrir_periode_groupe -> service_role (EXECUTE)
+-- admin_reactiver_compte -> authenticated (EXECUTE)
+-- admin_reactiver_compte -> postgres (EXECUTE)
+-- admin_reactiver_compte -> service_role (EXECUTE)
+-- admin_recettes -> PUBLIC (EXECUTE)
+-- admin_recettes -> authenticated (EXECUTE)
+-- admin_recettes -> postgres (EXECUTE)
+-- admin_recettes -> service_role (EXECUTE)
+-- admin_refuser_profil -> authenticated (EXECUTE)
+-- admin_refuser_profil -> postgres (EXECUTE)
+-- admin_refuser_profil -> service_role (EXECUTE)
+-- admin_renvoyer_facture -> authenticated (EXECUTE)
+-- admin_renvoyer_facture -> postgres (EXECUTE)
+-- admin_renvoyer_facture -> service_role (EXECUTE)
+-- admin_stats_membre -> postgres (EXECUTE)
+-- admin_stats_membre -> service_role (EXECUTE)
+-- admin_suspendre_compte -> authenticated (EXECUTE)
+-- admin_suspendre_compte -> postgres (EXECUTE)
+-- admin_suspendre_compte -> service_role (EXECUTE)
+-- admin_valider_identite -> authenticated (EXECUTE)
+-- admin_valider_identite -> postgres (EXECUTE)
+-- admin_valider_identite -> service_role (EXECUTE)
+-- admin_valider_profil -> authenticated (EXECUTE)
+-- admin_valider_profil -> postgres (EXECUTE)
+-- admin_valider_profil -> service_role (EXECUTE)
+-- annoncer_retard -> authenticated (EXECUTE)
+-- annoncer_retard -> postgres (EXECUTE)
+-- annoncer_retard -> service_role (EXECUTE)
+-- apres_annulation -> postgres (EXECUTE)
+-- apres_annulation -> service_role (EXECUTE)
+-- bloque_infos_contact -> PUBLIC (EXECUTE)
+-- bloque_infos_contact -> anon (EXECUTE)
+-- bloque_infos_contact -> authenticated (EXECUTE)
+-- bloque_infos_contact -> postgres (EXECUTE)
+-- bloque_infos_contact -> service_role (EXECUTE)
+-- changer_langue -> authenticated (EXECUTE)
+-- changer_langue -> postgres (EXECUTE)
+-- changer_langue -> service_role (EXECUTE)
+-- controle_candidature -> PUBLIC (EXECUTE)
+-- controle_candidature -> anon (EXECUTE)
+-- controle_candidature -> authenticated (EXECUTE)
+-- controle_candidature -> postgres (EXECUTE)
+-- controle_candidature -> service_role (EXECUTE)
+-- controle_message -> postgres (EXECUTE)
+-- controle_message -> service_role (EXECUTE)
+-- controle_message_update -> PUBLIC (EXECUTE)
+-- controle_message_update -> anon (EXECUTE)
+-- controle_message_update -> authenticated (EXECUTE)
+-- controle_message_update -> postgres (EXECUTE)
+-- controle_message_update -> service_role (EXECUTE)
+-- controle_signalement -> postgres (EXECUTE)
+-- controle_signalement -> service_role (EXECUTE)
+-- conversation_ouverte -> PUBLIC (EXECUTE)
+-- conversation_ouverte -> anon (EXECUTE)
+-- conversation_ouverte -> authenticated (EXECUTE)
+-- conversation_ouverte -> postgres (EXECUTE)
+-- conversation_ouverte -> service_role (EXECUTE)
+-- creer_facture -> postgres (EXECUTE)
+-- creer_facture -> service_role (EXECUTE)
+-- creer_facture_trigger -> postgres (EXECUTE)
+-- creer_facture_trigger -> service_role (EXECUTE)
+-- date_courte -> PUBLIC (EXECUTE)
+-- date_courte -> anon (EXECUTE)
+-- date_courte -> authenticated (EXECUTE)
+-- date_courte -> postgres (EXECUTE)
+-- date_courte -> service_role (EXECUTE)
+-- declarer_absence -> authenticated (EXECUTE)
+-- declarer_absence -> postgres (EXECUTE)
+-- declarer_absence -> service_role (EXECUTE)
+-- envoyer_email_notification -> postgres (EXECUTE)
+-- envoyer_email_notification -> service_role (EXECUTE)
+-- envoyer_facture -> postgres (EXECUTE)
+-- envoyer_facture -> service_role (EXECUTE)
+-- est_proprietaire -> PUBLIC (EXECUTE)
+-- est_proprietaire -> anon (EXECUTE)
+-- est_proprietaire -> authenticated (EXECUTE)
+-- est_proprietaire -> postgres (EXECUTE)
+-- est_proprietaire -> service_role (EXECUTE)
+-- est_suspendu -> PUBLIC (EXECUTE)
+-- est_suspendu -> anon (EXECUTE)
+-- est_suspendu -> authenticated (EXECUTE)
+-- est_suspendu -> postgres (EXECUTE)
+-- est_suspendu -> service_role (EXECUTE)
+-- expirer_invitations_copine -> postgres (EXECUTE)
+-- expirer_invitations_copine -> service_role (EXECUTE)
+-- generer_code_damup -> PUBLIC (EXECUTE)
+-- generer_code_damup -> anon (EXECUTE)
+-- generer_code_damup -> authenticated (EXECUTE)
+-- generer_code_damup -> postgres (EXECUTE)
+-- generer_code_damup -> service_role (EXECUTE)
+-- handle_new_user -> PUBLIC (EXECUTE)
+-- handle_new_user -> anon (EXECUTE)
+-- handle_new_user -> authenticated (EXECUTE)
+-- handle_new_user -> postgres (EXECUTE)
+-- handle_new_user -> service_role (EXECUTE)
+-- heure_courte -> PUBLIC (EXECUTE)
+-- heure_courte -> anon (EXECUTE)
+-- heure_courte -> authenticated (EXECUTE)
+-- heure_courte -> postgres (EXECUTE)
+-- heure_courte -> service_role (EXECUTE)
+-- hotesse_prive -> PUBLIC (EXECUTE)
+-- hotesse_prive -> anon (EXECUTE)
+-- hotesse_prive -> authenticated (EXECUTE)
+-- hotesse_prive -> postgres (EXECUTE)
+-- hotesse_prive -> service_role (EXECUTE)
+-- init_places_mission -> PUBLIC (EXECUTE)
+-- init_places_mission -> anon (EXECUTE)
+-- init_places_mission -> authenticated (EXECUTE)
+-- init_places_mission -> postgres (EXECUTE)
+-- init_places_mission -> service_role (EXECUTE)
+-- invitation_copine_detail -> authenticated (EXECUTE)
+-- invitation_copine_detail -> postgres (EXECUTE)
+-- invitation_copine_detail -> service_role (EXECUTE)
+-- is_admin -> PUBLIC (EXECUTE)
+-- is_admin -> anon (EXECUTE)
+-- is_admin -> authenticated (EXECUTE)
+-- is_admin -> postgres (EXECUTE)
+-- is_admin -> service_role (EXECUTE)
+-- journaliser -> postgres (EXECUTE)
+-- journaliser -> service_role (EXECUTE)
+-- lier_invitation_verifiee -> PUBLIC (EXECUTE)
+-- lier_invitation_verifiee -> anon (EXECUTE)
+-- lier_invitation_verifiee -> authenticated (EXECUTE)
+-- lier_invitation_verifiee -> postgres (EXECUTE)
+-- lier_invitation_verifiee -> service_role (EXECUTE)
+-- maj_note_hotesse -> postgres (EXECUTE)
+-- maj_note_hotesse -> service_role (EXECUTE)
+-- maj_places_mission -> PUBLIC (EXECUTE)
+-- maj_places_mission -> anon (EXECUTE)
+-- maj_places_mission -> authenticated (EXECUTE)
+-- maj_places_mission -> postgres (EXECUTE)
+-- maj_places_mission -> service_role (EXECUTE)
+-- nettoie_document_etab -> PUBLIC (EXECUTE)
+-- nettoie_document_etab -> anon (EXECUTE)
+-- nettoie_document_etab -> authenticated (EXECUTE)
+-- nettoie_document_etab -> postgres (EXECUTE)
+-- nettoie_document_etab -> service_role (EXECUTE)
+-- nettoie_document_hotesse -> PUBLIC (EXECUTE)
+-- nettoie_document_hotesse -> anon (EXECUTE)
+-- nettoie_document_hotesse -> authenticated (EXECUTE)
+-- nettoie_document_hotesse -> postgres (EXECUTE)
+-- nettoie_document_hotesse -> service_role (EXECUTE)
+-- notifier_candidature -> postgres (EXECUTE)
+-- notifier_candidature -> service_role (EXECUTE)
+-- notifier_message -> postgres (EXECUTE)
+-- notifier_message -> service_role (EXECUTE)
+-- notifier_note_mission -> postgres (EXECUTE)
+-- notifier_note_mission -> service_role (EXECUTE)
+-- notifier_nouvelle_candidature -> postgres (EXECUTE)
+-- notifier_nouvelle_candidature -> service_role (EXECUTE)
+-- notifier_presences_non_scannees -> postgres (EXECUTE)
+-- notifier_presences_non_scannees -> service_role (EXECUTE)
+-- notifier_push -> postgres (EXECUTE)
+-- notifier_push -> service_role (EXECUTE)
+-- notifier_utilisateur -> postgres (EXECUTE)
+-- notifier_utilisateur -> service_role (EXECUTE)
+-- participant_conversation_chemin -> authenticated (EXECUTE)
+-- participant_conversation_chemin -> postgres (EXECUTE)
+-- participant_conversation_chemin -> service_role (EXECUTE)
+-- prochain_numero -> postgres (EXECUTE)
+-- prochain_numero -> service_role (EXECUTE)
+-- prolonger_abonnement -> postgres (EXECUTE)
+-- prolonger_abonnement -> service_role (EXECUTE)
+-- proposer_copine -> authenticated (EXECUTE)
+-- proposer_copine -> postgres (EXECUTE)
+-- proposer_copine -> service_role (EXECUTE)
+-- protege_etablissement -> PUBLIC (EXECUTE)
+-- protege_etablissement -> anon (EXECUTE)
+-- protege_etablissement -> authenticated (EXECUTE)
+-- protege_etablissement -> postgres (EXECUTE)
+-- protege_etablissement -> service_role (EXECUTE)
+-- protege_hotesse -> PUBLIC (EXECUTE)
+-- protege_hotesse -> anon (EXECUTE)
+-- protege_hotesse -> authenticated (EXECUTE)
+-- protege_hotesse -> postgres (EXECUTE)
+-- protege_hotesse -> service_role (EXECUTE)
+-- protege_mission -> PUBLIC (EXECUTE)
+-- protege_mission -> anon (EXECUTE)
+-- protege_mission -> authenticated (EXECUTE)
+-- protege_mission -> postgres (EXECUTE)
+-- protege_mission -> service_role (EXECUTE)
+-- rappeler_verification -> postgres (EXECUTE)
+-- rappeler_verification -> service_role (EXECUTE)
+-- reference_virement -> authenticated (EXECUTE)
+-- reference_virement -> postgres (EXECUTE)
+-- reference_virement -> service_role (EXECUTE)
+-- refuse_balises -> PUBLIC (EXECUTE)
+-- refuse_balises -> anon (EXECUTE)
+-- refuse_balises -> authenticated (EXECUTE)
+-- refuse_balises -> postgres (EXECUTE)
+-- refuse_balises -> service_role (EXECUTE)
+-- reglage_bool -> PUBLIC (EXECUTE)
+-- reglage_bool -> anon (EXECUTE)
+-- reglage_bool -> authenticated (EXECUTE)
+-- reglage_bool -> postgres (EXECUTE)
+-- reglage_bool -> service_role (EXECUTE)
+-- reglage_num -> PUBLIC (EXECUTE)
+-- reglage_num -> anon (EXECUTE)
+-- reglage_num -> authenticated (EXECUTE)
+-- reglage_num -> postgres (EXECUTE)
+-- reglage_num -> service_role (EXECUTE)
+-- repondre_invitation -> authenticated (EXECUTE)
+-- repondre_invitation -> postgres (EXECUTE)
+-- repondre_invitation -> service_role (EXECUTE)
+-- taches_auto -> postgres (EXECUTE)
+-- taches_auto -> service_role (EXECUTE)
+-- traduire -> PUBLIC (EXECUTE)
+-- traduire -> anon (EXECUTE)
+-- traduire -> authenticated (EXECUTE)
+-- traduire -> postgres (EXECUTE)
+-- traduire -> service_role (EXECUTE)
+-- valider_presence -> authenticated (EXECUTE)
+-- valider_presence -> postgres (EXECUTE)
+-- valider_presence -> service_role (EXECUTE)
+-- verifie_medias_mission -> PUBLIC (EXECUTE)
+-- verifie_medias_mission -> anon (EXECUTE)
+-- verifie_medias_mission -> authenticated (EXECUTE)
+-- verifie_medias_mission -> postgres (EXECUTE)
+-- verifie_medias_mission -> service_role (EXECUTE)

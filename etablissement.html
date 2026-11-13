@@ -491,6 +491,10 @@
       siret: document.getElementById("p-siret").value || null,
     };
     if (!maj.nom) { toast("Le nom est obligatoire."); return; }
+    // un nom modifié impose une nouvelle vérification
+    if (etab?.verifie && maj.nom !== etab.nom) {
+      if (!await demander("Ton établissement devra être revalidé par DamUp avant de publier. Continuer ?")) return;
+    }
     await db.from("etablissements").update(maj).eq("id", user.id);
     toast("Profil enregistré ✅");
     chargerProfilEtab();
