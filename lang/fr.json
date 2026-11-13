@@ -276,5 +276,9 @@
   "copine.toast_refusee": "Invitation refusée.",
   "copine.creer": "Créer l'invitation",
   "copine.partager": "Partager…",
-  "commun.copie": "Copié ✅"
+  "commun.copie": "Copié ✅",
+  "notif.inscription_hotesse_admin": "🆕 Nouvelle hôtesse : {prenom}, {ville}",
+  "notif.inscription_etablissement_admin": "🆕 Nouvel établissement : {nom} ({type}), {ville}",
+  "notif.verification_admin": "🪪 {nom} a envoyé sa pièce d'identité : profil à valider",
+  "notif.mission_admin": "📢 {etablissement} a publié une mission le {date} ({nb} hôtesses)"
 }

@@ -33,14 +33,18 @@ function initCloche(containerId, userId) {
     if (!data || !data.length) {
       menu.innerHTML = '<div style="padding:16px;color:var(--gris);font-size:13px">Aucune notification</div>';
     } else {
-      const routesCopine = {
+      const routes = {
         "copine.proposee": "hotesse.html#invitations",
         "copine.acceptee": "hotesse-profil.html",
         "copine.refusee": "hotesse-profil.html",
         "copine.candidate": "etablissement.html",
+        "notif.inscription_hotesse_admin": "admin.html#utilisateurs",
+        "notif.inscription_etablissement_admin": "admin.html#utilisateurs",
+        "notif.verification_admin": "admin.html#utilisateurs",
+        "notif.mission_admin": "admin.html#missions",
       };
       menu.innerHTML = data.map(n => {
-        const dest = routesCopine[n.cle || ""];
+        const dest = routes[n.cle || ""];
         return `<div style="padding:12px 14px;border-bottom:1px solid #F1E9DA;font-size:13.5px;${n.lu ? "" : "background:#FFF8EE;font-weight:500"}${dest ? ";cursor:pointer" : ""}"${dest ? ` onclick="location.href='${dest}'"` : ""}>${esc(n.message)}</div>`;
       }).join("") +
         `<div style="padding:10px;text-align:center"><a style="color:var(--aubergine);font-size:12.5px;font-weight:600;cursor:pointer" onclick="toutLu()">Tout marquer comme lu</a></div>`;

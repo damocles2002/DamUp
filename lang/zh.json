@@ -276,5 +276,9 @@
   "copine.toast_refusee": "邀请已拒绝。",
   "copine.creer": "创建邀请",
   "copine.partager": "分享…",
-  "commun.copie": "已复制 ✅"
+  "commun.copie": "已复制 ✅",
+  "notif.inscription_hotesse_admin": "🆕 新女招待：{prenom}，{ville}",
+  "notif.inscription_etablissement_admin": "🆕 新场所：{nom}（{type}），{ville}",
+  "notif.verification_admin": "🪪 {nom} 已发送身份证件：待验证资料",
+  "notif.mission_admin": "📢 {etablissement} 发布了 {date} 的任务（{nb} 名女招待）"
 }

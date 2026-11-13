@@ -276,5 +276,9 @@
   "copine.toast_refusee": "Invitación rechazada.",
   "copine.creer": "Crear invitación",
   "copine.partager": "Compartir…",
-  "commun.copie": "Copiado ✅"
+  "commun.copie": "Copiado ✅",
+  "notif.inscription_hotesse_admin": "🆕 Nueva azafata: {prenom}, {ville}",
+  "notif.inscription_etablissement_admin": "🆕 Nuevo establecimiento: {nom} ({type}), {ville}",
+  "notif.verification_admin": "🪪 {nom} envió su documento: perfil por validar",
+  "notif.mission_admin": "📢 {etablissement} publicó una misión el {date} ({nb} azafatas)"
 }

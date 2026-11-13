@@ -276,5 +276,9 @@
   "copine.toast_refusee": "Invitation declined.",
   "copine.creer": "Create invitation",
   "copine.partager": "Share…",
-  "commun.copie": "Copied ✅"
+  "commun.copie": "Copied ✅",
+  "notif.inscription_hotesse_admin": "🆕 New hostess: {prenom}, {ville}",
+  "notif.inscription_etablissement_admin": "🆕 New venue: {nom} ({type}), {ville}",
+  "notif.verification_admin": "🪪 {nom} submitted an ID: profile to validate",
+  "notif.mission_admin": "📢 {etablissement} posted a mission on {date} ({nb} hostesses)"
 }

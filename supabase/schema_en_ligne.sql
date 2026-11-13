@@ -251,7 +251,8 @@ create table public.preferences_notif (
   "email_missions" boolean NOT NULL DEFAULT true,
   "email_messages" boolean NOT NULL DEFAULT false,
   "email_compte" boolean NOT NULL DEFAULT true,
-  "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+  "updated_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "email_equipe" boolean NOT NULL DEFAULT true
 );
 
 -- TABLE profiles
@@ -493,18 +494,6 @@ begin
   return query select * from public.messages where mission_id = v_mission order by created_at;
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
-  update public.profiles set tarif = p_tarif where id = p_profil;
-  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif));
-end; $function$;
-
 CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
  RETURNS void
  LANGUAGE plpgsql
@@ -515,6 +504,18 @@ begin
   if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
   update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
   perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set tarif = p_tarif where id = p_profil;
+  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
@@ -670,6 +671,74 @@ begin
     raise exception 'Type invalide.';
   end if;
   perform public.journaliser('profil_valide', 'profil', p_profil);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.alerte_inscription_etablissement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.notifier_equipe('valider_profils', 'notif.inscription_etablissement_admin',
+    jsonb_build_object('nom', new.nom, 'type', new.type, 'ville', new.ville, 'id', new.id));
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.alerte_inscription_hotesse()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.notifier_equipe('valider_profils', 'notif.inscription_hotesse_admin',
+    jsonb_build_object('prenom', new.prenom, 'ville', new.ville, 'id', new.id));
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.alerte_mission()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_etab text;
+begin
+  select nom into v_etab from public.etablissements where id = new.etablissement_id;
+  perform public.notifier_equipe('missions', 'notif.mission_admin',
+    jsonb_build_object('etablissement', coalesce(v_etab, ''), 'date', public.date_courte(new.date, 'fr'), 'nb', new.nb_hotesses, 'id', new.id));
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.alerte_verification_etablissement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- première pièce arrivée (les deux étaient vides avant)
+  if (old.id_document is null and old.id_document_resp is null)
+     and (new.id_document is not null or new.id_document_resp is not null) then
+    perform public.notifier_equipe('valider_profils', 'notif.verification_admin',
+      jsonb_build_object('nom', new.nom, 'id', new.id));
+  end if;
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.alerte_verification_hotesse()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.id_document is null and new.id_document is not null then
+    perform public.notifier_equipe('valider_profils', 'notif.verification_admin',
+      jsonb_build_object('nom', new.prenom, 'id', new.id));
+  end if;
+  return new;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.annoncer_retard(p_candidature uuid, p_minutes integer)
@@ -1104,12 +1173,15 @@ begin
   elsif new.cle in ('notif.validation_refusee', 'notif.suspension_hotesse', 'notif.suspension_admin',
                     'notif.fin_abonnement', 'notif.fin_abonnement_admin', 'notif.paiement_recu',
                     'notif.paiement_offert', 'notif.paiement_echoue', 'notif.paiement_echoue_admin') then v_cat := 'compte';
+  elsif new.cle in ('notif.inscription_hotesse_admin', 'notif.inscription_etablissement_admin',
+                    'notif.verification_admin', 'notif.mission_admin') then v_cat := 'equipe';
   else v_cat := 'missions';
   end if;
 
   select case v_cat
     when 'messages' then coalesce(email_messages, false)
     when 'compte' then coalesce(email_compte, true)
+    when 'equipe' then coalesce(email_equipe, true)
     else coalesce(email_missions, true) end
     into v_autorise from public.preferences_notif where user_id = new.user_id;
   if v_autorise is null then v_autorise := (v_cat <> 'messages'); end if;
@@ -1515,6 +1587,29 @@ begin
       'notif.confirmee_etab', jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
   end if;
   return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.notifier_equipe(p_droit text, p_cle text, p_params jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r record;
+  v_message text;
+begin
+  v_message := public.traduire(p_cle, 'fr', p_params);
+  for r in
+    select e.user_id
+    from public.equipe e
+    join public.profiles p on p.id = e.user_id
+    where p.type = 'admin' and not e.suspendu and not p.suspendu
+      and (e.proprietaire or coalesce((e.droits ->> p_droit)::boolean, false))
+  loop
+    insert into public.notifications (user_id, message, cle, params)
+    values (r.user_id, v_message, p_cle, p_params);
+  end loop;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.notifier_message()
@@ -2251,6 +2346,12 @@ CREATE TRIGGER notifier_candidature_trigger AFTER UPDATE ON public.candidatures 
 -- candidatures: notifier_nouvelle_candidature_trigger
 CREATE TRIGGER notifier_nouvelle_candidature_trigger AFTER INSERT ON public.candidatures FOR EACH ROW EXECUTE FUNCTION notifier_nouvelle_candidature();
 
+-- etablissements: alerte_inscription_etablissement
+CREATE TRIGGER alerte_inscription_etablissement AFTER INSERT ON public.etablissements FOR EACH ROW EXECUTE FUNCTION alerte_inscription_etablissement();
+
+-- etablissements: alerte_verification_etablissement
+CREATE TRIGGER alerte_verification_etablissement AFTER UPDATE ON public.etablissements FOR EACH ROW EXECUTE FUNCTION alerte_verification_etablissement();
+
 -- etablissements: nettoie_document_etab
 CREATE TRIGGER nettoie_document_etab BEFORE UPDATE ON public.etablissements FOR EACH ROW EXECUTE FUNCTION nettoie_document_etab();
 
@@ -2259,6 +2360,12 @@ CREATE TRIGGER protege_etablissement BEFORE UPDATE ON public.etablissements FOR 
 
 -- etablissements: refuse_balises
 CREATE TRIGGER refuse_balises BEFORE INSERT OR UPDATE ON public.etablissements FOR EACH ROW EXECUTE FUNCTION refuse_balises();
+
+-- hotesses: alerte_inscription_hotesse
+CREATE TRIGGER alerte_inscription_hotesse AFTER INSERT ON public.hotesses FOR EACH ROW EXECUTE FUNCTION alerte_inscription_hotesse();
+
+-- hotesses: alerte_verification_hotesse
+CREATE TRIGGER alerte_verification_hotesse AFTER UPDATE ON public.hotesses FOR EACH ROW EXECUTE FUNCTION alerte_verification_hotesse();
 
 -- hotesses: generer_code_damup
 CREATE TRIGGER generer_code_damup BEFORE INSERT ON public.hotesses FOR EACH ROW EXECUTE FUNCTION generer_code_damup();
@@ -2286,6 +2393,9 @@ CREATE TRIGGER controle_message_update BEFORE UPDATE ON public.messages FOR EACH
 
 -- messages: notifier_message
 CREATE TRIGGER notifier_message AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION notifier_message();
+
+-- missions: alerte_mission
+CREATE TRIGGER alerte_mission AFTER INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION alerte_mission();
 
 -- missions: init_places_mission_trigger
 CREATE TRIGGER init_places_mission_trigger BEFORE INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION init_places_mission();
@@ -2551,6 +2661,31 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_valider_profil -> authenticated (EXECUTE)
 -- admin_valider_profil -> postgres (EXECUTE)
 -- admin_valider_profil -> service_role (EXECUTE)
+-- alerte_inscription_etablissement -> PUBLIC (EXECUTE)
+-- alerte_inscription_etablissement -> anon (EXECUTE)
+-- alerte_inscription_etablissement -> authenticated (EXECUTE)
+-- alerte_inscription_etablissement -> postgres (EXECUTE)
+-- alerte_inscription_etablissement -> service_role (EXECUTE)
+-- alerte_inscription_hotesse -> PUBLIC (EXECUTE)
+-- alerte_inscription_hotesse -> anon (EXECUTE)
+-- alerte_inscription_hotesse -> authenticated (EXECUTE)
+-- alerte_inscription_hotesse -> postgres (EXECUTE)
+-- alerte_inscription_hotesse -> service_role (EXECUTE)
+-- alerte_mission -> PUBLIC (EXECUTE)
+-- alerte_mission -> anon (EXECUTE)
+-- alerte_mission -> authenticated (EXECUTE)
+-- alerte_mission -> postgres (EXECUTE)
+-- alerte_mission -> service_role (EXECUTE)
+-- alerte_verification_etablissement -> PUBLIC (EXECUTE)
+-- alerte_verification_etablissement -> anon (EXECUTE)
+-- alerte_verification_etablissement -> authenticated (EXECUTE)
+-- alerte_verification_etablissement -> postgres (EXECUTE)
+-- alerte_verification_etablissement -> service_role (EXECUTE)
+-- alerte_verification_hotesse -> PUBLIC (EXECUTE)
+-- alerte_verification_hotesse -> anon (EXECUTE)
+-- alerte_verification_hotesse -> authenticated (EXECUTE)
+-- alerte_verification_hotesse -> postgres (EXECUTE)
+-- alerte_verification_hotesse -> service_role (EXECUTE)
 -- annoncer_retard -> authenticated (EXECUTE)
 -- annoncer_retard -> postgres (EXECUTE)
 -- annoncer_retard -> service_role (EXECUTE)
@@ -2670,6 +2805,8 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- nettoie_document_hotesse -> service_role (EXECUTE)
 -- notifier_candidature -> postgres (EXECUTE)
 -- notifier_candidature -> service_role (EXECUTE)
+-- notifier_equipe -> postgres (EXECUTE)
+-- notifier_equipe -> service_role (EXECUTE)
 -- notifier_message -> postgres (EXECUTE)
 -- notifier_message -> service_role (EXECUTE)
 -- notifier_note_mission -> postgres (EXECUTE)

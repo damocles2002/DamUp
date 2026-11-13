@@ -144,6 +144,11 @@
     }
     adapterMenu();
     reinitialiserInactivite();
+    // navigation par hash (clic sur une notification équipe)
+    if (location.hash === "#missions" || location.hash === "#utilisateurs") {
+      vue = location.hash.slice(1);
+      document.querySelectorAll(".menu a, .menu-mobile a").forEach(x => x.classList.toggle("on", x.dataset.vue === vue));
+    }
     afficher();
   }
 
