@@ -83,6 +83,8 @@
     <p id="sous-salut">Chargement…</p>
   </div>
 
+  <div id="invitations-copine"></div>
+
   <div id="partenaire-badge" style="display:none;margin:0 18px 8px;font-size:12.5px;color:var(--gris);text-align:center"></div>
 
   <div id="carte-qr-jour" style="display:none;margin:0 18px 6px"></div>
@@ -111,6 +113,7 @@
 <script src="js/ui.js"></script>
 <script src="js/install.js"></script>
 <script src="js/notifications.js"></script>
+<script src="js/copine.js"></script>
 <script src="js/messages.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -136,6 +139,10 @@
     chargerQRJour();
     initCloche("cloche", user.id);
     chargerPartenaire();
+    chargerInvitationsCopine("invitations-copine");
+    if (location.hash === "#invitations") {
+      setTimeout(() => document.getElementById("invitations-copine")?.scrollIntoView({ behavior: "smooth" }), 400);
+    }
   }
 
   function chargerPartenaire() {
@@ -306,15 +313,16 @@
   async function postuler(missionId) {
     const { data: h } = await db.from("hotesses").select("photos").eq("id", user.id).single();
     if ((h?.photos || []).length < 4) { toast("Ajoute au moins 4 photos sur ton profil pour postuler (minimum requis)."); return; }
-    const { error } = await db.from("candidatures").insert({
+    const { data: created, error } = await db.from("candidatures").insert({
       mission_id: missionId, hotesse_id: user.id, statut: "en_attente"
-    });
+    }).select().single();
     if (error) {
       if (error.code === "23505") { toast("Tu as déjà postulé à cette mission."); return; }
       toast("Impossible de postuler : " + (error.message || "erreur inconnue"));
       return;
     }
     toast("Candidature envoyée ✅ Tu seras notifiée en cas de sélection.");
+    if (created?.id) ouvrirProposerCopine(created.id);
   }
 
   // --- ouvrir le détail d'une mission (photos + infos) ---

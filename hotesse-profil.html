@@ -123,6 +123,7 @@
 <script src="js/supabase.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/mfa.js"></script>
+<script src="js/copine.js"></script>
 <script src="js/install.js"></script>
 <script src="js/push.js"></script>
 <script>
@@ -325,14 +326,33 @@
 
   async function chargerMesMissions() {
     const { data } = await db.from("candidatures")
-      .select("statut, annulation, presente_a, retard_min, retard_annonce_min, absence_declaree_le, sanction_signes, sanction_annulee_le, created_at, missions(date, heure_debut, heure_fin, adresse, note, etablissements(id, nom))")
+      .select("id, statut, annulation, presente_a, retard_min, retard_annonce_min, absence_declaree_le, sanction_signes, sanction_annulee_le, created_at, missions(date, heure_debut, heure_fin, adresse, note, statut, etablissements(id, nom))")
       .eq("hotesse_id", user.id).order("created_at", { ascending: false });
     const statuts = { en_attente: "🕓 En attente", acceptee: "✅ Acceptée", confirmee: "💚 Confirmée", refusee: "❌ Refusée" };
+
+    // invitations « copine » pour ces candidatures
+    const idsCand = (data || []).map(c => c.id);
+    let mapInv = {};
+    if (idsCand.length) {
+      const { data: invs } = await db.from("invitations_copine")
+        .select("candidature_id, prenom_indique, statut").eq("marraine_id", user.id).in("candidature_id", idsCand);
+      mapInv = Object.fromEntries((invs || []).map(i => [i.candidature_id, i]));
+    }
+
     document.getElementById("mes-missions").innerHTML = (data && data.length)
       ? data.map(c => {
           const m = c.missions;
           const presence = statutPresence(c);
-          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div>${presence ? `<div class="txt" style="font-weight:600">${presence}</div>` : ""}${m?.note ? `<div class="txt" style="white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
+          const inv = mapInv[c.id];
+          const missionOuverte = m?.statut === "ouverte";
+          const peutProposer = c.statut === "en_attente" && missionOuverte && !inv;
+          const ligneCopine = inv
+            ? `<div class="txt" style="font-weight:600">👯 Copine : ${esc(inv.prenom_indique || "")} – ${t(statutCopine(inv.statut))}</div>`
+            : "";
+          const btnProposer = peutProposer
+            ? `<button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine);margin-top:8px" onclick="ouvrirProposerCopine('${c.id}')">👯 Proposer une copine</button>`
+            : "";
+          return `<div class="avis"><div class="t"><span class="e">${esc(m?.etablissements?.nom || "")}</span><span>${statuts[c.statut] || c.statut}</span></div><div class="txt">${formatDate(m?.date)} · ${formatHeure(m?.heure_debut)}–${formatHeure(m?.heure_fin)} · ${esc(m?.adresse || "")}</div>${ligneCopine}${presence ? `<div class="txt" style="font-weight:600">${presence}</div>` : ""}${m?.note ? `<div class="txt" style="white-space:pre-line">📝 ${esc(m.note)}</div>` : ""}${btnProposer}<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger);margin-top:8px" onclick="ouvrirSignalement('etablissement', '${m?.etablissements?.id}')">🚩 Signaler</button></div>`;
         }).join("")
       : '<div style="color:var(--gris);font-size:13px">Aucune mission pour le moment.</div>';
   }
