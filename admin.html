@@ -158,8 +158,11 @@
 
   function afficherMfa() {
     auth.mfa.listFactors().then(async ({ data: facteurs }) => {
-      const totp = (facteurs?.totp || []).find(f => f.status === "verified") || (facteurs?.totp || []).find(f => f.status === "unverified");
-      if (!totp) {
+      const verifie = (facteurs?.totp || []).find(f => f.status === "verified");
+      const nonVerifie = (facteurs?.totp || []).find(f => f.status === "unverified");
+      if (!verifie) {
+        // enrôlement inachevé → on le supprime pour repartir propre (sinon « déjà existe »)
+        if (nonVerifie) { try { await auth.mfa.unenroll({ factorId: nonVerifie.id }); } catch (e) {} }
         const { data, error } = await auth.mfa.enroll({ factorType: "totp" });
         if (error) { toast(error.message, "erreur"); return; }
         mfaFactorId = data.id;
@@ -175,7 +178,7 @@
           <div style="text-align:center;margin-top:14px"><a style="color:var(--aubergine);cursor:pointer" onclick="deconnecter()">Se déconnecter</a></div>
         </div>`;
       } else {
-        mfaFactorId = totp.id;
+        mfaFactorId = verifie.id;
         main.innerHTML = `<div style="max-width:440px;margin:0 auto;padding:20px">
           <h1>Code de vérification</h1>
           <p style="color:var(--gris);line-height:1.6">Entre le code à 6 chiffres de ton application d'authentification.</p>
