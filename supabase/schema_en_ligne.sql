@@ -1157,6 +1157,31 @@ begin
   end if;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.envoyer_email(p_email text, p_objet text, p_html text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_secret text;
+  v_anon text;
+begin
+  if p_email is null or p_email = '' then return; end if;
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
+  if v_secret is null or v_secret = '' then return; end if;
+  select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;
+  perform net.http_post(
+    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/notifier',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || coalesce(v_anon, ''),
+      'x-damup-secret', v_secret
+    ),
+    body := jsonb_build_object('to', p_email, 'subject', p_objet, 'html', p_html)
+  );
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.envoyer_email_notification()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1198,8 +1223,38 @@ begin
       'Authorization', 'Bearer ' || coalesce(v_anon, ''),
       'x-damup-secret', v_secret
     ),
-    body := jsonb_build_object('user_id', new.user_id::text, 'message', new.message)
+    body := jsonb_build_object(
+      'to', (select email from public.profiles where id = new.user_id),
+      'subject', 'DamUp',
+      'html', '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120"><p style="font-size:15px;line-height:1.6">' || new.message || '</p><p style="color:#8A6D3B;font-size:13px">L''équipe DamUp</p></div>'
+    )
   );
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.envoyer_email_suspension()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.suspendu is distinct from new.suspendu then
+    if new.suspendu then
+      perform public.envoyer_email(new.email, 'Ton compte DamUp a été suspendu',
+        '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120">'
+        || '<h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été suspendu</h2>'
+        || '<p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été suspendu. Tu ne peux plus te connecter pour le moment.</p>'
+        || '<p style="font-size:15px;line-height:1.6">Pour en savoir plus, écris-nous à <a href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a>.</p>'
+        || '<p style="color:#8A6D3B;font-size:13px">L''équipe DamUp</p></div>');
+    else
+      perform public.envoyer_email(new.email, 'Ton compte DamUp a été réactivé',
+        '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120">'
+        || '<h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été réactivé</h2>'
+        || '<p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été réactivé. Tu peux à nouveau te connecter.</p>'
+        || '<p style="color:#8A6D3B;font-size:13px">L''équipe DamUp</p></div>');
+    end if;
+  end if;
   return new;
 end; $function$;
 
@@ -2415,6 +2470,9 @@ CREATE TRIGGER envoyer_email_notification AFTER INSERT ON public.notifications F
 -- paiements: creer_facture_trigger
 CREATE TRIGGER creer_facture_trigger AFTER INSERT ON public.paiements FOR EACH ROW EXECUTE FUNCTION creer_facture_trigger();
 
+-- profiles: envoyer_email_suspension
+CREATE TRIGGER envoyer_email_suspension AFTER UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION envoyer_email_suspension();
+
 -- signalements: controle_signalement
 CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EACH ROW EXECUTE FUNCTION controle_signalement();
 
@@ -2730,8 +2788,15 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- declarer_absence -> authenticated (EXECUTE)
 -- declarer_absence -> postgres (EXECUTE)
 -- declarer_absence -> service_role (EXECUTE)
+-- envoyer_email -> postgres (EXECUTE)
+-- envoyer_email -> service_role (EXECUTE)
 -- envoyer_email_notification -> postgres (EXECUTE)
 -- envoyer_email_notification -> service_role (EXECUTE)
+-- envoyer_email_suspension -> PUBLIC (EXECUTE)
+-- envoyer_email_suspension -> anon (EXECUTE)
+-- envoyer_email_suspension -> authenticated (EXECUTE)
+-- envoyer_email_suspension -> postgres (EXECUTE)
+-- envoyer_email_suspension -> service_role (EXECUTE)
 -- envoyer_facture -> postgres (EXECUTE)
 -- envoyer_facture -> service_role (EXECUTE)
 -- est_proprietaire -> PUBLIC (EXECUTE)

@@ -10,6 +10,19 @@ const DROITS = [
 ];
 
 const ORIGINES = ["https://damup.fr", "https://www.damup.fr", "https://damocles2002.github.io"];
+
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
+const SENDER_EMAIL = Deno.env.get("SENDER_EMAIL") ?? "";
+
+async function envoyerEmail(to: string, subject: string, html: string) {
+  if (!to || !SENDER_EMAIL) return;
+  await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "api-key": BREVO_API_KEY },
+    body: JSON.stringify({ sender: { name: "DamUp", email: SENDER_EMAIL }, to: [{ email: to }], subject, htmlContent: html }),
+  });
+}
+
 function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin") ?? "";
   return {
@@ -142,6 +155,13 @@ Deno.serve(async (req) => {
       if (cible.proprietaire) return json(req, { error: "Le propriétaire ne peut pas être supprimé" }, 403);
       if (cible.user_id === user.id) return json(req, { error: "Tu ne peux pas te supprimer toi-même" }, 403);
       if (!jeSuisProprio && (cible.droits?.gerer_equipe === true)) return json(req, { error: "Seul le propriétaire agit sur un membre gérant l'équipe" }, 403);
+      // e-mail avant suppression (le compte n'existera plus après)
+      try {
+        const { data: au } = await admin.auth.admin.getUserById(cible.user_id);
+        const email = au?.user?.email ?? "";
+        await envoyerEmail(email, "Ton compte DamUp a été supprimé",
+          `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120"><h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été supprimé</h2><p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été supprimé. Tu ne peux plus te connecter.</p><p style="font-size:15px;line-height:1.6">Pour toute question, écris-nous à <a href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a>.</p><p style="color:#8A6D3B;font-size:13px">L'équipe DamUp</p></div>`);
+      } catch {}
       await admin.auth.admin.deleteUser(cible.user_id);
       await admin.from("equipe").delete().eq("id", id);
       await journal("membre_supprime", "equipe", id, { email: cible.user_id });
