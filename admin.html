@@ -692,7 +692,7 @@
 
         <div style="border-top:1px solid #EEE;padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
           ${jePeux('valider_profils') && !estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="${type === "etablissement" ? "validerEtab" : "valider"}('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
-          ${jePeux('suspendre_utilisateurs') ? (estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`) : ""}
+          ${jePeux('suspendre_utilisateurs') ? `${estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`} <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="supprimerCompte('${id}')">Supprimer</button>` : ""}
         </div>
       </div>`;
     document.body.appendChild(modal);
@@ -745,6 +745,15 @@
     const { error } = await db.rpc("admin_suspendre_compte", { p_profil: id });
     if (error) { toast(error.message, "erreur"); return; }
     toast("Compte suspendu", "info");
+    document.getElementById("modal-fiche-admin")?.remove();
+    chargerAnnuaire();
+  }
+  async function supprimerCompte(id) {
+    if (!await demander("Supprimer définitivement ce compte ? Cette action est irréversible.", "Supprimer")) return;
+    const { data, error } = await sb.functions.invoke("supprimer-compte", { body: { profil_id: id } });
+    if (error) { toast("Erreur : " + (error.message || "échec"), "erreur"); return; }
+    if (data && data.error) { toast("Erreur : " + data.error, "erreur"); return; }
+    toast("Compte supprimé ✅", "ok");
     document.getElementById("modal-fiche-admin")?.remove();
     chargerAnnuaire();
   }
