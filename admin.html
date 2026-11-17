@@ -368,9 +368,11 @@
           <option value="verifie">Vérifié</option>
           <option value="en_attente">En attente</option>
           <option value="suspendu">Suspendu</option>
+          <option value="sans_photo">Photos incomplètes</option>
         </select>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterAnnuaire()">Exporter CSV</button>
         <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterAnnuaireXlsx()">Excel (.xlsx)</button>
+        ${annuaireType === 'hotesses' ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="rappelerPhotos()">📷 Rappel photos</button>` : ""}
       </div>
       <div class='panneau'><div id='liste-annuaire' class='vide'>Chargement…</div></div>`;
     document.getElementById("a-recherche").value = annuaireRecherche;
@@ -498,11 +500,27 @@
     if (annuaireFiltre === "verifie") return x.verifie;
     if (annuaireFiltre === "en_attente") return !x.verifie;
     if (annuaireFiltre === "suspendu") return x.suspendu;
+    if (annuaireFiltre === "sans_photo") return (x.photos || []).length < 4;
     return true;
   }
   function chercheAnnuaire(txt) {
     if (!annuaireRecherche) return true;
     return (txt || "").toLowerCase().includes(annuaireRecherche.toLowerCase());
+  }
+
+  async function rappelerPhotos() {
+    const cible = (annuaireData || []).filter(h => (h.photos || []).length < 4);
+    if (!cible.length) { toast("Aucune hôtesse avec moins de 4 photos.", "info"); return; }
+    if (!await demander(`Envoyer un rappel à ${cible.length} hôtesse(s) avec moins de 4 photos ?`, "Envoyer")) return;
+    const { data, error } = await db.rpc("admin_rappeler_photos", { p_profil: null });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast(`Rappel envoyé à ${data} hôtesse(s) ✅`, "ok");
+  }
+  async function rappelerPhotosUn(id) {
+    if (!await demander("Envoyer un rappel photos à cette hôtesse ?", "Envoyer")) return;
+    const { error } = await db.rpc("admin_rappeler_photos", { p_profil: id });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Rappel envoyé ✅", "ok");
   }
 
   async function chargerAnnuaire() {
@@ -512,9 +530,10 @@
       const { data } = await db.rpc("admin_annuaire_hotesses");
       annuaireData = data || [];
       const f = annuaireData.filter(h => filtreAnnuaire(h) && chercheAnnuaire(h.prenom + " " + (h.email||"") + " " + (h.ville||"") + " " + (h.instagram||"")));
-      zone.innerHTML = f.length ? `<table><tr><th>Hôtesse</th><th>Ville</th><th>Contact</th><th>Statut</th><th>Honorées</th><th>Note</th><th></th></tr>
+      zone.innerHTML = f.length ? `<table><tr><th>Hôtesse</th><th>Photos</th><th>Ville</th><th>Contact</th><th>Statut</th><th>Honorées</th><th>Note</th><th></th></tr>
         ${f.map(h => `<tr style="cursor:pointer" onclick="ouvrirFicheAdmin('hotesse','${h.id}')">
           <td><div class="cell">${avatarPhoto(h.photos?.[0], h.prenom)}${esc(h.prenom)}, ${h.age}</div></td>
+          <td>${(h.photos||[]).length < 4 ? `<span style="color:#C0392B;font-weight:600">${(h.photos||[]).length}/4 ⚠️</span>` : `<span style="color:#1E7A3C">${(h.photos||[]).length}</span>`}</td>
           <td>${esc(h.ville || ":")}</td>
           <td style="font-size:12.5px;color:var(--gris)"><a href="mailto:${esc(h.email||"")}">${esc(h.email||"")}</a>${h.instagram ? `<br><a href="https://instagram.com/${esc(h.instagram.replace(/[^a-zA-Z0-9._]/g,""))}" target="_blank">@${esc(h.instagram)}</a>` : ""}</td>
           <td>${statutBadge(h.verifie, h.suspendu)}</td>
@@ -692,6 +711,7 @@
 
         <div style="border-top:1px solid #EEE;padding:12px 0;display:flex;gap:8px;flex-wrap:wrap">
           ${jePeux('valider_profils') && !estVerifie ? `<button class="btn btn-sm btn-primaire" onclick="${type === "etablissement" ? "validerEtab" : "valider"}('${id}')">Valider</button> <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="refuser('${id}','${type}')">Refuser</button>` : ""}
+          ${type === "hotesse" && (x.photos || []).length < 4 ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="rappelerPhotosUn('${id}')">📷 Rappel photos</button>` : ""}
           ${jePeux('suspendre_utilisateurs') ? `${estSuspendu ? `<button class="btn btn-sm btn-primaire" onclick="reactiver('${id}')">Réactiver</button>` : `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="suspendreCompte('${id}')">Suspendre</button>`} <button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="supprimerCompte('${id}')">Supprimer</button>` : ""}
         </div>
       </div>`;

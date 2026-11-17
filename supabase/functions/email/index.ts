@@ -34,6 +34,9 @@ const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement" | "comm
   etablissement_refuse: {
     etablissement: { cat: "compte", objet: "Nous n'avons pas pu valider {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Nous n'avons pas pu vérifier {nom_etablissement} : {motif}.</p><p>Merci de nous envoyer un justificatif (extrait Kbis, licence ou facture récente au nom de l'établissement) en réponse à ce mail ; nous reprendrons la vérification sous 48 h.</p>` },
   },
+  rappel_photos: {
+    commun: { cat: "compte", objet: "Votre profil DamUp a besoin de vos photos", corps: `<p>Bonjour {prenom},</p><p>Votre profil DamUp n'a pas encore assez de photos pour être retenu par les établissements. Ajoutez au moins 4 photos de bonne qualité pour pouvoir postuler aux missions.</p><p>[BOUTON:Ajouter mes photos]</p><p>Les profils complets sont les premiers choisis.</p>` },
+  },
 
   // ============ 2. Modération ============
   avertissement: {

@@ -505,18 +505,6 @@ begin
   return query select * from public.messages where mission_id = v_mission order by created_at;
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
-  update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
-  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
-end; $function$;
-
 CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric)
  RETURNS void
  LANGUAGE plpgsql
@@ -527,6 +515,18 @@ begin
   if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
   update public.profiles set tarif = p_tarif where id = p_profil;
   perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif));
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
+  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
@@ -544,6 +544,38 @@ begin
   get diagnostics n = row_count;
   perform public.journaliser('periode_offerte_groupe', null, null, jsonb_build_object('type', p_type, 'jours', p_jours, 'n', n));
   return n;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_rappeler_photos(p_profil uuid DEFAULT NULL::uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_h record;
+  v_n int := 0;
+begin
+  if not public.a_le_droit('valider_profils') then raise exception 'Droit insuffisant.'; end if;
+
+  if p_profil is not null then
+    perform public.envoyer_mail('rappel_photos', p_profil,
+      jsonb_build_object('lien', 'https://damup.fr/hotesse-profil.html'));
+    return 1;
+  end if;
+
+  for v_h in
+    select h.id
+      from public.hotesses h
+      join public.profiles p on p.id = h.id
+     where coalesce(jsonb_array_length(h.photos), 0) < 4
+       and not p.suspendu
+  loop
+    perform public.envoyer_mail('rappel_photos', v_h.id,
+      jsonb_build_object('lien', 'https://damup.fr/hotesse-profil.html'));
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_reactiver_compte(p_profil uuid)
@@ -2781,6 +2813,11 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_offrir_periode_groupe -> authenticated (EXECUTE)
 -- admin_offrir_periode_groupe -> postgres (EXECUTE)
 -- admin_offrir_periode_groupe -> service_role (EXECUTE)
+-- admin_rappeler_photos -> PUBLIC (EXECUTE)
+-- admin_rappeler_photos -> anon (EXECUTE)
+-- admin_rappeler_photos -> authenticated (EXECUTE)
+-- admin_rappeler_photos -> postgres (EXECUTE)
+-- admin_rappeler_photos -> service_role (EXECUTE)
 -- admin_reactiver_compte -> authenticated (EXECUTE)
 -- admin_reactiver_compte -> postgres (EXECUTE)
 -- admin_reactiver_compte -> service_role (EXECUTE)
