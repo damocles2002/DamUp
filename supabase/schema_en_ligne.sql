@@ -1241,18 +1241,11 @@ AS $function$
 begin
   if old.suspendu is distinct from new.suspendu then
     if new.suspendu then
-      perform public.envoyer_email(new.email, 'Ton compte DamUp a été suspendu',
-        '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120">'
-        || '<h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été suspendu</h2>'
-        || '<p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été suspendu. Tu ne peux plus te connecter pour le moment.</p>'
-        || '<p style="font-size:15px;line-height:1.6">Pour en savoir plus, écris-nous à <a href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a>.</p>'
-        || '<p style="color:#8A6D3B;font-size:13px">L''équipe DamUp</p></div>');
+      perform public.envoyer_mail('suspension', new.id,
+        jsonb_build_object('motif', 'manquement aux conditions d''utilisation'));
     else
-      perform public.envoyer_email(new.email, 'Ton compte DamUp a été réactivé',
-        '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120">'
-        || '<h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été réactivé</h2>'
-        || '<p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été réactivé. Tu peux à nouveau te connecter.</p>'
-        || '<p style="color:#8A6D3B;font-size:13px">L''équipe DamUp</p></div>');
+      perform public.envoyer_mail('reactivation', new.id,
+        jsonb_build_object('lien', 'https://damup.fr'));
     end if;
   end if;
   return new;
@@ -1282,6 +1275,50 @@ begin
       'x-damup-secret', v_secret
     ),
     body := jsonb_build_object('facture_id', p_facture_id::text)
+  );
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.envoyer_mail(p_evenement text, p_destinataire uuid, p_variables jsonb DEFAULT '{}'::jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_secret text;
+  v_anon text;
+  v_email text;
+  v_type text;
+  v_role text;
+  v_prenom text;
+begin
+  select email, type into v_email, v_type from public.profiles where id = p_destinataire;
+  if v_email is null or v_email = '' then return; end if;
+  v_role := case when v_type = 'etablissement' then 'etablissement' else 'hotesse' end;
+
+  -- nom affiché : prénom (hôtesse) ou responsable/nom (établissement)
+  v_prenom := coalesce(
+    (select prenom from public.hotesses where id = p_destinataire),
+    (select nullif(responsable_nom, '') from public.etablissements where id = p_destinataire),
+    (select nom from public.etablissements where id = p_destinataire),
+    ''
+  );
+  if not (p_variables ? 'prenom') then
+    p_variables := p_variables || jsonb_build_object('prenom', v_prenom);
+  end if;
+
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
+  if v_secret is null or v_secret = '' then return; end if;
+  select decrypted_secret into v_anon from vault.decrypted_secrets where name = 'SUPABASE_ANON_KEY' order by created_at desc limit 1;
+
+  perform net.http_post(
+    url := 'https://bzoqpaldksrqixoxgsvf.supabase.co/functions/v1/email',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || coalesce(v_anon, ''),
+      'x-damup-secret', v_secret
+    ),
+    body := jsonb_build_object('evenement', p_evenement, 'email', v_email, 'role', v_role, 'variables', p_variables)
   );
 end; $function$;
 
@@ -2799,6 +2836,8 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- envoyer_email_suspension -> service_role (EXECUTE)
 -- envoyer_facture -> postgres (EXECUTE)
 -- envoyer_facture -> service_role (EXECUTE)
+-- envoyer_mail -> postgres (EXECUTE)
+-- envoyer_mail -> service_role (EXECUTE)
 -- est_proprietaire -> PUBLIC (EXECUTE)
 -- est_proprietaire -> anon (EXECUTE)
 -- est_proprietaire -> authenticated (EXECUTE)

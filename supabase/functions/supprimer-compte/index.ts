@@ -56,19 +56,27 @@ Deno.serve(async (req) => {
     if (!profil) return json(req, { error: "Compte introuvable" }, 404);
     if (profil.type === "admin") return json(req, { error: "On ne supprime pas un administrateur ici" }, 403);
 
-    // 4) e-mail avant suppression (le compte n'existera plus après)
+    // 4) e-mail avant suppression via le modèle pro (le compte n'existera plus après)
     const email = profil.email ?? "";
     try {
-      if (email && SENDER_EMAIL) {
-        await fetch("https://api.brevo.com/v3/smtp/email", {
+      if (email) {
+        let prenom = "";
+        if (profil.type === "etablissement") {
+          const { data: etab } = await admin.from("etablissements").select("responsable_nom, nom").eq("id", profil_id).single();
+          prenom = etab?.responsable_nom || etab?.nom || "";
+        } else {
+          const { data: h } = await admin.from("hotesses").select("prenom").eq("id", profil_id).single();
+          prenom = h?.prenom || "";
+        }
+        const role = profil.type === "etablissement" ? "etablissement" : "hotesse";
+        await fetch(`${url}/functions/v1/email`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "api-key": BREVO_API_KEY },
-          body: JSON.stringify({
-            sender: { name: "DamUp", email: SENDER_EMAIL },
-            to: [{ email }],
-            subject: "Ton compte DamUp a été supprimé",
-            htmlContent: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#2A1120"><h2 style="color:#2A1120;margin:0 0 16px">Ton compte DamUp a été supprimé</h2><p style="font-size:15px;line-height:1.6">Bonjour, ton compte DamUp a été supprimé. Tu ne peux plus te connecter.</p><p style="font-size:15px;line-height:1.6">Pour toute question, écris-nous à <a href="mailto:damotrader2025@gmail.com">damotrader2025@gmail.com</a>.</p><p style="color:#8A6D3B;font-size:13px">L'équipe DamUp</p></div>`,
-          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            "x-damup-secret": Deno.env.get("NOTIFIER_SECRET") ?? "",
+          },
+          body: JSON.stringify({ evenement: "suppression_damup", email, role, variables: { prenom, motif: "manquement aux conditions d'utilisation" } }),
         });
       }
     } catch { /* l'e-mail ne doit pas bloquer la suppression */ }
