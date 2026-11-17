@@ -1,8 +1,7 @@
 // ============================================================
 //  DamUp : Edge Function "email" — envoi d'e-mails selon modèles
 //  Modèles pro (fond ivoire, titres aubergine, bouton aubergine).
-//  Tutoiement pour les hôtesses, vouvoiement pour les établissements.
-//  Fermée au public : exige l'en-tête x-damup-secret.
+//  Vouvoiement pour tout le monde. Fermée au public (x-damup-secret).
 // ============================================================
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
@@ -13,21 +12,21 @@ type Modele = { objet: string; corps: string; cat: "compte" | "moderation" | "mi
 
 // [BOUTON:texte] → bouton vers {lien}
 // {variable} → remplacé
-const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement", Modele>>> = {
+// rôle "commun" = même texte quel que soit le destinataire
+const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement" | "commun", Modele>>> = {
   // ============ 1. Comptes ============
   inscription: {
-    hotesse: { cat: "compte", objet: "Bienvenue sur DamUp, {prenom}", corps: `<p>Bonjour {prenom},</p><p>Ton compte DamUp est créé. Il te reste une étape avant de postuler aux missions : la vérification de ton identité (pièce d'identité + 18 ans minimum). Elle prend généralement moins de 24 h.</p><p>[BOUTON:Compléter mon profil]</p><p>En attendant, tu peux déjà ajouter tes photos et ta présentation : les établissements regardent d'abord les profils complets.</p>` },
+    hotesse: { cat: "compte", objet: "Bienvenue sur DamUp, {prenom}", corps: `<p>Bonjour {prenom},</p><p>Votre compte DamUp est créé. Il vous reste une étape avant de postuler aux missions : la vérification de votre identité (pièce d'identité + 18 ans minimum). Elle prend généralement moins de 24 h.</p><p>[BOUTON:Compléter mon profil]</p><p>En attendant, vous pouvez déjà ajouter vos photos et votre présentation : les établissements regardent d'abord les profils complets.</p>` },
     etablissement: { cat: "compte", objet: "Bienvenue sur DamUp, {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Le compte de {nom_etablissement} est créé. Nous vérifions chaque établissement avant la première publication : vous recevrez une confirmation sous 48 h.</p><p>Dès la validation, vous pourrez publier une mission en deux minutes : date, horaires, lieu, avantages offerts (boissons, entrée, plat, dessert, chicha).</p><p>[BOUTON:Accéder à mon tableau de bord]</p>` },
   },
   confirmation_email: {
-    hotesse: { cat: "compte", objet: "Confirme ton adresse e-mail", corps: `<p>Bonjour {prenom},</p><p>Clique sur le bouton ci-dessous pour confirmer ton adresse et activer ton compte DamUp.</p><p>[BOUTON:Confirmer mon adresse]</p><p>Ce lien est valable 24 h. Si tu n'es pas à l'origine de cette inscription, ignore simplement ce message.</p>` },
-    etablissement: { cat: "compte", objet: "Confirmez votre adresse e-mail", corps: `<p>Bonjour {prenom},</p><p>Cliquez sur le bouton ci-dessous pour confirmer votre adresse et activer votre compte DamUp.</p><p>[BOUTON:Confirmer mon adresse]</p><p>Ce lien est valable 24 h. Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement ce message.</p>` },
+    commun: { cat: "compte", objet: "Confirmez votre adresse e-mail", corps: `<p>Bonjour {prenom},</p><p>Cliquez sur le bouton ci-dessous pour confirmer votre adresse et activer votre compte DamUp.</p><p>[BOUTON:Confirmer mon adresse]</p><p>Ce lien est valable 24 h. Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement ce message.</p>` },
   },
   identite_validee: {
-    hotesse: { cat: "compte", objet: "Ton profil est vérifié", corps: `<p>Bonjour {prenom},</p><p>Bonne nouvelle : ton identité est vérifiée. Ton profil porte désormais le badge « Vérifié » et tu peux postuler à toutes les missions.</p><p>[BOUTON:Voir les missions]</p>` },
+    hotesse: { cat: "compte", objet: "Votre profil est vérifié", corps: `<p>Bonjour {prenom},</p><p>Bonne nouvelle : votre identité est vérifiée. Votre profil porte désormais le badge « Vérifié » et vous pouvez postuler à toutes les missions.</p><p>[BOUTON:Voir les missions]</p>` },
   },
   identite_refusee: {
-    hotesse: { cat: "compte", objet: "Nous n'avons pas pu vérifier ton identité", corps: `<p>Bonjour {prenom},</p><p>Nous n'avons pas pu valider ta vérification d'identité pour la raison suivante : {motif}.</p><p>Tu peux renvoyer tes documents directement depuis ton profil. Pense à une photo nette, sans reflet, avec les quatre coins visibles.</p><p>[BOUTON:Renvoyer mes documents]</p><p>Une question ? Réponds simplement à ce mail.</p>` },
+    hotesse: { cat: "compte", objet: "Nous n'avons pas pu vérifier votre identité", corps: `<p>Bonjour {prenom},</p><p>Nous n'avons pas pu valider votre vérification d'identité pour la raison suivante : {motif}.</p><p>Vous pouvez renvoyer vos documents directement depuis votre profil. Pensez à une photo nette, sans reflet, avec les quatre coins visibles.</p><p>[BOUTON:Renvoyer mes documents]</p><p>Une question ? Répondez simplement à ce mail.</p>` },
   },
   etablissement_valide: {
     etablissement: { cat: "compte", objet: "{nom_etablissement} est validé sur DamUp", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} est vérifié. Vous pouvez publier votre première mission dès maintenant.</p><p>[BOUTON:Publier une mission]</p>` },
@@ -38,47 +37,42 @@ const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement", Modele
 
   // ============ 2. Modération ============
   avertissement: {
-    hotesse: { cat: "moderation", objet: "Un rappel concernant ton compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Nous avons reçu un signalement concernant {motif}. Ton compte reste actif, mais nous tenions à te le signaler : un nouveau manquement pourrait entraîner une suspension.</p><p>Pour rappel, les règles DamUp sont simples : respect des conditions de mission acceptées, ponctualité, et comportement correct envers chacun.</p><p>Si tu penses qu'il s'agit d'une erreur, réponds à ce mail et nous regarderons ensemble.</p>` },
-    etablissement: { cat: "moderation", objet: "Un rappel concernant votre compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Nous avons reçu un signalement concernant {motif}. Votre compte reste actif, mais nous tenions à vous le signaler : un nouveau manquement pourrait entraîner une suspension.</p><p>Pour rappel, les règles DamUp sont simples : respect des conditions de mission acceptées, ponctualité, et comportement correct envers chacun.</p><p>Si vous pensez qu'il s'agit d'une erreur, répondez à ce mail et nous regarderons ensemble.</p>` },
+    commun: { cat: "moderation", objet: "Un rappel concernant votre compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Nous avons reçu un signalement concernant {motif}. Votre compte reste actif, mais nous tenions à vous le signaler : un nouveau manquement pourrait entraîner une suspension.</p><p>Pour rappel, les règles DamUp sont simples : respect des conditions de mission acceptées, ponctualité, et comportement correct envers chacun.</p><p>Si vous pensez qu'il s'agit d'une erreur, répondez à ce mail et nous regarderons ensemble.</p>` },
   },
   suspension: {
-    hotesse: { cat: "moderation", objet: "Ton compte DamUp est suspendu", corps: `<p>Bonjour {prenom},</p><p>Ton compte est suspendu pour le motif suivant : {motif}.</p><p>Pendant cette période :</p><ul><li>tu ne peux plus postuler ni publier de mission ;</li><li>tes missions déjà confirmées sont annulées et les personnes concernées sont prévenues ;</li><li>ton profil n'est plus visible.</li></ul><p>Pour contester cette décision, réponds à ce mail sous 7 jours.</p>` },
-    etablissement: { cat: "moderation", objet: "Votre compte DamUp est suspendu", corps: `<p>Bonjour {prenom},</p><p>Votre compte est suspendu pour le motif suivant : {motif}.</p><p>Pendant cette période :</p><ul><li>vous ne pouvez plus postuler ni publier de mission ;</li><li>vos missions déjà confirmées sont annulées et les personnes concernées sont prévenues ;</li><li>votre profil n'est plus visible.</li></ul><p>Pour contester cette décision, répondez à ce mail sous 7 jours.</p>` },
+    commun: { cat: "moderation", objet: "Votre compte DamUp est suspendu", corps: `<p>Bonjour {prenom},</p><p>Votre compte est suspendu pour le motif suivant : {motif}.</p><p>Pendant cette période :</p><ul><li>vous ne pouvez plus postuler ni publier de mission ;</li><li>vos missions déjà confirmées sont annulées et les personnes concernées sont prévenues ;</li><li>votre profil n'est plus visible.</li></ul><p>Pour contester cette décision, répondez à ce mail sous 7 jours.</p>` },
   },
   reactivation: {
-    hotesse: { cat: "moderation", objet: "Ton compte DamUp est de nouveau actif", corps: `<p>Bonjour {prenom},</p><p>Ta suspension est terminée : ton compte est réactivé et ton profil est de nouveau visible.</p><p>[BOUTON:Me connecter]</p>` },
-    etablissement: { cat: "moderation", objet: "Votre compte DamUp est de nouveau actif", corps: `<p>Bonjour {prenom},</p><p>Votre suspension est terminée : votre compte est réactivé et votre profil est de nouveau visible.</p><p>[BOUTON:Me connecter]</p>` },
+    commun: { cat: "moderation", objet: "Votre compte DamUp est de nouveau actif", corps: `<p>Bonjour {prenom},</p><p>Votre suspension est terminée : votre compte est réactivé et votre profil est de nouveau visible.</p><p>[BOUTON:Me connecter]</p>` },
   },
   suppression_damup: {
-    hotesse: { cat: "moderation", objet: "Ton compte DamUp a été supprimé", corps: `<p>Bonjour {prenom},</p><p>Ton compte DamUp a été définitivement supprimé pour le motif suivant : {motif}.</p><p>Cette décision est irréversible. Ton profil, tes missions, tes candidatures et tes notifications ont été effacés. Tes données personnelles sont supprimées conformément à notre politique de confidentialité ; seules celles que la loi nous oblige à conserver sont gardées, le temps légal.</p><p>Si tu estimes qu'il s'agit d'une erreur, tu peux nous écrire à contact@damup.fr.</p>` },
-    etablissement: { cat: "moderation", objet: "Votre compte DamUp a été supprimé", corps: `<p>Bonjour {prenom},</p><p>Votre compte DamUp a été définitivement supprimé pour le motif suivant : {motif}.</p><p>Cette décision est irréversible. Votre profil, vos missions, vos candidatures et vos notifications ont été effacés. Vos données personnelles sont supprimées conformément à notre politique de confidentialité ; seules celles que la loi nous oblige à conserver sont gardées, le temps légal.</p><p>Si vous estimez qu'il s'agit d'une erreur, vous pouvez nous écrire à contact@damup.fr.</p>` },
+    commun: { cat: "moderation", objet: "Votre compte DamUp a été supprimé", corps: `<p>Bonjour {prenom},</p><p>Votre compte DamUp a été définitivement supprimé pour le motif suivant : {motif}.</p><p>Cette décision est irréversible. Votre profil, vos missions, vos candidatures et vos notifications ont été effacés. Vos données personnelles sont supprimées conformément à notre politique de confidentialité ; seules celles que la loi nous oblige à conserver sont gardées, le temps légal.</p><p>Si vous estimez qu'il s'agit d'une erreur, vous pouvez nous écrire à contact@damup.fr.</p>` },
   },
   suppression_utilisateur: {
-    hotesse: { cat: "moderation", objet: "Ton compte DamUp est supprimé", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, ton compte DamUp est supprimé. Ton profil, tes missions et tes candidatures ont été effacés.</p><p>Merci d'avoir fait partie de DamUp. Si tu changes d'avis, tu pourras créer un nouveau compte à tout moment sur damup.fr.</p>` },
-    etablissement: { cat: "moderation", objet: "Votre compte DamUp est supprimé", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, votre compte DamUp est supprimé. Votre profil, vos missions et vos candidatures ont été effacés.</p><p>Merci d'avoir fait partie de DamUp. Si vous changez d'avis, vous pourrez créer un nouveau compte à tout moment sur damup.fr.</p>` },
+    commun: { cat: "moderation", objet: "Votre compte DamUp est supprimé", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, votre compte DamUp est supprimé. Votre profil, vos missions et vos candidatures ont été effacés.</p><p>Merci d'avoir fait partie de DamUp. Si vous changez d'avis, vous pourrez créer un nouveau compte à tout moment sur damup.fr.</p>` },
   },
 
   // ============ 3. Missions — hôtesse ============
   candidature_envoyee: {
-    hotesse: { cat: "missions", objet: "Candidature envoyée — {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>Ta candidature pour « {titre_mission} » chez {nom_etablissement} ({date_mission}) est bien envoyée. L'établissement te répond généralement sous 48 h.</p><p>[BOUTON:Suivre ma candidature]</p>` },
+    hotesse: { cat: "missions", objet: "Candidature envoyée — {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>Votre candidature pour « {titre_mission} » chez {nom_etablissement} ({date_mission}) est bien envoyée. L'établissement vous répond généralement sous 48 h.</p><p>[BOUTON:Suivre ma candidature]</p>` },
   },
   candidature_acceptee: {
-    hotesse: { cat: "missions", objet: "C'est oui ! Tu es retenue pour {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} t'a sélectionnée pour la mission « {titre_mission} ».</p><p>Récapitulatif :</p><ul><li>Date : {date_mission}</li><li>Horaires : {horaires}</li><li>Adresse : {adresse}</li><li>Avantages offerts : {avantages}</li></ul><p>Merci de confirmer ta présence depuis l'application. Un empêchement ? Préviens au plus tôt : une annulation à moins de 24 h est signalée sur ton profil.</p><p>[BOUTON:Confirmer ma présence]</p>` },
+    hotesse: { cat: "missions", objet: "C'est oui ! Vous êtes retenue pour {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} vous a sélectionnée pour la mission « {titre_mission} ».</p><p>Récapitulatif :</p><ul><li>Date : {date_mission}</li><li>Horaires : {horaires}</li><li>Adresse : {adresse}</li><li>Avantages offerts : {avantages}</li></ul><p>Merci de confirmer votre présence depuis l'application. Un empêchement ? Prévenez au plus tôt : une annulation à moins de 24 h est signalée sur votre profil.</p><p>[BOUTON:Confirmer ma présence]</p>` },
   },
   candidature_refusee: {
-    hotesse: { cat: "missions", objet: "Réponse pour {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} n'a pas retenu ta candidature pour « {titre_mission} » cette fois-ci. Cela n'a rien de définitif : de nouvelles missions sont publiées chaque jour.</p><p>[BOUTON:Voir les missions du moment]</p>` },
+    hotesse: { cat: "missions", objet: "Réponse pour {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} n'a pas retenu votre candidature pour « {titre_mission} » cette fois-ci. Cela n'a rien de définitif : de nouvelles missions sont publiées chaque jour.</p><p>[BOUTON:Voir les missions du moment]</p>` },
   },
   rappel_veille: {
-    hotesse: { cat: "missions", objet: "Demain : {titre_mission} chez {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Petit rappel : ta mission « {titre_mission} » a lieu demain.</p><ul><li>Horaires : {horaires}</li><li>Adresse : {adresse}</li><li>Contact sur place : disponible dans l'application</li></ul><p>Pense à ta pièce d'identité et à arriver 10 minutes en avance.</p><p>[BOUTON:Voir les détails]</p><p>Bonne soirée,</p>` },
+    hotesse: { cat: "missions", objet: "Demain : {titre_mission} chez {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Petit rappel : votre mission « {titre_mission} » a lieu demain.</p><ul><li>Horaires : {horaires}</li><li>Adresse : {adresse}</li><li>Contact sur place : disponible dans l'application</li></ul><p>Pensez à votre pièce d'identité et à arriver 10 minutes en avance.</p><p>[BOUTON:Voir les détails]</p><p>Bonne soirée,</p>` },
   },
   mission_annulee: {
-    hotesse: { cat: "missions", objet: "Mission annulée — {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} a annulé la mission « {titre_mission} » prévue le {date_mission}. Nous sommes désolés pour ce contretemps.</p><p>Cette annulation n'a aucun impact sur ton profil. D'autres missions t'attendent :</p><p>[BOUTON:Voir les missions]</p>` },
+    hotesse: { cat: "missions", objet: "Mission annulée — {titre_mission}", corps: `<p>Bonjour {prenom},</p><p>{nom_etablissement} a annulé la mission « {titre_mission} » prévue le {date_mission}. Nous sommes désolés pour ce contretemps.</p><p>Cette annulation n'a aucun impact sur votre profil. D'autres missions vous attendent :</p><p>[BOUTON:Voir les missions]</p>` },
   },
   mission_terminee: {
-    hotesse: { cat: "missions", objet: "Merci pour ta mission chez {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Ta mission « {titre_mission} » est terminée et ajoutée à ton historique. {nom_etablissement} peut maintenant te laisser un avis, visible sur ton profil.</p><p>Un problème pendant la soirée ? Tu peux le signaler depuis la fiche de la mission.</p><p>[BOUTON:Voir mon historique]</p>` },
+    hotesse: { cat: "missions", objet: "Merci pour votre mission chez {nom_etablissement}", corps: `<p>Bonjour {prenom},</p><p>Votre mission « {titre_mission} » est terminée et ajoutée à votre historique. {nom_etablissement} peut maintenant vous laisser un avis, visible sur votre profil.</p><p>Un problème pendant la soirée ? Vous pouvez le signaler depuis la fiche de la mission.</p><p>[BOUTON:Voir mon historique]</p>` },
   },
   copine_invitee: {
-    hotesse: { cat: "missions", objet: "{prenom} te propose de rejoindre DamUp", corps: `<p>Bonjour,</p><p>{prenom} pense que DamUp pourrait te plaire : des missions d'hôtesse de table dans des bars, restaurants et clubs, à choisir selon tes disponibilités.</p><p>L'inscription est gratuite et prend cinq minutes.</p><p>[BOUTON:Créer mon profil]</p>` },
+    hotesse: { cat: "missions", objet: "{prenom} vous propose de rejoindre DamUp", corps: `<p>Bonjour,</p><p>{prenom} pense que DamUp pourrait vous plaire : des missions d'hôtesse de table dans des bars, restaurants et clubs, à choisir selon vos disponibilités.</p><p>L'inscription est gratuite et prend cinq minutes.</p><p>[BOUTON:Créer mon profil]</p>` },
   },
 
   // ============ 4. Missions — établissement ============
@@ -109,32 +103,25 @@ const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement", Modele
 
   // ============ 5. Sécurité et signalements ============
   code_connexion: {
-    hotesse: { cat: "securite", objet: "{code} est ton code DamUp", corps: `<p>Bonjour {prenom},</p><p>Voici ton code de connexion : <strong>{code}</strong></p><p>Il est valable 10 minutes. Ne le partage avec personne : DamUp ne te le demandera jamais par téléphone ou par message.</p><p>Si tu n'es pas à l'origine de cette connexion, change ton mot de passe dès maintenant.</p>` },
-    etablissement: { cat: "securite", objet: "{code} est votre code DamUp", corps: `<p>Bonjour {prenom},</p><p>Voici votre code de connexion : <strong>{code}</strong></p><p>Il est valable 10 minutes. Ne le partagez avec personne : DamUp ne vous le demandera jamais par téléphone ou par message.</p><p>Si vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe dès maintenant.</p>` },
+    commun: { cat: "securite", objet: "{code} est votre code DamUp", corps: `<p>Bonjour {prenom},</p><p>Voici votre code de connexion : <strong>{code}</strong></p><p>Il est valable 10 minutes. Ne le partagez avec personne : DamUp ne vous le demandera jamais par téléphone ou par message.</p><p>Si vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe dès maintenant.</p>` },
   },
   reinitialiser_mdp: {
-    hotesse: { cat: "securite", objet: "Réinitialise ton mot de passe DamUp", corps: `<p>Bonjour {prenom},</p><p>Tu as demandé à changer ton mot de passe. Clique sur le bouton ci-dessous pour en choisir un nouveau.</p><p>[BOUTON:Choisir un nouveau mot de passe]</p><p>Ce lien expire dans 1 heure. Si tu n'as rien demandé, ignore ce mail : ton mot de passe actuel reste valable.</p>` },
-    etablissement: { cat: "securite", objet: "Réinitialisez votre mot de passe DamUp", corps: `<p>Bonjour {prenom},</p><p>Vous avez demandé à changer votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.</p><p>[BOUTON:Choisir un nouveau mot de passe]</p><p>Ce lien expire dans 1 heure. Si vous n'avez rien demandé, ignorez ce mail : votre mot de passe actuel reste valable.</p>` },
+    commun: { cat: "securite", objet: "Réinitialisez votre mot de passe DamUp", corps: `<p>Bonjour {prenom},</p><p>Vous avez demandé à changer votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.</p><p>[BOUTON:Choisir un nouveau mot de passe]</p><p>Ce lien expire dans 1 heure. Si vous n'avez rien demandé, ignorez ce mail : votre mot de passe actuel reste valable.</p>` },
   },
   mdp_modifie: {
-    hotesse: { cat: "securite", objet: "Ton mot de passe a été modifié", corps: `<p>Bonjour {prenom},</p><p>Ton mot de passe DamUp vient d'être modifié. Si c'est toi, tout est en ordre.</p><p>Si ce n'est pas toi, écris-nous immédiatement à contact@damup.fr pour sécuriser ton compte.</p>` },
-    etablissement: { cat: "securite", objet: "Votre mot de passe a été modifié", corps: `<p>Bonjour {prenom},</p><p>Votre mot de passe DamUp vient d'être modifié. Si c'est vous, tout est en ordre.</p><p>Si ce n'est pas vous, écrivez-nous immédiatement à contact@damup.fr pour sécuriser votre compte.</p>` },
+    commun: { cat: "securite", objet: "Votre mot de passe a été modifié", corps: `<p>Bonjour {prenom},</p><p>Votre mot de passe DamUp vient d'être modifié. Si c'est vous, tout est en ordre.</p><p>Si ce n'est pas vous, écrivez-nous immédiatement à contact@damup.fr pour sécuriser votre compte.</p>` },
   },
   nouvel_appareil: {
-    hotesse: { cat: "securite", objet: "Nouvelle connexion à ton compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Une connexion à ton compte vient d'avoir lieu depuis un nouvel appareil ({appareil}, {ville}, le {date} à {heure}).</p><p>Si c'est toi, tu peux ignorer ce message. Sinon, change ton mot de passe sans attendre.</p><p>[BOUTON:Sécuriser mon compte]</p>` },
-    etablissement: { cat: "securite", objet: "Nouvelle connexion à votre compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Une connexion à votre compte vient d'avoir lieu depuis un nouvel appareil ({appareil}, {ville}, le {date} à {heure}).</p><p>Si c'est vous, vous pouvez ignorer ce message. Sinon, changez votre mot de passe sans attendre.</p><p>[BOUTON:Sécuriser mon compte]</p>` },
+    commun: { cat: "securite", objet: "Nouvelle connexion à votre compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Une connexion à votre compte vient d'avoir lieu depuis un nouvel appareil ({appareil}, {ville}, le {date} à {heure}).</p><p>Si c'est vous, vous pouvez ignorer ce message. Sinon, changez votre mot de passe sans attendre.</p><p>[BOUTON:Sécuriser mon compte]</p>` },
   },
   signalement_recu: {
-    hotesse: { cat: "securite", objet: "Nous avons bien reçu ton signalement", corps: `<p>Bonjour {prenom},</p><p>Merci pour ton signalement concernant {objet_signalement}. Notre équipe l'examine sous 48 h et te tient informée de la suite.</p><p>Tes échanges avec nous restent confidentiels. Si tu es en danger, contacte immédiatement les secours (17 ou 112).</p>` },
-    etablissement: { cat: "securite", objet: "Nous avons bien reçu votre signalement", corps: `<p>Bonjour {prenom},</p><p>Merci pour votre signalement concernant {objet_signalement}. Notre équipe l'examine sous 48 h et vous tient informé de la suite.</p><p>Vos échanges avec nous restent confidentiels. Si vous êtes en danger, contactez immédiatement les secours (17 ou 112).</p>` },
+    commun: { cat: "securite", objet: "Nous avons bien reçu votre signalement", corps: `<p>Bonjour {prenom},</p><p>Merci pour votre signalement concernant {objet_signalement}. Notre équipe l'examine sous 48 h et vous tient informé de la suite.</p><p>Vos échanges avec nous restent confidentiels. Si vous êtes en danger, contactez immédiatement les secours (17 ou 112).</p>` },
   },
   signalement_traite: {
-    hotesse: { cat: "securite", objet: "Suite de ton signalement", corps: `<p>Bonjour {prenom},</p><p>Nous avons traité ton signalement concernant {objet_signalement}. Les mesures nécessaires ont été prises conformément à nos règles. Par respect de la confidentialité, nous ne pouvons pas détailler les actions menées sur un autre compte.</p><p>Merci de contribuer à une communauté sûre.</p>` },
-    etablissement: { cat: "securite", objet: "Suite de votre signalement", corps: `<p>Bonjour {prenom},</p><p>Nous avons traité votre signalement concernant {objet_signalement}. Les mesures nécessaires ont été prises conformément à nos règles. Par respect de la confidentialité, nous ne pouvons pas détailler les actions menées sur un autre compte.</p><p>Merci de contribuer à une communauté sûre.</p>` },
+    commun: { cat: "securite", objet: "Suite de votre signalement", corps: `<p>Bonjour {prenom},</p><p>Nous avons traité votre signalement concernant {objet_signalement}. Les mesures nécessaires ont été prises conformément à nos règles. Par respect de la confidentialité, nous ne pouvons pas détailler les actions menées sur un autre compte.</p><p>Merci de contribuer à une communauté sûre.</p>` },
   },
   export_rgpd: {
-    hotesse: { cat: "securite", objet: "Tes données DamUp sont prêtes", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, voici l'export de tes données personnelles. Le lien est valable 7 jours.</p><p>[BOUTON:Télécharger mes données]</p>` },
-    etablissement: { cat: "securite", objet: "Vos données DamUp sont prêtes", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, voici l'export de vos données personnelles. Le lien est valable 7 jours.</p><p>[BOUTON:Télécharger mes données]</p>` },
+    commun: { cat: "securite", objet: "Vos données DamUp sont prêtes", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, voici l'export de vos données personnelles. Le lien est valable 7 jours.</p><p>[BOUTON:Télécharger mes données]</p>` },
   },
 };
 
@@ -142,7 +129,7 @@ function echapper(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function construireHtml(corps: string, variables: Record<string, string>, role: string, avecLienNotif: boolean): string {
+function construireHtml(corps: string, variables: Record<string, string>, avecLienNotif: boolean): string {
   // 1) remplacer les variables
   let c = corps;
   for (const [k, v] of Object.entries(variables)) {
@@ -156,9 +143,7 @@ function construireHtml(corps: string, variables: Record<string, string>, role: 
       : `<p style="margin:18px 0;font-weight:600">${texte}</p>`
   );
 
-  const signature = role === "etablissement"
-    ? `<p style="margin:22px 0 0">Bien cordialement,<br>L'équipe DamUp</p>`
-    : `<p style="margin:22px 0 0">À bientôt,<br>L'équipe DamUp</p>`;
+  const signature = `<p style="margin:22px 0 0">Bien cordialement,<br>L'équipe DamUp</p>`;
 
   const lienNotif = avecLienNotif
     ? ` · <a href="https://damup.fr" style="color:#8A6D3B">Gérer mes notifications</a>`
@@ -198,11 +183,11 @@ Deno.serve(async (req) => {
 
     const modele = MODELES[evenement];
     if (!modele) return json({ error: "Modèle inconnu : " + evenement }, 400);
-    const m = (modele as any)[role] ?? null;
+    const m = (modele as any)[role] ?? (modele as any).commun;
     if (!m) return json({ error: "Rôle inconnu pour ce modèle : " + role }, 400);
 
     const vars: Record<string, string> = variables ?? {};
-    const html = construireHtml(m.corps, vars, role, m.cat === "missions");
+    const html = construireHtml(m.corps, vars, m.cat === "missions");
 
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -211,7 +196,7 @@ Deno.serve(async (req) => {
         sender: { name: SENDER_NAME, email: SENDER_EMAIL },
         replyTo: { email: "contact@damup.fr", name: "DamUp" },
         to: [{ email }],
-        subject: construireHtml(m.objet, vars, role, false).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim(),
+        subject: construireHtml(m.objet, vars, false).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim(),
         htmlContent: html,
       }),
     });
