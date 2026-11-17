@@ -49,7 +49,7 @@ const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement" | "comm
     commun: { cat: "moderation", objet: "Votre compte DamUp est de nouveau actif", corps: `<p>Bonjour {prenom},</p><p>Votre suspension est terminée : votre compte est réactivé et votre profil est de nouveau visible.</p><p>[BOUTON:Me connecter]</p>` },
   },
   suppression_damup: {
-    commun: { cat: "moderation", objet: "Votre compte DamUp a été supprimé", corps: `<p>Bonjour {prenom},</p><p>Votre compte DamUp a été définitivement supprimé pour le motif suivant : {motif}.</p><p>Cette décision est irréversible. Votre profil, vos missions, vos candidatures et vos notifications ont été effacés. Vos données personnelles sont supprimées conformément à notre politique de confidentialité ; seules celles que la loi nous oblige à conserver sont gardées, le temps légal.</p><p>Si vous estimez qu'il s'agit d'une erreur, vous pouvez nous écrire à contact@damup.fr.</p>` },
+    commun: { cat: "moderation", objet: "Votre compte DamUp a été supprimé", corps: `<p>Bonjour {prenom},</p><p>Votre compte DamUp a été définitivement supprimé pour le motif suivant : {motif}.</p><p>Cette décision est irréversible. Votre profil, vos missions, vos candidatures et vos notifications ont été effacés. Vos données personnelles sont supprimées conformément à notre politique de confidentialité ; seules celles que la loi nous oblige à conserver sont gardées, le temps légal.</p><p>Si vous estimez qu'il s'agit d'une erreur, vous pouvez nous écrire à ${SENDER_EMAIL}.</p>` },
   },
   suppression_utilisateur: {
     commun: { cat: "moderation", objet: "Votre compte DamUp est supprimé", corps: `<p>Bonjour {prenom},</p><p>Comme demandé, votre compte DamUp est supprimé. Votre profil, vos missions et vos candidatures ont été effacés.</p><p>Merci d'avoir fait partie de DamUp. Si vous changez d'avis, vous pourrez créer un nouveau compte à tout moment sur damup.fr.</p>` },
@@ -112,7 +112,7 @@ const MODELES: Record<string, Partial<Record<"hotesse" | "etablissement" | "comm
     commun: { cat: "securite", objet: "Réinitialisez votre mot de passe DamUp", corps: `<p>Bonjour {prenom},</p><p>Vous avez demandé à changer votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.</p><p>[BOUTON:Choisir un nouveau mot de passe]</p><p>Ce lien expire dans 1 heure. Si vous n'avez rien demandé, ignorez ce mail : votre mot de passe actuel reste valable.</p>` },
   },
   mdp_modifie: {
-    commun: { cat: "securite", objet: "Votre mot de passe a été modifié", corps: `<p>Bonjour {prenom},</p><p>Votre mot de passe DamUp vient d'être modifié. Si c'est vous, tout est en ordre.</p><p>Si ce n'est pas vous, écrivez-nous immédiatement à contact@damup.fr pour sécuriser votre compte.</p>` },
+    commun: { cat: "securite", objet: "Votre mot de passe a été modifié", corps: `<p>Bonjour {prenom},</p><p>Votre mot de passe DamUp vient d'être modifié. Si c'est vous, tout est en ordre.</p><p>Si ce n'est pas vous, écrivez-nous immédiatement à ${SENDER_EMAIL} pour sécuriser votre compte.</p>` },
   },
   nouvel_appareil: {
     commun: { cat: "securite", objet: "Nouvelle connexion à votre compte DamUp", corps: `<p>Bonjour {prenom},</p><p>Une connexion à votre compte vient d'avoir lieu depuis un nouvel appareil ({appareil}, {ville}, le {date} à {heure}).</p><p>Si c'est vous, vous pouvez ignorer ce message. Sinon, changez votre mot de passe sans attendre.</p><p>[BOUTON:Sécuriser mon compte]</p>` },
@@ -163,7 +163,7 @@ function construireHtml(corps: string, variables: Record<string, string>, avecLi
       ${signature}
     </div>
     <div style="background:#F4E8D6;padding:14px 24px;font-family:Jost,Arial,sans-serif;font-size:12px;color:#8A6D3B">
-      DamUp · damup.fr · contact@damup.fr${lienNotif}
+      DamUp · damup.fr · ${SENDER_EMAIL}${lienNotif}
     </div>
   </div>
 </div>
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
       headers: { "Content-Type": "application/json", "api-key": BREVO_API_KEY },
       body: JSON.stringify({
         sender: { name: SENDER_NAME, email: SENDER_EMAIL },
-        replyTo: { email: "contact@damup.fr", name: "DamUp" },
+        replyTo: { email: SENDER_EMAIL, name: "DamUp" },
         to: [{ email }],
         subject: construireHtml(m.objet, vars, false).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim(),
         htmlContent: html,
