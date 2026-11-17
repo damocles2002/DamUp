@@ -843,6 +843,7 @@ declare
   v_h int;
   v_signes int := 1;
   v_signes_final int;
+  v_m public.missions%rowtype;
 begin
   if new.annulation and not old.annulation then
     if old.statut = 'confirmee' then
@@ -872,6 +873,39 @@ begin
     select m.etablissement_id, '⚠️ Une hôtesse a annulé sa venue : une place se libère sur ta mission du '
            || to_char(m.date, 'DD/MM') || '.'
       from public.missions m where m.id = new.mission_id;
+    -- 4.4 désistement → e-mail pro à l'établissement
+    select * into v_m from public.missions where id = new.mission_id;
+    perform public.envoyer_mail('desistement', v_m.etablissement_id,
+      jsonb_build_object('titre_mission', v_m.titre,
+        'date_mission', public.date_courte(v_m.date, 'fr'),
+        'prenom_hotesse', coalesce((select prenom from public.hotesses where id = new.hotesse_id), ''),
+        'lien', 'https://damup.fr/etablissement.html'));
+  end if;
+  return new;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.apres_mission_terminee()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_lieu text;
+begin
+  if new.statut = 'terminee' and old.statut is distinct from 'terminee' then
+    select nom into v_lieu from public.etablissements where id = new.etablissement_id;
+    perform public.envoyer_mail('mission_terminee', c.hotesse_id,
+      jsonb_build_object('nom_etablissement', v_lieu, 'titre_mission', new.titre,
+        'lien', 'https://damup.fr/hotesse.html'))
+      from public.candidatures c
+     where c.mission_id = new.id and c.statut = 'confirmee' and not c.annulation;
+    perform public.envoyer_mail('rappel_avis', new.etablissement_id,
+      jsonb_build_object('titre_mission', new.titre,
+        'prenom_hotesse', coalesce((select h.prenom from public.hotesses h
+                                     join public.candidatures c on c.hotesse_id = h.id
+                                    where c.mission_id = new.id and c.statut = 'confirmee' limit 1), ''),
+        'lien', 'https://damup.fr/etablissement.html'));
   end if;
   return new;
 end; $function$;
@@ -1061,6 +1095,8 @@ begin
     from public.equipe e join public.profiles p on p.id = e.user_id
    where p.type = 'admin' and not e.suspendu and not p.suspendu
      and (e.proprietaire or coalesce((e.droits->>'signalements')::boolean, false));
+  perform public.envoyer_mail('signalement_recu', auth.uid(),
+    jsonb_build_object('objet_signalement', coalesce(nullif(new.motif, ''), 'un comportement signalé')));
   return new;
 end; $function$;
 
@@ -1852,6 +1888,8 @@ declare
   v_prenom text;
   v_date_m date;
   v_langue text;
+  v_m public.missions%rowtype;
+  v_lieu text;
 begin
   select h.prenom, m.date, coalesce(p.langue, 'fr') into v_prenom, v_date_m, v_langue
     from public.missions m
@@ -1862,6 +1900,17 @@ begin
     (select etablissement_id from public.missions where id = new.mission_id),
     'notif.nouvelle_candidature',
     jsonb_build_object('prenom', v_prenom, 'date', public.date_courte(v_date_m, v_langue)));
+  select * into v_m from public.missions where id = new.mission_id;
+  select nom into v_lieu from public.etablissements where id = v_m.etablissement_id;
+  -- 4.2 nouvelle candidature → l'établissement
+  perform public.envoyer_mail('nouvelle_candidature', v_m.etablissement_id,
+    jsonb_build_object('titre_mission', v_m.titre, 'date_mission', public.date_courte(v_date_m, v_langue),
+      'lien', 'https://damup.fr/etablissement.html'));
+  -- 3.1 candidature envoyée → l'hôtesse
+  perform public.envoyer_mail('candidature_envoyee', new.hotesse_id,
+    jsonb_build_object('titre_mission', v_m.titre, 'nom_etablissement', v_lieu,
+      'date_mission', public.date_courte(v_date_m, v_langue),
+      'lien', 'https://damup.fr/hotesse.html'));
   return new;
 end; $function$;
 
@@ -2340,6 +2389,16 @@ begin
    where statut = 'acceptee' and not annulation
      and confirme_a is not null and confirme_a < now();
 
+  -- e-mail pro : fin d'essai des établissements (3 jours avant)
+  perform public.envoyer_mail('fin_essai', p.id,
+    jsonb_build_object('date_fin_essai', public.date_courte(p.actif_jusqu_a::date, coalesce(p.langue, 'fr')),
+      'lien', 'https://damup.fr/etablissement.html'))
+    from public.profiles p
+   where p.type = 'etablissement'
+     and p.actif_jusqu_a between now() and now() + interval '3 days'
+     and p.rappel_fin_envoye_pour is distinct from p.actif_jusqu_a
+     and public.reglage_bool('paiement_etablissements_actif', false);
+
   -- rappels de fin d'abonnement (3 jours avant)
   with a_prevenir as (
     update public.profiles p set rappel_fin_envoye_pour = p.actif_jusqu_a
@@ -2347,7 +2406,7 @@ begin
        and p.rappel_fin_envoye_pour is distinct from p.actif_jusqu_a
        and ((p.type = 'etablissement' and public.reglage_bool('paiement_etablissements_actif', false))
          or (p.type = 'hotesse' and public.reglage_bool('paiement_hotesses_actif', false)))
-    returning p.id, p.actif_jusqu_a, p.langue
+    returning p.id, p.actif_jusqu_a, p.langue, p.type
   )
   insert into public.notifications (user_id, message, cle, params)
   select a.id,
@@ -2569,6 +2628,9 @@ CREATE TRIGGER notifier_message AFTER INSERT ON public.messages FOR EACH ROW EXE
 
 -- missions: alerte_mission
 CREATE TRIGGER alerte_mission AFTER INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION alerte_mission();
+
+-- missions: apres_mission_terminee
+CREATE TRIGGER apres_mission_terminee AFTER UPDATE ON public.missions FOR EACH ROW EXECUTE FUNCTION apres_mission_terminee();
 
 -- missions: init_places_mission_trigger
 CREATE TRIGGER init_places_mission_trigger BEFORE INSERT ON public.missions FOR EACH ROW EXECUTE FUNCTION init_places_mission();
@@ -2872,6 +2934,11 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- annoncer_retard -> service_role (EXECUTE)
 -- apres_annulation -> postgres (EXECUTE)
 -- apres_annulation -> service_role (EXECUTE)
+-- apres_mission_terminee -> PUBLIC (EXECUTE)
+-- apres_mission_terminee -> anon (EXECUTE)
+-- apres_mission_terminee -> authenticated (EXECUTE)
+-- apres_mission_terminee -> postgres (EXECUTE)
+-- apres_mission_terminee -> service_role (EXECUTE)
 -- bloque_infos_contact -> PUBLIC (EXECUTE)
 -- bloque_infos_contact -> anon (EXECUTE)
 -- bloque_infos_contact -> authenticated (EXECUTE)
