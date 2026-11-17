@@ -377,18 +377,29 @@ CREATE OR REPLACE FUNCTION public.admin_annuler_mission(p_mission uuid, p_motif 
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare v_etab uuid;
+declare
+  v_etab uuid;
+  v_m public.missions%rowtype;
+  v_lieu text;
 begin
   if not public.a_le_droit('gerer_missions') then raise exception 'Droit insuffisant.'; end if;
   update public.missions set statut = 'annulee' where id = p_mission;
   select etablissement_id into v_etab from public.missions where id = p_mission;
   if v_etab is null then raise exception 'Mission introuvable.'; end if;
+  select * into v_m from public.missions where id = p_mission;
+  select nom into v_lieu from public.etablissements where id = v_etab;
   perform public.journaliser('mission_annulee', 'mission', p_mission, jsonb_build_object('motif', p_motif));
   perform public.notifier_utilisateur(v_etab, 'notif.mission_annulee_admin', jsonb_build_object('motif', coalesce(p_motif, '')));
   insert into public.notifications (user_id, message, cle, params)
   select c.hotesse_id, public.traduire('notif.mission_annulee_admin', coalesce(p.langue, 'fr'), jsonb_build_object('motif', coalesce(p_motif, ''))),
          'notif.mission_annulee_admin', jsonb_build_object('motif', coalesce(p_motif, ''))
     from public.candidatures c join public.profiles p on p.id = c.hotesse_id
+   where c.mission_id = p_mission and c.statut in ('acceptee', 'confirmee') and not c.annulation;
+  -- e-mail pro à chaque hôtesse retenue
+  perform public.envoyer_mail('mission_annulee', c.hotesse_id,
+    jsonb_build_object('nom_etablissement', v_lieu, 'titre_mission', v_m.titre,
+      'date_mission', public.date_courte(v_m.date, 'fr'), 'lien', 'https://damup.fr/hotesse.html'))
+    from public.candidatures c
    where c.mission_id = p_mission and c.statut in ('acceptee', 'confirmee') and not c.annulation;
 end; $function$;
 
@@ -650,8 +661,19 @@ begin
     update public.etablissements set verifie = p_valide, verifie_le = now(), verifie_par = auth.uid(), id_document = null where id = p_profil;
   end if;
   perform public.journaliser(case when p_valide then 'identite_validee' else 'identite_refusee' end, 'profil', p_profil, jsonb_build_object('motif', p_motif));
-  if not p_valide then
+  if p_valide then
+    if p_type = 'hotesse' then
+      perform public.envoyer_mail('identite_validee', p_profil, jsonb_build_object('lien', 'https://damup.fr/hotesse.html'));
+    else
+      perform public.envoyer_mail('etablissement_valide', p_profil, jsonb_build_object('lien', 'https://damup.fr/etablissement.html'));
+    end if;
+  else
     perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee', jsonb_build_object('motif', coalesce(p_motif, '')));
+    if p_type = 'hotesse' then
+      perform public.envoyer_mail('identite_refusee', p_profil, jsonb_build_object('motif', coalesce(p_motif, ''), 'lien', 'https://damup.fr/hotesse-profil.html'));
+    else
+      perform public.envoyer_mail('etablissement_refuse', p_profil, jsonb_build_object('motif', coalesce(p_motif, '')));
+    end if;
   end if;
 end; $function$;
 
@@ -708,6 +730,9 @@ begin
   select nom into v_etab from public.etablissements where id = new.etablissement_id;
   perform public.notifier_equipe('missions', 'notif.mission_admin',
     jsonb_build_object('etablissement', coalesce(v_etab, ''), 'date', public.date_courte(new.date, 'fr'), 'nb', new.nb_hotesses, 'id', new.id));
+  perform public.envoyer_mail('mission_publiee', new.etablissement_id,
+    jsonb_build_object('titre_mission', new.titre, 'date_mission', public.date_courte(new.date, 'fr'),
+      'lien', 'https://damup.fr/etablissement.html'));
   return new;
 end; $function$;
 
@@ -1296,7 +1321,6 @@ begin
   if v_email is null or v_email = '' then return; end if;
   v_role := case when v_type = 'etablissement' then 'etablissement' else 'hotesse' end;
 
-  -- nom affiché : prénom (hôtesse) ou responsable/nom (établissement)
   v_prenom := coalesce(
     (select prenom from public.hotesses where id = p_destinataire),
     (select nullif(responsable_nom, '') from public.etablissements where id = p_destinataire),
@@ -1305,6 +1329,10 @@ begin
   );
   if not (p_variables ? 'prenom') then
     p_variables := p_variables || jsonb_build_object('prenom', v_prenom);
+  end if;
+  if v_type = 'etablissement' and not (p_variables ? 'nom_etablissement') then
+    p_variables := p_variables || jsonb_build_object('nom_etablissement',
+      (select nom from public.etablissements where id = p_destinataire));
   end if;
 
   select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'NOTIFIER_SECRET' order by created_at desc limit 1;
@@ -1402,7 +1430,6 @@ begin
   on conflict (id) do nothing;
 
   if r = 'hotesse' then
-    -- champs obligatoires : prénom, ville, Instagram
     if coalesce(nullif(trim(m->>'prenom'), ''), '') = '' then
       raise exception 'Le prénom est obligatoire.';
     end if;
@@ -1425,6 +1452,7 @@ begin
     values (new.id, left(nullif(trim(m->>'prenom'), ''), 50), v_age,
             left(m->>'ville', 80), left(m->>'instagram', 60), left(m->>'telephone', 20), '[]'::jsonb)
     on conflict (id) do nothing;
+    perform public.envoyer_mail('inscription', new.id, jsonb_build_object('lien', 'https://damup.fr/hotesse-profil.html'));
   elsif r = 'etablissement' then
     if coalesce(nullif(trim(m->>'nom'), ''), '') = '' then
       raise exception 'Le nom de l''établissement est obligatoire.';
@@ -1438,6 +1466,7 @@ begin
             left(m->>'ville', 80), left(m->>'adresse', 200),
             left(regexp_replace(coalesce(m->>'siret', ''), '\s', '', 'g'), 14), '[]'::jsonb, '[]'::jsonb)
     on conflict (id) do nothing;
+    perform public.envoyer_mail('inscription', new.id, jsonb_build_object('lien', 'https://damup.fr/etablissement.html'));
   end if;
   return new;
 end; $function$;
@@ -1642,6 +1671,7 @@ declare
   v_lieu text;
   v_date_m date;
   v_langue text;
+  v_m public.missions%rowtype;
 begin
   if old.statut is not distinct from new.statut then return new; end if;
 
@@ -1654,6 +1684,13 @@ begin
     perform public.notifier_utilisateur(new.hotesse_id, 'notif.acceptee',
       jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, v_langue),
                          'heure', public.heure_courte(new.confirme_a, v_langue)));
+    select * into v_m from public.missions where id = new.mission_id;
+    perform public.envoyer_mail('candidature_acceptee', new.hotesse_id,
+      jsonb_build_object('nom_etablissement', v_lieu, 'titre_mission', v_m.titre,
+        'date_mission', public.date_courte(v_date_m, v_langue),
+        'horaires', public.heure_courte(v_m.heure_debut, v_langue) || ' - ' || public.heure_courte(v_m.heure_fin, v_langue),
+        'adresse', coalesce(v_m.adresse, ''), 'avantages', coalesce(v_m.articles_offerts, ''),
+        'lien', 'https://damup.fr/hotesse.html'));
   elsif new.statut = 'refusee' then
     select e.nom, m.date, coalesce(p.langue, 'fr') into v_lieu, v_date_m, v_langue
       from public.missions m
@@ -1662,6 +1699,9 @@ begin
      where m.id = new.mission_id;
     perform public.notifier_utilisateur(new.hotesse_id, 'notif.refusee',
       jsonb_build_object('lieu', v_lieu, 'date', public.date_courte(v_date_m, v_langue)));
+    select * into v_m from public.missions where id = new.mission_id;
+    perform public.envoyer_mail('candidature_refusee', new.hotesse_id,
+      jsonb_build_object('nom_etablissement', v_lieu, 'titre_mission', v_m.titre, 'lien', 'https://damup.fr/hotesse.html'));
   elsif new.statut = 'expiree' then
     select e.nom, m.date, coalesce(p.langue, 'fr') into v_lieu, v_date_m, v_langue
       from public.missions m
@@ -1677,6 +1717,13 @@ begin
     perform public.notifier_utilisateur(
       (select etablissement_id from public.missions where id = new.mission_id),
       'notif.confirmee_etab', jsonb_build_object('date', public.date_courte(v_date_m, v_langue)));
+    -- 4.3 présence confirmée (à l'établissement)
+    select * into v_m from public.missions where id = new.mission_id;
+    perform public.envoyer_mail('presence_confirmee', v_m.etablissement_id,
+      jsonb_build_object('titre_mission', v_m.titre, 'date_mission', public.date_courte(v_date_m, v_langue),
+        'horaires', public.heure_courte(v_m.heure_debut, v_langue) || ' - ' || public.heure_courte(v_m.heure_fin, v_langue),
+        'prenom_hotesse', coalesce((select prenom from public.hotesses where id = new.hotesse_id), ''),
+        'lien', 'https://damup.fr/etablissement.html'));
   end if;
   return new;
 end; $function$;
@@ -1992,6 +2039,8 @@ begin
     values (p_candidature, v_marraine, v_copine.id, coalesce(nullif(trim(p_prenom), ''), v_copine.prenom), 'a_accepter');
     perform public.notifier_utilisateur(v_copine.id, 'copine.proposee',
       jsonb_build_object('prenom', v_prenom_marraine, 'lieu', v_lieu, 'date', public.date_courte(v_mission.date, 'fr')));
+    perform public.envoyer_mail('copine_invitee', v_copine.id,
+      jsonb_build_object('prenom', v_prenom_marraine, 'lien', 'https://damup.fr/login.html?mode=inscription&role=hotesse'));
     return null;
   else
     insert into public.invitations_copine (candidature_id, marraine_id, prenom_indique, statut)
