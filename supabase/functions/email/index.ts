@@ -132,6 +132,15 @@ function echapper(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// remplace uniquement les {variables}, sans ajouter signature ni pied de page
+function remplacer(txt: string, variables: Record<string, string>): string {
+  let r = txt;
+  for (const [k, v] of Object.entries(variables)) {
+    r = r.split(`{${k}}`).join(v ?? "");
+  }
+  return r;
+}
+
 function construireHtml(corps: string, variables: Record<string, string>, avecLienNotif: boolean): string {
   // 1) remplacer les variables
   let c = corps;
@@ -199,7 +208,7 @@ Deno.serve(async (req) => {
         sender: { name: SENDER_NAME, email: SENDER_EMAIL },
         replyTo: { email: SENDER_EMAIL, name: "DamUp" },
         to: [{ email }],
-        subject: construireHtml(m.objet, vars, false).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim(),
+        subject: remplacer(m.objet, vars),
         htmlContent: html,
       }),
     });
