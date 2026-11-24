@@ -64,6 +64,14 @@
   .alerte-rentabilite { background:#FBE4E1; color:#C0392B; padding:10px 14px; border-radius:10px; font-size:13px; margin:10px 0; font-weight:600; }
   .bouteille-chip { display:inline-block; background:#F4E8D6; border-radius:8px; padding:4px 10px; margin:0 6px 6px 0; font-size:13px; }
   .bouteille-chip a { color:#8A6D3B; text-decoration:none; margin-left:6px; }
+  .modal-admin { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:2000; padding:20px; }
+  .modal-admin-carte { background:var(--creme); border-radius:16px; padding:20px; width:100%; max-width:460px; max-height:88vh; overflow-y:auto; }
+  .modal-admin h2 { font-family:'Bodoni Moda', Georgia, serif; font-size:20px; }
+  .modal-admin h3 { font-family:'Bodoni Moda', Georgia, serif; font-size:16px; }
+  .mini-case { background:#fff; border:1px solid #EDE3D0; border-radius:10px; padding:10px 12px; }
+  .mini-case .v { font-size:18px; font-weight:700; }
+  .mini-case .l { font-size:11.5px; color:var(--gris); }
+  .vert { color:#1E7A3C; font-weight:600; } .rouge { color:#C0392B; font-weight:600; }
 </style>
 </head>
 <body>
@@ -980,7 +988,7 @@
   async function chargerAvantages(zone) {
     const { data: etabs } = await db.rpc("admin_lister_avantages");
     zone.innerHTML = (etabs||[]).length ? etabs.map(e => `
-      <div class="panneau"><div class="tete">${esc(e.nom)} <span style="font-weight:400;font-size:12px">${esc(e.type||"")}</span></div>
+      <div class="panneau"><div class="tete">${esc(e.nom)} <span style="font-weight:400;font-size:12px">${esc(e.type||"")}</span> <button class="btn btn-sm" style="float:right" onclick="ouvrirTableauBordEtab('${e.id}','${esc(e.nom)}')">📊 Voir le tableau de bord</button></div>
         <div style="padding:16px">
           <label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="av-actif-${e.id}" ${e.actif?"checked":""}> Avantage actif (visible dans l'espace client)</label>
           <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:flex-end">
@@ -1027,6 +1035,53 @@
   }
   async function supprimerBouteille(id) { if (!await demander("Supprimer ?")) return; const { error } = await db.rpc("admin_supprimer_bouteille", { p_bouteille: id }); if (error) { toast(error.message, "erreur"); return; } toast("Supprimée ✅"); afficherEspaceClient(); }
   async function basculerBouteille(id, dispo) { const { error } = await db.rpc("admin_basculer_bouteille", { p_bouteille: id, p_disponible: dispo }); if (error) { toast(error.message, "erreur"); return; } afficherEspaceClient(); }
+
+  // ---- Vue admin du tableau de bord établissement ----
+  let tbAdminMois = null;
+  let tbAdminSemaine = null;
+  function lundiCourantAdmin() { const d = new Date(); const j = (d.getDay() + 6) % 7; d.setDate(d.getDate() - j); d.setHours(0,0,0,0); return d; }
+  function ouvrirTableauBordEtab(id, nom) {
+    tbAdminMois = new Date(); tbAdminSemaine = lundiCourantAdmin();
+    const m = document.createElement("div");
+    m.className = "modal-admin"; m.id = "modal-tb-admin";
+    m.innerHTML = `<div class="modal-admin-carte">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><h2 style="margin:0">${esc(nom)}</h2><a href="javascript:void(0)" style="font-size:22px;color:var(--gris);text-decoration:none" onclick="document.getElementById('modal-tb-admin').remove()">✕</a></div>
+      <div id="tb-admin-argent" class="chargement">Chargement…</div>
+      <div id="tb-admin-hotesses" class="chargement">Chargement…</div>
+    </div>`;
+    document.body.appendChild(m);
+    chargerTbAdminArgent(id); chargerTbAdminHotesses(id);
+  }
+  async function chargerTbAdminArgent(id) {
+    const zone = document.getElementById("tb-admin-argent");
+    const premier = new Date(tbAdminMois.getFullYear(), tbAdminMois.getMonth(), 1);
+    const { data, error } = await db.rpc("admin_stats_damup_mois", { p_etablissement: id, p_mois: premier.toISOString().slice(0, 10) });
+    if (error || !data) { zone.innerHTML = `<div class="vide">Chiffres indisponibles.</div>`; return; }
+    const evo = data.evolution == null ? "" : `<span class="${data.evolution >= 0 ? "vert" : "rouge"}">${data.evolution >= 0 ? "+" : ""}${data.evolution} %</span>`;
+    zone.innerHTML = `<h3 style="margin-top:14px">Ce que DamUp a apporté · ${premier.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</h3>
+      <div style="font-size:28px;font-weight:700;font-family:'Bodoni Moda',serif">${formatMontant(data.ca)}</div>
+      <div style="font-size:13px;color:#8A6D3B;margin-bottom:10px">${evo}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="mini-case"><div class="v">${data.tables}</div><div class="l">Tables</div></div>
+        <div class="mini-case"><div class="v">${data.clients}</div><div class="l">Clients</div></div>
+        <div class="mini-case"><div class="v">${data.couverts}</div><div class="l">Couverts</div></div>
+        <div class="mini-case"><div class="v">${formatMontant(data.panier_moyen)}</div><div class="l">Panier moyen</div></div>
+      </div>
+      <div style="font-size:13px;color:#8A6D3B;margin-top:10px">Commission DamUp : ${formatMontant(data.commission)}${data.commission_statut ? " · " + data.commission_statut : ""}</div>`;
+  }
+  async function chargerTbAdminHotesses(id) {
+    const zone = document.getElementById("tb-admin-hotesses");
+    const { data, error } = await db.rpc("admin_stats_hotesses_semaine", { p_etablissement: id, p_debut_semaine: tbAdminSemaine.toISOString().slice(0, 10) });
+    if (error || !data) { zone.innerHTML = `<div class="vide">Chiffres indisponibles.</div>`; return; }
+    const evo = `<span class="${data.evolution >= 0 ? "vert" : "rouge"}">${data.evolution >= 0 ? "+" : ""}${data.evolution}</span>`;
+    zone.innerHTML = `<h3 style="margin-top:14px">Hôtesses appelées · Semaine du ${tbAdminSemaine.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="mini-case"><div class="v">${data.appelees} ${evo}</div><div class="l">Hôtesses appelées</div></div>
+        <div class="mini-case"><div class="v">${data.presences}</div><div class="l">Présences</div></div>
+        <div class="mini-case"><div class="v">${data.absences}</div><div class="l">Absences</div></div>
+        <div class="mini-case"><div class="v">${data.missions}</div><div class="l">Missions</div></div>
+      </div>`;
+  }
 
   // ---- Réservations ----
   async function chargerReservations(zone) {
