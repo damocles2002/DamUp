@@ -24,15 +24,15 @@ let ficheCourante = null;
 async function validerCode() {
   $("code-erreur").hidden = true;
   const saisie = $("code-input").value.trim();
-  if (!saisie) { err("Entre ton code."); return; }
+  if (!saisie) { err("Entrez votre code."); return; }
   const { data, error } = await sb.rpc("espace_client_valider_code", { p_code: saisie });
-  if (error || !data || data.valide !== true) { err("Code invalide ou expiré. Contacte DamUp."); return; }
+  if (error || !data || data.valide !== true) { err("Code invalide ou expiré. Contactez DamUp."); return; }
   code = saisie;
   client = data;
   localStorage.setItem(CLE_CODE, code);
   if (!data.majeur_confirme) {
     $("bloc-majeur").hidden = false;
-    if (!$("ck-majeur").checked) { err("Confirme que tu as 18 ans ou plus."); return; }
+    if (!$("ck-majeur").checked) { err("Confirmez que vous avez 18 ans ou plus."); return; }
     await sb.rpc("espace_client_confirmer_majeur", { p_code: code });
   }
   await chargerDonnees();
@@ -42,7 +42,7 @@ function err(m) { const e = $("code-erreur"); e.textContent = m; e.hidden = fals
 // --- données ---
 async function chargerDonnees() {
   const { data, error } = await sb.rpc("espace_client_donnees", { p_code: code });
-  if (error || !data || data.valide !== true) { montrer("ecran-entree"); err("Code invalide ou expiré. Contacte DamUp."); return; }
+  if (error || !data || data.valide !== true) { montrer("ecran-entree"); err("Code invalide ou expiré. Contactez DamUp."); return; }
   donnees = data;
   $("bandeau-soiree").innerHTML = `<strong>Soirée du ${fmtDate(data.date_soiree)}</strong>`;
   filtrer("tous");
@@ -117,7 +117,7 @@ async function simuler() {
   const { data } = await sb.rpc("espace_client_simuler", { p_code: code, p_etablissement_id: ficheCourante.id, p_montant: montant });
   if (!data?.valide) { zone.innerHTML = ""; return; }
   zone.innerHTML = data.rembourse > 0
-    ? `Tu seras remboursé de <strong>${fmtMontant(data.rembourse)}</strong>.`
+    ? `Vous serez remboursé de <strong>${fmtMontant(data.rembourse)}</strong>.`
     : `Encore <strong>${fmtMontant(data.manque)}</strong> de dépense pour être remboursé.`;
 }
 
@@ -146,7 +146,7 @@ async function envoyerReservation() {
   const personnes = parseInt($("resa-personnes").value) || 1;
   const bouteille = $("resa-bouteille").value || null;
   const message = $("resa-message").value.trim();
-  if (ficheCourante.bouteille_obligatoire && !bouteille) { resaErr("Choisis une bouteille."); return; }
+  if (ficheCourante.bouteille_obligatoire && !bouteille) { resaErr("Choisissez une bouteille."); return; }
   const { data, error } = await sb.rpc("espace_client_reserver", {
     p_code: code, p_etablissement_id: ficheCourante.id, p_heure_arrivee: heure,
     p_nb_personnes: personnes, p_bouteille_id: bouteille, p_message: message,
@@ -192,7 +192,7 @@ async function annulerResa(id) {
 // --- remboursement ---
 function ouvrirRemboursement(id) {
   $("remboursement-contenu").innerHTML = `
-    <p class="sous-titre">Envoie tes informations pour être remboursé.</p>
+    <p class="sous-titre">Envoyez vos informations pour être remboursé.</p>
     <label class="label">Moyen de paiement</label>
     <select id="rb-moyen" class="field">
       <option value="virement">Virement (IBAN)</option>
@@ -213,10 +213,10 @@ function ouvrirRemboursement(id) {
 async function envoyerRemboursement(id) {
   const moyen = $("rb-moyen").value;
   const coord = $("rb-coord").value.trim();
-  if (!coord) { alert("Indique tes coordonnées."); return; }
+  if (!coord) { alert("Indiquez vos coordonnées."); return; }
   const { data, error } = await sb.rpc("espace_client_envoyer_facture", { p_code: code, p_reservation_id: id, p_photo_facture: null, p_moyen_paiement: moyen, p_coordonnees: coord });
-  if (error || !data?.ok) { alert("Erreur. Réessaie."); return; }
-  alert("Bien reçu ! DamUp validera ton remboursement prochainement.");
+  if (error || !data?.ok) { alert("Erreur. Réessayez."); return; }
+  alert("Bien reçu ! DamUp validera votre remboursement prochainement.");
   afficherReservations();
 }
 
