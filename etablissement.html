@@ -82,6 +82,23 @@
   .topbar, .tabs { flex-shrink: 0; }
   .tabs, .filtres { scrollbar-width: none; }
   .tabs::-webkit-scrollbar, .filtres::-webkit-scrollbar { display: none; }
+  .bloc-tb { background: var(--creme); border: 1px solid #EDE3D0; border-radius: 16px; padding: 18px 16px; margin-bottom: 16px; }
+  .bloc-tb h2 { font-size: 19px; margin-bottom: 8px; }
+  .sel-mois { display: flex; gap: 8px; margin-bottom: 10px; }
+  .ca { font-size: 34px; font-weight: 700; color: var(--aubergine); font-family: 'Bodoni Moda', Georgia, serif; }
+  .evo { font-size: 14px; margin: 2px 0 12px; }
+  .vert { color: #1E7A3C; font-weight: 600; } .rouge { color: #C0392B; font-weight: 600; }
+  .grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .case { background: #fff; border: 1px solid #EDE3D0; border-radius: 12px; padding: 12px 14px; }
+  .case .v { font-size: 20px; font-weight: 700; }
+  .case .l { font-size: 12px; color: var(--gris); }
+  .commission { font-size: 13px; color: var(--gris); margin: 12px 0 4px; }
+  .barres { display: flex; align-items: flex-end; gap: 4px; height: 80px; margin: 14px 0; }
+  .barre { flex: 1; background: var(--champagne); border-radius: 4px 4px 0 0; opacity: .5; }
+  .barre.on { background: var(--champagne); opacity: 1; }
+  .ligne-detail { display: flex; gap: 10px; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F0E8DA; font-size: 13.5px; flex-wrap: wrap; }
+  .actions-tb { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .chargement { min-height: 60px; }
 </style>
 </head>
 <body>
@@ -422,8 +439,31 @@
   }
 
   // ============ DASHBOARD ============
+  // ============ TABLEAU DE BORD (avec blocs espace client) ============
+  let tbMois = new Date();
+  let tbSemaine = lundiCourant();
+
+  function lundiCourant() {
+    const d = new Date();
+    const jour = (d.getDay() + 6) % 7; // lundi=0
+    d.setDate(d.getDate() - jour);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function fmtMois(d) { return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); }
+  function fmtMontant(n) { return formatMontant(n); }
+  function fmtDateCourte(d) { if (!d) return ""; return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" }); }
+  function fmtSemaine(d) {
+    const fin = new Date(d); fin.setDate(d.getDate() + 6);
+    const o = { day: "numeric", month: "short" };
+    return d.toLocaleDateString("fr-FR", o) + " au " + fin.toLocaleDateString("fr-FR", o);
+  }
+
   async function afficherDashboard() {
-    contenu.innerHTML = '<div id="stats"></div><div id="a-noter"></div>';
+    contenu.innerHTML = `<div id="bloc-argent"></div><div id="bloc-hotesses"></div><div id="stats"></div><div id="a-noter"></div>`;
+    chargerBlocArgent();
+    chargerBlocHotesses();
+    // stats actuelles (inchangées)
     const { data: missions } = await db.from("missions").select("id, statut").eq("etablissement_id", user.id);
     const { data: cands } = await db.from("candidatures").select("id, statut, mission_id");
     const mesIds = new Set((missions||[]).map(m => m.id));
@@ -438,6 +478,94 @@
       </div>`;
     chargerANoter();
   }
+
+  // ---- Bloc 2 : chiffres DamUp du mois ----
+  async function chargerBlocArgent() {
+    const zone = document.getElementById("bloc-argent");
+    const premier = new Date(tbMois.getFullYear(), tbMois.getMonth(), 1);
+    zone.innerHTML = `<div class="bloc-tb">
+      <h2>Ce que DamUp vous a apporté · ${fmtMois(premier)}</h2>
+      <div class="sel-mois">
+        <button class="chip" onclick="changerMois(-1)">‹</button>
+        <button class="chip" onclick="changerMois(1)">›</button>
+      </div>
+      <div id="argent-contenu" class="chargement">Chargement…</div>
+    </div>`;
+    const { data, error } = await db.rpc("stats_damup_mois", { p_mois: premier.toISOString().slice(0, 10) });
+    const c = document.getElementById("argent-contenu");
+    if (error || !data) { c.innerHTML = `<div class="vide">Les chiffres n'ont pas pu être chargés. <a onclick="chargerBlocArgent()">Réessayer</a></div>`; return; }
+    const evo = data.evolution == null ? "" : `<span class="${data.evolution >= 0 ? "vert" : "rouge"}">${data.evolution >= 0 ? "+" : ""}${data.evolution} %</span>`;
+    c.innerHTML = `
+      <div class="ca">${fmtMontant(data.ca)}</div>
+      <div class="evo">${evo}</div>
+      <div class="grille">
+        <div class="case"><div class="v">${data.tables}</div><div class="l">Tables</div></div>
+        <div class="case"><div class="v">${data.clients}</div><div class="l">Clients</div></div>
+        <div class="case"><div class="v">${data.couverts}</div><div class="l">Couverts</div></div>
+        <div class="case"><div class="v">${fmtMontant(data.panier_moyen)}</div><div class="l">Panier moyen</div></div>
+      </div>
+      ${data.bouteilles ? `<div class="case" style="margin-top:8px"><div class="v">${data.bouteilles} · ${fmtMontant(data.bouteilles_total)}</div><div class="l">Bouteilles</div></div>` : ""}
+      ${data.a_venir ? `<div class="case" style="margin-top:8px"><div class="v">${data.a_venir}</div><div class="l">À venir ce mois-ci</div></div>` : ""}
+      <div class="commission">Commission DamUp : ${fmtMontant(data.commission)}${data.commission_statut ? " · " + data.commission_statut : ""}</div>
+      ${barresMois(data.graphique)}
+      <div class="actions-tb"><button class="btn btn-sm" onclick="basculerDetail('detail-tables')">Voir le détail des tables</button> <button class="btn btn-sm" onclick="exporterMois()">Exporter</button></div>
+      <div id="detail-tables" hidden>${detailTables(data.tables_detail)}</div>`;
+  }
+  function changerMois(d) { tbMois = new Date(tbMois.getFullYear(), tbMois.getMonth() + d, 1); chargerBlocArgent(); }
+  function barresMois(g) {
+    if (!g || !g.length) return "";
+    const max = Math.max(1, ...g.map(x => Number(x.ca) || 0));
+    return `<div class="barres">${g.map(x => `<div class="barre" title="${fmtMois(new Date(x.mois))} : ${fmtMontant(x.ca)}" style="height:${Math.max(4, Math.round((Number(x.ca)||0) / max * 100))}%"></div>`).join("")}</div>`;
+  }
+  function detailTables(t) {
+    if (!t || !t.length) return `<p class="vide">Aucun client DamUp ce mois-ci pour le moment.</p>`;
+    return t.map(r => `<div class="ligne-detail"><span>${fmtDateCourte(r.date)}</span><span>${esc(r.client || "")} · ${r.couverts} couv.</span><span>${r.bouteille ? esc(r.bouteille) : "–"}</span><strong>${r.montant != null ? fmtMontant(r.montant) : "À confirmer"}</strong></div>`).join("");
+  }
+  function exporterMois() {
+    toast("Export en préparation…", "info");
+  }
+
+  // ---- Bloc 1 : hôtesses de la semaine ----
+  async function chargerBlocHotesses() {
+    const zone = document.getElementById("bloc-hotesses");
+    zone.innerHTML = `<div class="bloc-tb">
+      <h2>Hôtesses appelées · Semaine du ${fmtSemaine(tbSemaine)}</h2>
+      <div class="sel-mois">
+        <button class="chip" onclick="changerSemaine(-7)">‹ Semaine précédente</button>
+        <button class="chip" onclick="changerSemaine(7)">Semaine suivante ›</button>
+      </div>
+      <div id="hotesses-contenu" class="chargement">Chargement…</div>
+    </div>`;
+    const { data, error } = await db.rpc("stats_hotesses_semaine", { p_debut_semaine: tbSemaine.toISOString().slice(0, 10) });
+    const c = document.getElementById("hotesses-contenu");
+    if (error || !data) { c.innerHTML = `<div class="vide">Les chiffres n'ont pas pu être chargés. <a onclick="chargerBlocHotesses()">Réessayer</a></div>`; return; }
+    const evo = `<span class="${data.evolution >= 0 ? "vert" : "rouge"}">${data.evolution >= 0 ? "+" : ""}${data.evolution}</span>`;
+    c.innerHTML = `
+      <div class="grille">
+        <div class="case"><div class="v">${data.appelees}</div><div class="l">Hôtesses appelées ${evo}</div></div>
+        <div class="case"><div class="v">${data.presences}</div><div class="l">Présences</div></div>
+        <div class="case"><div class="v">${data.absences}</div><div class="l">Absences</div></div>
+        <div class="case"><div class="v">${data.missions}</div><div class="l">Missions</div></div>
+      </div>
+      ${barresSemaine(data.graphique)}
+      <div class="actions-tb"><button class="btn btn-sm" onclick="basculerDetail('detail-missions')">Voir le détail de la semaine</button></div>
+      <div id="detail-missions" hidden>${detailMissions(data.missions_detail)}</div>`;
+  }
+  function changerSemaine(j) { tbSemaine = new Date(tbSemaine.getTime() + j * 86400000); chargerBlocHotesses(); }
+  function barresSemaine(g) {
+    if (!g || !g.length) return "";
+    const max = Math.max(1, ...g.map(x => Number(x.appelees) || 0));
+    return `<div class="barres">${g.map(x => `<div class="barre ${x.debut_semaine === tbSemaine.toISOString().slice(0,10) ? "on" : ""}" style="height:${Math.max(4, Math.round((Number(x.appelees)||0) / max * 100))}%"></div>`).join("")}</div>`;
+  }
+  function detailMissions(m) {
+    if (!m || !m.length) return `<p class="vide">Aucune hôtesse appelée cette semaine.</p>`;
+    return m.map(mi => `<div class="ligne-detail">
+      <span>${fmtDateCourte(mi.date)}</span>
+      <span>${esc(mi.titre || "")}</span>
+      <span>${(mi.hotesses || []).map(h => `${h.presente ? "✅" : ""}${esc(h.prenom)}`).join(", ")}</span>
+    </div>`).join("");
+  }
+  function basculerDetail(id) { const e = document.getElementById(id); e.hidden = !e.hidden; }
 
   // ============ PROFIL ÉTABLISSEMENT ============
   async function afficherProfil() {
