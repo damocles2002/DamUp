@@ -201,6 +201,8 @@ function ouvrirRemboursement(id) {
     </select>
     <label class="label" id="rb-coord-label">IBAN</label>
     <input id="rb-coord" class="field" placeholder="FR76 …">
+    <label class="label">Photo de votre facture</label>
+    <input id="rb-photo" type="file" accept="image/*" class="field">
     <button class="btn btn-primaire btn-block" onclick="envoyerRemboursement('${id}')">Envoyer</button>
     <p class="note">DamUp vérifie le montant auprès de l'établissement avant de payer. Le remboursement arrive sous quelques jours.</p>`;
   $("rb-moyen").onchange = () => {
@@ -214,7 +216,15 @@ async function envoyerRemboursement(id) {
   const moyen = $("rb-moyen").value;
   const coord = $("rb-coord").value.trim();
   if (!coord) { alert("Indiquez vos coordonnées."); return; }
-  const { data, error } = await sb.rpc("espace_client_envoyer_facture", { p_code: code, p_reservation_id: id, p_photo_facture: null, p_moyen_paiement: moyen, p_coordonnees: coord });
+  let photo = null;
+  const fichier = $("rb-photo")?.files?.[0];
+  if (fichier) {
+    const chemin = `reservation-${id}-${Date.now()}.jpg`;
+    const { error: upErr } = await sb.storage.from("factures").upload(chemin, fichier, { contentType: fichier.type });
+    if (upErr) { alert("Impossible d'envoyer la photo. Réessayez."); return; }
+    photo = chemin;
+  }
+  const { data, error } = await sb.rpc("espace_client_envoyer_facture", { p_code: code, p_reservation_id: id, p_photo_facture: photo, p_moyen_paiement: moyen, p_coordonnees: coord });
   if (error || !data?.ok) { alert("Erreur. Réessayez."); return; }
   alert("Bien reçu ! DamUp validera votre remboursement prochainement.");
   afficherReservations();

@@ -521,8 +521,27 @@
     if (!t || !t.length) return `<p class="vide">Aucun client DamUp ce mois-ci pour le moment.</p>`;
     return t.map(r => `<div class="ligne-detail"><span>${fmtDateCourte(r.date)}</span><span>${esc(r.client || "")} · ${r.couverts} couv.</span><span>${r.bouteille ? esc(r.bouteille) : "–"}</span><strong>${r.montant != null ? fmtMontant(r.montant) : "À confirmer"}</strong></div>`).join("");
   }
-  function exporterMois() {
-    toast("Export en préparation…", "info");
+  async function exporterMois() {
+    const premier = new Date(tbMois.getFullYear(), tbMois.getMonth(), 1);
+    const { data } = await db.rpc("stats_damup_mois", { p_mois: premier.toISOString().slice(0, 10) });
+    if (!data) { toast("Chargement impossible."); return; }
+    // CSV
+    const lignes = [["Date", "Client", "Couverts", "Bouteille", "Montant", "Statut", "Commission"]];
+    (data.tables_detail || []).forEach(t => lignes.push([t.date, t.client, t.couverts, t.bouteille || "", t.montant ?? "", t.statut, t.commission ?? ""]));
+    const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `damup-${premier.toISOString().slice(0, 7)}.csv`; a.click();
+    // PDF (impression → enregistrer en PDF)
+    const w = window.open("", "_blank");
+    w.document.write(`<html><head><title>DamUp · ${fmtMois(premier)}</title><style>body{font-family:sans-serif;padding:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 10px;font-size:13px}th{background:#f3ede1}</style></head><body>
+      <h2>DamUp · Ce que DamUp vous a apporté · ${fmtMois(premier)}</h2>
+      <p>Chiffre d'affaires : <strong>${fmtMontant(data.ca)}</strong> · Tables : ${data.tables} · Clients : ${data.clients} · Couverts : ${data.couverts} · Panier moyen : ${fmtMontant(data.panier_moyen)}</p>
+      <p>Commission DamUp : ${fmtMontant(data.commission)}${data.commission_statut ? " · " + data.commission_statut : ""}</p>
+      <table><tr><th>Date</th><th>Client</th><th>Couverts</th><th>Bouteille</th><th>Montant</th><th>Commission</th></tr>
+      ${(data.tables_detail || []).map(t => `<tr><td>${t.date}</td><td>${esc(t.client || "")}</td><td>${t.couverts}</td><td>${esc(t.bouteille || "")}</td><td>${t.montant != null ? fmtMontant(t.montant) : "À confirmer"}</td><td>${t.commission != null ? fmtMontant(t.commission) : ""}</td></tr>`).join("")}
+      </table></body></html>`);
+    w.document.close();
+    w.print();
   }
 
   // ---- Bloc 1 : hôtesses de la semaine ----

@@ -807,6 +807,7 @@ begin
   return coalesce((select jsonb_agg(jsonb_build_object(
     'id', r.id, 'date_soiree', r.date_soiree, 'heure_arrivee', r.heure_arrivee, 'nb_personnes', r.nb_personnes,
     'statut', r.statut, 'motif_refus', r.motif_refus, 'message_client', r.message_client,
+    'client_id', r.client_id,
     'client', (select prenom || ' ' || left(nom, 1) || '.' from public.clients where id = r.client_id),
     'etablissement', (select nom from public.etablissements where id = r.etablissement_id),
     'etablissement_type', (select type from public.etablissements where id = r.etablissement_id),
@@ -3695,6 +3696,12 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 
 -- factures_lecture_storage (SELECT, to {)
   using (((bucket_id = 'factures'::text) AND (is_admin() OR ((storage.foldername(name))[1] = (auth.uid())::text))))
+
+-- factures_read_auth (SELECT, to {)
+  using ((bucket_id = 'factures'::text))
+
+-- factures_upload_anon (INSERT, to {)
+  with check ((bucket_id = 'factures'::text))
 
 -- messages_photos_insert (INSERT, to {)
   with check (((bucket_id = 'messages'::text) AND participant_conversation_chemin(name)))

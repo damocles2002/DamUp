@@ -1046,8 +1046,17 @@
           ${(r.statut === "en_attente" || r.statut === "transmise") ? `<button class="btn btn-sm" onclick="refuserResa('${r.id}')">Refuser</button>` : ""}
           ${r.statut === "confirmee" ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','terminer')">Terminer</button> <button class="btn btn-sm btn-danger" onclick="traiterResa('${r.id}','no_show')">No-show</button>` : ""}
           ${!["terminee","no_show","refusee","annulee"].includes(r.statut) ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','annuler')">Annuler</button>` : ""}
+          <button class="btn btn-sm" style="background:#FFF3D6;color:#9A6B00" onclick="signalerClient('${r.client_id}','${r.id}')">Signaler</button>
         </div>
       </div>`).join("") : '<div class="vide">Aucune réservation.</div>';
+  }
+  async function signalerClient(clientId, reservationId) {
+    const motif = prompt("Motif du signalement (ex. comportement déplacé, impayé, autre) :");
+    if (motif === null) return;
+    const description = prompt("Décrivez le problème :") || "";
+    const { error } = await db.rpc("signaler_client", { p_client: clientId, p_reservation: reservationId, p_motif: motif, p_description: description });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Signalement enregistré ✅"); afficherEspaceClient();
   }
   async function traiterResa(id, action) {
     const { error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: action });
@@ -1073,6 +1082,7 @@
         <div style="font-size:13px;margin:6px 0">Seuil ${r.seuil_applique}€ · ${r.pourcentage_applique}% · Statut : <strong>${esc(r.statut)}</strong></div>
         ${r.montant_declare_etablissement ? `<div style="font-size:13px">Dépense : ${r.montant_declare_etablissement}€ · Remboursement : <strong style="color:#1E7A3C">${r.montant_a_rembourser}€</strong></div>` : `<div style="font-size:13px;color:#E67E22">Dépense non déclarée</div>`}
         ${r.moyen_paiement ? `<div style="font-size:12.5px;color:#555">${esc(r.moyen_paiement)} · ${esc(r.coordonnees_paiement||"")}</div>` : ""}
+        ${r.photo_facture ? `<a href="javascript:void(0)" style="font-size:13px;color:#8A6D3B" onclick="voirFacture('${esc(r.photo_facture)}')">Voir la facture</a>` : ""}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
           ${!r.montant_declare_etablissement ? `<button class="btn btn-sm btn-primaire" onclick="declarerDepense('${r.reservation_id}')">Déclarer la dépense</button>` : ""}
           ${(r.statut === "a_valider" || r.statut === "ecart") ? `<button class="btn btn-sm btn-primaire" onclick="traiterRemboursement('${r.id}','valider')">Valider</button>` : ""}
@@ -1102,6 +1112,11 @@
     const { error } = await db.rpc("admin_traiter_remboursement", { p_remboursement: id, p_action: "payer", p_motif: ref });
     if (error) { toast(error.message, "erreur"); return; }
     toast("Marqué payé ✅"); afficherEspaceClient();
+  }
+  async function voirFacture(chemin) {
+    const { data, error } = await db.storage.from("factures").createSignedUrl(chemin, 3600);
+    if (error || !data?.signedUrl) { toast("Impossible de charger la facture.", "erreur"); return; }
+    window.open(data.signedUrl, "_blank");
   }
 
   // ---- Finances (commissions) ----

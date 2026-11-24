@@ -110,3 +110,5 @@ h1 { font-size: 26px; margin-bottom: 6px; }
 .modal-carte h3 { margin-bottom: 12px; }
 .conditions { padding-left: 18px; font-size: 14px; line-height: 1.55; color: var(--aubergine); }
 .conditions li { margin-bottom: 10px; }
+.footer { max-width: 520px; margin: 24px auto 0; padding: 0 16px; font-size: 11.5px; color: var(--gris); line-height: 1.5; text-align: center; }
+.footer a { color: var(--aubergine); font-weight: 600; }
