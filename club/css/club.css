@@ -23,129 +23,90 @@ body {
 }
 h1, h2, h3 { font-family: 'Bodoni Moda', Georgia, serif; font-weight: 600; }
 
-/* --- barre haute --- */
-.topbar {
-  background: var(--aubergine);
-  color: var(--champagne);
-  padding: 14px 18px;
-  padding-top: max(14px, env(safe-area-inset-top));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
+/* barre haute */
+.topbar { background: var(--aubergine); color: var(--champagne); padding: 14px 18px; padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
 .logo { font-family: 'Bodoni Moda', Georgia, serif; font-size: 20px; letter-spacing: .5px; }
-.logo-dot { color: var(--champagne); opacity: .6; }
+.logo-dot { opacity: .6; }
 .logo-sub { font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: .85; }
-.topbar-btn { background: var(--champagne); color: var(--aubergine); border: none; border-radius: 20px; padding: 8px 14px; font-family: 'Jost', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.topbar-btn { background: var(--champagne); color: var(--aubergine); border: none; border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
 
-/* --- structure --- */
+/* structure */
 #app { max-width: 520px; margin: 0 auto; padding: 16px; }
-.carte {
-  background: var(--creme);
-  border-radius: 16px;
-  border: 1px solid #EDE3D0;
-  padding: 24px 20px;
-  margin-top: 20px;
-}
+.carte { background: var(--creme); border-radius: 16px; border: 1px solid #EDE3D0; padding: 24px 20px; margin-top: 20px; }
 h1 { font-size: 26px; margin-bottom: 6px; }
-.sous-titre { color: var(--gris); font-size: 14.5px; line-height: 1.5; margin-bottom: 18px; }
+.sous-titre { color: var(--gris); font-size: 14.5px; line-height: 1.5; margin-bottom: 16px; }
+.logo-grand { font-family: 'Bodoni Moda', Georgia, serif; font-size: 40px; color: var(--aubergine); letter-spacing: 1px; margin-bottom: 4px; }
+.vide { color: var(--gris); text-align: center; padding: 24px; }
+.vide-mini { color: var(--gris); font-size: 13.5px; padding: 8px 0 16px; }
 
-/* --- champs & boutons --- */
-.field {
-  width: 100%;
-  border: 1px solid #E4D8C2;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 15px;
-  font-family: 'Jost', sans-serif;
-  background: #fff;
-  color: var(--aubergine);
-  margin-bottom: 4px;
-}
+/* champs & boutons */
+.field { width: 100%; border: 1px solid #E4D8C2; border-radius: 10px; padding: 12px 14px; font-size: 15px; font-family: 'Jost', sans-serif; background: #fff; color: var(--aubergine); margin-bottom: 6px; }
 .field:focus { outline: none; border-color: var(--aubergine); }
-.code-field {
-  text-align: center;
-  font-size: 22px;
-  letter-spacing: 6px;
-  text-transform: uppercase;
-  font-weight: 600;
-}
+.code-field { text-align: center; font-size: 20px; letter-spacing: 3px; text-transform: uppercase; font-weight: 600; }
 .label { display: block; font-size: 13px; font-weight: 600; color: var(--gris); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
-.btn {
-  display: block;
-  width: 100%;
-  border: none;
-  border-radius: 12px;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: 'Jost', sans-serif;
-  cursor: pointer;
-  margin-top: 16px;
-}
+.btn { display: block; width: 100%; border: none; border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 600; font-family: 'Jost', sans-serif; cursor: pointer; margin-top: 14px; }
 .btn-primaire { background: var(--aubergine); color: var(--champagne); }
 .btn-secondaire { background: transparent; color: var(--aubergine); border: 1px solid #E4D8C2; }
+.btn-danger { background: #FBE4E1; color: var(--danger); }
+.btn-sm { display: inline-block; width: auto; padding: 8px 14px; font-size: 13px; margin: 4px 4px 0 0; }
 .btn:active { transform: scale(.99); }
 .erreur { color: var(--danger); font-size: 13.5px; margin-top: 10px; }
-.note { margin-top: 18px; font-size: 12.5px; color: var(--gris); line-height: 1.5; }
+.note { margin-top: 16px; font-size: 12.5px; color: var(--gris); line-height: 1.5; }
+.checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin: 12px 0; }
+.checkbox input { margin-top: 3px; }
 
-/* --- accueil --- */
-.bandeau-soiree {
-  background: var(--aubergine);
-  color: var(--champagne);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-  font-size: 14.5px;
-}
-.section-titre { font-size: 22px; margin: 8px 0 14px; }
-.type-titre { font-size: 17px; margin: 18px 0 10px; color: var(--aubergine); }
-.vide { color: var(--gris); text-align: center; padding: 24px; }
+/* entrée */
+.bandeau-soiree { background: var(--aubergine); color: var(--champagne); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; font-size: 14.5px; }
+.filtres { display: flex; gap: 8px; margin-bottom: 14px; }
+.chip { background: #fff; border: 1px solid #E4D8C2; border-radius: 20px; padding: 8px 16px; font-size: 13.5px; font-weight: 600; color: var(--aubergine); cursor: pointer; font-family: 'Jost', sans-serif; }
+.chip.on { background: var(--champagne); border-color: var(--champagne); }
 
-/* --- carte établissement --- */
-.carte-etab {
-  background: var(--creme);
-  border-radius: 14px;
-  border: 1px solid #EDE3D0;
-  overflow: hidden;
-  margin-bottom: 14px;
-}
+/* carte établissement */
+.carte-etab { background: var(--creme); border-radius: 14px; border: 1px solid #EDE3D0; overflow: hidden; margin-bottom: 14px; cursor: pointer; }
 .etab-photo { width: 100%; height: 160px; object-fit: cover; display: block; }
+.etab-photo-vide { width: 100%; height: 120px; display: flex; align-items: center; justify-content: center; background: var(--champagne); font-family: 'Bodoni Moda', serif; font-size: 40px; color: var(--aubergine); }
 .etab-corps { padding: 14px 16px; }
 .etab-nom { font-family: 'Bodoni Moda', serif; font-size: 19px; font-weight: 600; }
 .etab-ville { font-size: 13px; color: var(--gris); text-transform: capitalize; margin-bottom: 8px; }
-.remb {
-  display: inline-block;
-  background: var(--champagne);
-  color: var(--aubergine);
-  border-radius: 20px;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-.bouteilles { margin-top: 8px; }
-.bouteilles-titre, .hotesses-titre { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin-bottom: 6px; }
-.bouteille { display: inline-block; background: #fff; border: 1px solid #E4D8C2; border-radius: 8px; padding: 5px 10px; font-size: 12.5px; margin: 0 6px 6px 0; }
-.hotesses { margin-top: 12px; }
+.avantage { display: inline-block; background: var(--champagne); color: var(--aubergine); border-radius: 20px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; margin-bottom: 8px; }
+
+/* fiche */
+.btn-retour { background: none; border: none; color: var(--gris); font-size: 14px; cursor: pointer; padding: 0; margin-bottom: 10px; }
+.galerie { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 14px; }
+.galerie img { width: 160px; height: 120px; object-fit: cover; border-radius: 12px; cursor: pointer; flex-shrink: 0; }
+.bloc-titre { font-size: 17px; margin: 18px 0 10px; }
 .hotesses-photos { display: flex; flex-wrap: wrap; gap: 12px; }
 .hotesse { text-align: center; width: 64px; }
 .hotesse img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 4px; }
 .hotesse span { font-size: 12px; }
+.bouteilles { display: flex; flex-direction: column; gap: 6px; }
+.bouteille { display: flex; justify-content: space-between; background: #fff; border: 1px solid #E4D8C2; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.simulateur { margin: 6px 0 4px; }
+.sim-resultat { font-size: 15px; margin-top: 8px; min-height: 22px; color: var(--aubergine); }
+.sim-resultat strong { color: var(--vert); }
 
-/* --- réservations --- */
+/* réservation */
+#resa-recap { margin-bottom: 4px; }
+
+/* mes réservations */
 .liste-reservations { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .carte-resa { background: var(--creme); border: 1px solid #EDE3D0; border-radius: 14px; padding: 14px 16px; }
 .resa-statut { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 20px; padding: 4px 12px; margin-bottom: 8px; }
-.statut-nouvelle { background: #FBE4E1; color: var(--danger); }
+.statut-en_attente { background: #FBE4E1; color: var(--danger); }
 .statut-transmise { background: #FFF3D6; color: #9A6B00; }
 .statut-confirmee { background: #E0F0E6; color: var(--vert); }
 .statut-terminee { background: #EEE; color: #555; }
-.statut-annulee { background: #EEE; color: #999; text-decoration: line-through; }
-.resa-date { font-family: 'Bodoni Moda', serif; font-size: 17px; font-weight: 600; }
-.resa-lieux { font-size: 14px; color: var(--aubergine); margin-top: 4px; }
-.resa-depense { font-size: 13px; color: var(--gris); margin-top: 6px; }
+.statut-no_show { background: #FBE4E1; color: var(--danger); }
+.statut-refusee, .statut-annulee { background: #EEE; color: #999; }
+.resa-date { font-size: 13.5px; color: var(--gris); }
+.resa-lieux { font-family: 'Bodoni Moda', serif; font-size: 17px; font-weight: 600; margin-top: 4px; }
+.resa-refus { font-size: 13px; color: var(--danger); margin-top: 4px; }
 .remb-resa { color: var(--vert); font-weight: 600; font-size: 14px; margin-top: 6px; }
+.resa-actions { margin-top: 10px; }
+
+/* modale */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal-carte { background: var(--creme); border-radius: 16px; padding: 22px; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; }
+.modal-carte h3 { margin-bottom: 12px; }
+.conditions { padding-left: 18px; font-size: 14px; line-height: 1.55; color: var(--aubergine); }
+.conditions li { margin-bottom: 10px; }

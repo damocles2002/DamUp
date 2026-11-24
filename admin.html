@@ -61,6 +61,9 @@
     .menu-mobile a.on { background: rgba(244,232,214,.12); color: var(--champagne); font-weight: 600; }
     .main { padding: 16px; }
   }
+  .alerte-rentabilite { background:#FBE4E1; color:#C0392B; padding:10px 14px; border-radius:10px; font-size:13px; margin:10px 0; font-weight:600; }
+  .bouteille-chip { display:inline-block; background:#F4E8D6; border-radius:8px; padding:4px 10px; margin:0 6px 6px 0; font-size:13px; }
+  .bouteille-chip a { color:#8A6D3B; text-decoration:none; margin-left:6px; }
 </style>
 </head>
 <body>
@@ -855,147 +858,303 @@
     chargerSignalements();
   }
 
-  // ============ ESPACE CLIENT (s14) ============
-  let espaceClientOnglet = "codes";
+  // ============ ESPACE CLIENT (s15/s16) ============
+  let espaceClientOnglet = "clients";
+  const ONGLETS_EC = [
+    ["clients", "Clients"], ["codes", "Codes"], ["etablissements", "Établissements"],
+    ["reservations", "Réservations"], ["remboursements", "Remboursements"],
+    ["finances", "Finances"], ["signalements", "Signalements"]
+  ];
   async function afficherEspaceClient() {
     if (!sessionAal2) { afficherEcranSecurite(); return; }
     main.innerHTML = `<h1>Espace client</h1>
       <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
-        <button class="btn btn-sm ${espaceClientOnglet==='codes'?'btn-primaire':''}" onclick="espaceClientOnglet='codes';afficherEspaceClient()">Codes</button>
-        <button class="btn btn-sm ${espaceClientOnglet==='etablissements'?'btn-primaire':''}" onclick="espaceClientOnglet='etablissements';afficherEspaceClient()">Établissements</button>
-        <button class="btn btn-sm ${espaceClientOnglet==='reservations'?'btn-primaire':''}" onclick="espaceClientOnglet='reservations';afficherEspaceClient()">Réservations</button>
+        ${ONGLETS_EC.map(o => `<button class="btn btn-sm ${espaceClientOnglet===o[0]?'btn-primaire':''}" onclick="espaceClientOnglet='${o[0]}';afficherEspaceClient()">${o[1]}</button>`).join("")}
       </div>
       <div id="espace-client-contenu" class="vide">Chargement…</div>`;
-    if (espaceClientOnglet === "codes") chargerCodes();
-    else if (espaceClientOnglet === "etablissements") chargerEtablissementsClient();
-    else chargerReservationsClient();
+    const zone = () => document.getElementById("espace-client-contenu");
+    if (espaceClientOnglet === "clients") chargerClients(zone());
+    else if (espaceClientOnglet === "codes") chargerCodes(zone());
+    else if (espaceClientOnglet === "etablissements") chargerAvantages(zone());
+    else if (espaceClientOnglet === "reservations") chargerReservations(zone());
+    else if (espaceClientOnglet === "remboursements") chargerRemboursements(zone());
+    else if (espaceClientOnglet === "finances") chargerFinances(zone());
+    else chargerSignalementsClients(zone());
   }
 
-  async function chargerCodes() {
-    const zone = document.getElementById("espace-client-contenu");
-    const { data: codes } = await db.rpc("admin_lister_codes");
+  // ---- Clients ----
+  async function chargerClients(zone) {
+    const { data: clients } = await db.rpc("admin_lister_clients");
     zone.innerHTML = `
-      <div class="panneau">
-        <div class="tete">Nouveau code</div>
+      <div class="panneau"><div class="tete">Nouveau client</div>
         <div style="padding:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:140px"><label>Nom du client</label><input id="ec-nom" class="field" placeholder="Nom du client"></div>
-          <div style="flex:1;min-width:140px"><label>Date de la soirée</label><input id="ec-date" type="date" class="field"></div>
-          <button class="btn btn-sm btn-primaire" onclick="creerCode()">Générer un code</button>
-        </div>
-      </div>
-      <div class="panneau">
-        <div class="tete">Codes existants</div>
-        <div style="padding:16px">
-          ${(codes||[]).length ? `<table><tr><th>Code</th><th>Client</th><th>Soirée</th><th>Statut</th><th></th></tr>
-            ${codes.map(c => `<tr>
-              <td><strong>${esc(c.code)}</strong></td>
-              <td>${esc(c.client_nom || ":")}</td>
-              <td>${esc(c.date_soiree || ":")}</td>
-              <td>${c.statut === "actif" ? '<span style="color:#1E7A3C">Actif</span>' : '<span style="color:#999">Utilisé</span>'}</td>
-              <td><button class="btn btn-sm" onclick="copierCode('${esc(c.code)}')">Copier</button></td>
-            </tr>`).join("")}</table>` : '<div class="vide">Aucun code.</div>'}
-        </div>
-      </div>`;
+          <div style="flex:1;min-width:120px"><label>Prénom</label><input id="cl-prenom" class="field"></div>
+          <div style="flex:1;min-width:120px"><label>Nom</label><input id="cl-nom" class="field"></div>
+          <div style="flex:1;min-width:130px"><label>Téléphone</label><input id="cl-tel" class="field"></div>
+          <button class="btn btn-sm btn-primaire" onclick="creerClient()">Créer</button>
+        </div></div>
+      <div class="panneau"><div class="tete">Clients</div><div style="padding:16px">
+        ${(clients||[]).length ? `<table><tr><th>Client</th><th>Téléphone</th><th>Majeur</th><th>No-show</th><th>Statut</th><th></th></tr>
+          ${clients.map(c => `<tr>
+            <td><strong>${esc(c.prenom)} ${esc(c.nom)}</strong></td>
+            <td>${esc(c.telephone || ":")}</td>
+            <td>${c.majeur_confirme ? "✅" : "❌"}</td>
+            <td>${c.nb_no_show ?? 0}</td>
+            <td>${badgeStatutClient(c.statut)}</td>
+            <td style="white-space:nowrap">
+              ${c.statut !== "banni" ? `<button class="btn btn-sm btn-danger" onclick="statutClient('${c.id}','banni')">Bannir</button>` : ""}
+              ${c.statut !== "suspendu" && c.statut !== "banni" ? `<button class="btn btn-sm" onclick="statutClient('${c.id}','suspendu')">Suspendre</button>` : ""}
+              ${c.statut !== "actif" ? `<button class="btn btn-sm btn-primaire" onclick="statutClient('${c.id}','actif')">Réactiver</button>` : ""}
+            </td>
+          </tr>`).join("")}</table>` : '<div class="vide">Aucun client.</div>'}
+      </div></div>`;
+  }
+  function badgeStatutClient(s) {
+    if (s === "actif") return '<span style="color:#1E7A3C">Actif</span>';
+    if (s === "suspendu") return '<span style="color:#E67E22">Suspendu</span>';
+    return '<span style="color:#C0392B">Banni</span>';
+  }
+  async function creerClient() {
+    const prenom = document.getElementById("cl-prenom").value.trim();
+    const nom = document.getElementById("cl-nom").value.trim();
+    const tel = document.getElementById("cl-tel").value.trim();
+    if (!prenom || !nom || !tel) { toast("Prénom, nom et téléphone requis."); return; }
+    const { error } = await db.rpc("admin_creer_client", { p_prenom: prenom, p_nom: nom, p_telephone: tel });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Client créé ✅"); afficherEspaceClient();
+  }
+  async function statutClient(id, statut) {
+    if (!await demander(`Passer ce client en "${statut}" ?`)) return;
+    const { error } = await db.rpc("admin_statut_client", { p_client: id, p_statut: statut });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Statut mis à jour ✅"); afficherEspaceClient();
+  }
+
+  // ---- Codes ----
+  async function chargerCodes(zone) {
+    const [clients, codes] = await Promise.all([db.rpc("admin_lister_clients"), db.rpc("admin_lister_codes")]);
+    zone.innerHTML = `
+      <div class="panneau"><div class="tete">Nouveau code</div>
+        <div style="padding:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:150px"><label>Client</label>
+            <select id="cd-client" class="field">${(clients.data||[]).filter(c=>c.statut==="actif").map(c=>`<option value="${c.id}">${esc(c.prenom)} ${esc(c.nom)}</option>`).join("")}</select></div>
+          <div style="flex:1;min-width:140px"><label>Date de la soirée</label><input id="cd-date" type="date" class="field"></div>
+          <button class="btn btn-sm btn-primaire" onclick="creerCode()">Générer</button>
+        </div></div>
+      <div class="panneau"><div class="tete">Codes</div><div style="padding:16px">
+        ${(codes.data||[]).length ? `<table><tr><th>Code</th><th>Client</th><th>Soirée</th><th>Statut</th><th></th></tr>
+          ${codes.data.map(c => `<tr>
+            <td><strong>${esc(c.code)}</strong></td>
+            <td>${esc(c.client || ":")}</td>
+            <td>${esc(c.date_soiree || ":")}</td>
+            <td>${c.statut === "actif" ? '<span style="color:#1E7A3C">Actif</span>' : '<span style="color:#999">' + esc(c.statut) + '</span>'}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm" onclick="copierCode('${esc(c.code)}')">Copier</button>
+              <button class="btn btn-sm" onclick="envoyerCode('${esc(c.code)}','${esc(c.client||"")}','${esc(c.date_soiree||"")}')">WhatsApp</button>
+              ${c.statut === "actif" ? `<button class="btn btn-sm btn-danger" onclick="revoquerCode('${c.id}')">Révoquer</button>` : ""}
+            </td>
+          </tr>`).join("")}</table>` : '<div class="vide">Aucun code.</div>'}
+      </div></div>`;
   }
   async function creerCode() {
-    const nom = document.getElementById("ec-nom").value.trim();
-    const date = document.getElementById("ec-date").value || null;
-    if (!nom) { toast("Indiquez le nom du client."); return; }
-    const { data, error } = await db.rpc("admin_creer_code", { p_client_nom: nom, p_date_soiree: date });
+    const client = document.getElementById("cd-client").value;
+    const date = document.getElementById("cd-date").value;
+    if (!client || !date) { toast("Choisis un client et une date."); return; }
+    const { data, error } = await db.rpc("admin_creer_code", { p_client: client, p_date_soiree: date });
     if (error) { toast(error.message, "erreur"); return; }
-    toast(`Code créé : ${data} ✅`);
-    chargerCodes();
+    toast(`Code créé : ${data} ✅`); afficherEspaceClient();
   }
-  function copierCode(code) {
-    navigator.clipboard.writeText(code).then(() => toast("Code copié ✅")).catch(() => toast(code));
+  function copierCode(code) { navigator.clipboard.writeText(code).then(() => toast("Code copié ✅")).catch(() => toast(code)); }
+  function envoyerCode(code, client, date) {
+    const msg = encodeURIComponent(`Bonjour ${client}, voici ton accès DamUp pour la soirée du ${date} : club.damup.fr - code ${code}`);
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  }
+  async function revoquerCode(id) {
+    if (!await demander("Révoquer ce code ? Le client sera déconnecté.")) return;
+    const { error } = await db.rpc("admin_revoquer_code", { p_code: id });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Code révoqué ✅"); afficherEspaceClient();
   }
 
-  async function chargerEtablissementsClient() {
-    const zone = document.getElementById("espace-client-contenu");
-    const { data: etabs } = await db.rpc("admin_lister_etablissements_client");
+  // ---- Établissements / avantages ----
+  async function chargerAvantages(zone) {
+    const { data: etabs } = await db.rpc("admin_lister_avantages");
     zone.innerHTML = (etabs||[]).length ? etabs.map(e => `
-      <div class="panneau">
-        <div class="tete">${esc(e.nom)} <span style="font-weight:400;font-size:12px">${esc(e.type||"")}</span></div>
+      <div class="panneau"><div class="tete">${esc(e.nom)} <span style="font-weight:400;font-size:12px">${esc(e.type||"")}</span></div>
         <div style="padding:16px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="vis-${e.id}" ${e.visible_client?"checked":""}> Visible dans l'espace client</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="av-actif-${e.id}" ${e.actif?"checked":""}> Avantage actif (visible dans l'espace client)</label>
           <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:flex-end">
-            <div style="flex:1;min-width:120px"><label>% remboursé</label><input class="field" type="number" id="pct-${e.id}" value="${e.remboursement_pct??""}" placeholder="ex. 10"></div>
-            <div style="flex:1;min-width:120px"><label>Seuil (€)</label><input class="field" type="number" id="seuil-${e.id}" value="${e.seuil_depense??""}" placeholder="ex. 500"></div>
-            <button class="btn btn-sm btn-primaire" onclick="enregistrerReglages('${e.id}')">Enregistrer</button>
+            <div style="flex:1;min-width:110px"><label>Seuil (€)</label><input class="field" type="number" id="av-seuil-${e.id}" value="${e.seuil_depense_eur??""}" placeholder="300"></div>
+            <div style="flex:1;min-width:110px"><label>% client</label><input class="field" type="number" id="av-pctc-${e.id}" value="${e.pourcentage_client??""}" placeholder="10"></div>
+            <div style="flex:1;min-width:110px"><label>% commission</label><input class="field" type="number" id="av-pctk-${e.id}" value="${e.pourcentage_commission??""}" placeholder="20"></div>
           </div>
-          <div style="font-weight:600;font-size:13px;margin:14px 0 8px">Bouteilles</div>
-          <div>${(e.bouteilles||[]).map(b => `<span style="display:inline-block;background:#F4E8D6;border-radius:8px;padding:4px 10px;margin:0 6px 6px 0;font-size:13px">${esc(b.nom)} · ${b.prix}€ <a href="javascript:void(0)" style="color:#C0392B;text-decoration:none" onclick="supprimerBouteille('${b.id}')">✕</a></span>`).join("") || '<span style="color:#999;font-size:13px">Aucune bouteille.</span>'}</div>
+          <div id="alerte-${e.id}" class="alerte-rentabilite" hidden>⚠️ Attention : tu rembourses autant ou plus que ce que tu touches.</div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0"><input type="checkbox" id="av-bob-${e.id}" ${e.bouteille_obligatoire?"checked":""}> Bouteille obligatoire (clubs)</label>
+          <button class="btn btn-sm btn-primaire" onclick="enregistrerAvantage('${e.id}')">Enregistrer</button>
+          <div style="font-weight:600;font-size:13px;margin:16px 0 8px">Bouteilles</div>
+          <div>${(e.bouteilles||[]).map(b => `<span class="bouteille-chip" style="opacity:${b.disponible?1:.4}">${esc(b.nom)} · ${b.prix_eur}€ <a href="javascript:void(0)" onclick="basculerBouteille('${b.id}',${!b.disponible})">${b.disponible?'masquer':'montrer'}</a> <a href="javascript:void(0)" style="color:#C0392B" onclick="supprimerBouteille('${b.id}')">✕</a></span>`).join("") || '<span style="color:#999;font-size:13px">Aucune bouteille.</span>'}</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            <input id="bnom-${e.id}" class="field" style="flex:1;min-width:110px" placeholder="Nom (ex. Vodka)">
-            <input id="bprix-${e.id}" class="field" type="number" style="width:100px" placeholder="Prix €">
+            <input id="bnom-${e.id}" class="field" style="flex:1;min-width:100px" placeholder="Nom">
+            <input id="bcat-${e.id}" class="field" style="width:100px" placeholder="Catégorie">
+            <input id="bcl-${e.id}" class="field" type="number" style="width:80px" placeholder="cl">
+            <input id="bprix-${e.id}" class="field" type="number" style="width:90px" placeholder="Prix €">
             <button class="btn btn-sm btn-primaire" onclick="ajouterBouteille('${e.id}')">Ajouter</button>
           </div>
-        </div>
-      </div>`).join("") : '<div class="vide">Aucun établissement.</div>';
+        </div></div>`).join("") : '<div class="vide">Aucun établissement.</div>';
   }
-  async function enregistrerReglages(id) {
-    const visible = document.getElementById(`vis-${id}`).checked;
-    const pct = parseFloat(document.getElementById(`pct-${id}`).value) || 0;
-    const seuil = parseFloat(document.getElementById(`seuil-${id}`).value) || 0;
-    const { error } = await db.rpc("admin_regler_etablissement_client", { p_etablissement: id, p_visible: visible, p_remboursement_pct: pct, p_seuil_depense: seuil });
+  async function enregistrerAvantage(id) {
+    const actif = document.getElementById(`av-actif-${id}`).checked;
+    const seuil = parseFloat(document.getElementById(`av-seuil-${id}`).value) || 0;
+    const pctc = parseFloat(document.getElementById(`av-pctc-${id}`).value) || 0;
+    const pctk = parseFloat(document.getElementById(`av-pctk-${id}`).value) || 0;
+    const bob = document.getElementById(`av-bob-${id}`).checked;
+    if (pctc >= pctk && pctc > 0) {
+      if (!await demander("Le % client est supérieur ou égal au % commission. Tu rembourses autant ou plus que ce que tu touches. Enregistrer quand même ?")) return;
+    }
+    const { error } = await db.rpc("admin_regler_avantage", { p_etablissement: id, p_actif: actif, p_seuil: seuil, p_pct_client: pctc, p_pct_commission: pctk, p_bouteille_obligatoire: bob });
     if (error) { toast(error.message, "erreur"); return; }
-    toast("Enregistré ✅");
+    toast("Enregistré ✅"); afficherEspaceClient();
   }
   async function ajouterBouteille(id) {
     const nom = document.getElementById(`bnom-${id}`).value.trim();
+    const cat = document.getElementById(`bcat-${id}`).value.trim();
+    const cl = parseInt(document.getElementById(`bcl-${id}`).value) || null;
     const prix = parseFloat(document.getElementById(`bprix-${id}`).value) || 0;
-    if (!nom || !prix) { toast("Indiquez le nom et le prix."); return; }
-    const { error } = await db.rpc("admin_ajouter_bouteille", { p_etablissement: id, p_nom: nom, p_prix: prix });
+    if (!nom || !prix) { toast("Nom et prix requis."); return; }
+    const { error } = await db.rpc("admin_ajouter_bouteille", { p_etablissement: id, p_nom: nom, p_categorie: cat, p_contenance: cl, p_prix: prix });
     if (error) { toast(error.message, "erreur"); return; }
-    toast("Bouteille ajoutée ✅");
-    chargerEtablissementsClient();
+    toast("Bouteille ajoutée ✅"); afficherEspaceClient();
   }
-  async function supprimerBouteille(id) {
-    if (!await demander("Supprimer cette bouteille ?")) return;
-    const { error } = await db.rpc("admin_supprimer_bouteille", { p_bouteille: id });
-    if (error) { toast(error.message, "erreur"); return; }
-    toast("Supprimée ✅");
-    chargerEtablissementsClient();
-  }
+  async function supprimerBouteille(id) { if (!await demander("Supprimer ?")) return; const { error } = await db.rpc("admin_supprimer_bouteille", { p_bouteille: id }); if (error) { toast(error.message, "erreur"); return; } toast("Supprimée ✅"); afficherEspaceClient(); }
+  async function basculerBouteille(id, dispo) { const { error } = await db.rpc("admin_basculer_bouteille", { p_bouteille: id, p_disponible: dispo }); if (error) { toast(error.message, "erreur"); return; } afficherEspaceClient(); }
 
-  async function chargerReservationsClient() {
-    const zone = document.getElementById("espace-client-contenu");
+  // ---- Réservations ----
+  async function chargerReservations(zone) {
     const { data: resas } = await db.rpc("admin_lister_reservations");
-    zone.innerHTML = (resas||[]).length ? resas.map(r => {
-      const lieux = [r.restaurant, r.club].filter(Boolean).join(" + ");
-      return `<div style="border:1px solid #EEE4D2;border-radius:12px;padding:14px;margin-bottom:12px;background:#fff">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <strong>${esc(r.client_nom)}</strong>
-          <span style="font-size:12px;color:#8A6D3B">${esc(r.date_soiree || "")} · ${esc(r.code || "")}</span>
+    zone.innerHTML = (resas||[]).length ? resas.map(r => `
+      <div style="border:1px solid #EEE4D2;border-radius:12px;padding:14px;margin-bottom:12px;background:#fff">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <strong>${esc(r.client)}</strong>
+          <span style="font-size:12px;color:#8A6D3B">${esc(r.date_soiree)} · ${esc(r.heure_arrivee||"")} · ${r.nb_personnes} pers.</span>
         </div>
-        <div style="font-size:14px;margin:6px 0">${esc(lieux)}${r.bouteille ? ` · ${esc(r.bouteille)}` : ""}</div>
-        <div style="font-size:13px;margin:6px 0">Statut : ${esc(r.statut)}${r.depense ? ` · Dépense ${r.depense}€` : ""}${r.remboursement > 0 ? ` · Remboursement ${r.remboursement}€` : ""}</div>
+        <div style="font-size:14px;margin:6px 0">${esc(r.etablissement)}${r.bouteille ? ` · ${esc(r.bouteille)} (${r.bouteille_prix}€)` : ""}</div>
+        ${r.message_client ? `<div style="font-size:13px;color:#555;margin:4px 0">« ${esc(r.message_client)} »</div>` : ""}
+        <div style="font-size:13px;margin:6px 0">Statut : <strong>${esc(r.statut)}</strong>${r.motif_refus ? ` · ${esc(r.motif_refus)}` : ""}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${r.statut === "nouvelle" ? `<button class="btn btn-sm btn-primaire" onclick="traiterResa('${r.id}','transmettre')">Transmettre</button>` : ""}
+          ${r.statut === "en_attente" ? `<button class="btn btn-sm btn-primaire" onclick="traiterResa('${r.id}','transmettre')">Transmettre</button>` : ""}
           ${r.statut === "transmise" ? `<button class="btn btn-sm btn-primaire" onclick="traiterResa('${r.id}','confirmer')">Confirmer</button>` : ""}
-          ${(r.statut === "transmise" || r.statut === "confirmee") ? `<button class="btn btn-sm" onclick="terminerResa('${r.id}')">Terminer + dépense</button>` : ""}
-          ${r.remboursement > 0 && !r.rembourse ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','rembourse')">Marquer remboursé</button>` : ""}
-          ${r.statut !== "terminee" && r.statut !== "annulee" ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="traiterResa('${r.id}','annuler')">Annuler</button>` : ""}
+          ${(r.statut === "en_attente" || r.statut === "transmise") ? `<button class="btn btn-sm" onclick="refuserResa('${r.id}')">Refuser</button>` : ""}
+          ${r.statut === "confirmee" ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','terminer')">Terminer</button> <button class="btn btn-sm btn-danger" onclick="traiterResa('${r.id}','no_show')">No-show</button>` : ""}
+          ${!["terminee","no_show","refusee","annulee"].includes(r.statut) ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','annuler')">Annuler</button>` : ""}
         </div>
-      </div>`;
-    }).join("") : '<div class="vide">Aucune réservation.</div>';
+      </div>`).join("") : '<div class="vide">Aucune réservation.</div>';
   }
   async function traiterResa(id, action) {
-    const { data, error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: action });
+    const { error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: action });
     if (error) { toast(error.message, "erreur"); return; }
-    if (data?.remboursement > 0) toast(`Remboursement DamUp : ${data.remboursement}€ ✅`);
-    else toast("Action effectuée ✅");
-    chargerReservationsClient();
+    toast("Action effectuée ✅"); afficherEspaceClient();
   }
-  async function terminerResa(id) {
-    const depense = prompt("Dépense totale du client (€) :");
-    if (depense === null) return;
-    const montant = parseFloat(depense) || 0;
-    const { data, error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: "terminer", p_depense: montant });
+  async function refuserResa(id) {
+    const motif = prompt("Motif du refus (ex. complet) :");
+    if (motif === null) return;
+    const { error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: "refuser", p_motif: motif });
     if (error) { toast(error.message, "erreur"); return; }
-    if (data?.remboursement > 0) toast(`Terminé. Remboursement DamUp : ${data.remboursement}€ ✅`);
-    else toast("Réservation terminée ✅");
-    chargerReservationsClient();
+    toast("Réservation refusée ✅"); afficherEspaceClient();
+  }
+
+  // ---- Remboursements ----
+  async function chargerRemboursements(zone) {
+    const { data: rembs } = await db.rpc("admin_lister_remboursements");
+    zone.innerHTML = (rembs||[]).length ? rembs.map(r => `
+      <div style="border:1px solid #EEE4D2;border-radius:12px;padding:14px;margin-bottom:12px;background:#fff">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <strong>${esc(r.client)}</strong><span style="font-size:12px;color:#8A6D3B">${esc(r.etablissement)}</span>
+        </div>
+        <div style="font-size:13px;margin:6px 0">Seuil ${r.seuil_applique}€ · ${r.pourcentage_applique}% · Statut : <strong>${esc(r.statut)}</strong></div>
+        ${r.montant_declare_etablissement ? `<div style="font-size:13px">Dépense : ${r.montant_declare_etablissement}€ · Remboursement : <strong style="color:#1E7A3C">${r.montant_a_rembourser}€</strong></div>` : `<div style="font-size:13px;color:#E67E22">Dépense non déclarée</div>`}
+        ${r.moyen_paiement ? `<div style="font-size:12.5px;color:#555">${esc(r.moyen_paiement)} · ${esc(r.coordonnees_paiement||"")}</div>` : ""}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${!r.montant_declare_etablissement ? `<button class="btn btn-sm btn-primaire" onclick="declarerDepense('${r.reservation_id}')">Déclarer la dépense</button>` : ""}
+          ${(r.statut === "a_valider" || r.statut === "ecart") ? `<button class="btn btn-sm btn-primaire" onclick="traiterRemboursement('${r.id}','valider')">Valider</button>` : ""}
+          ${r.statut === "valide" ? `<button class="btn btn-sm btn-primaire" onclick="payerRemboursement('${r.id}')">Marquer payé</button>` : ""}
+          ${!["rembourse","refuse","non_eligible"].includes(r.statut) ? `<button class="btn btn-sm btn-danger" onclick="traiterRemboursement('${r.id}','refuser')">Refuser</button>` : ""}
+        </div>
+      </div>`).join("") : '<div class="vide">Aucun remboursement.</div>';
+  }
+  async function declarerDepense(reservationId) {
+    const montant = prompt("Montant réellement dépensé (€) :");
+    if (montant === null) return;
+    const m = parseFloat(montant) || 0;
+    const { data, error } = await db.rpc("admin_declarer_depense", { p_reservation: reservationId, p_montant: m });
+    if (error) { toast(error.message, "erreur"); return; }
+    if (data?.statut === "non_eligible") toast("Dépense sous le seuil : non éligible.");
+    else toast(`Remboursement calculé : ${data?.remboursement}€ ✅`);
+    afficherEspaceClient();
+  }
+  async function traiterRemboursement(id, action) {
+    const { error } = await db.rpc("admin_traiter_remboursement", { p_remboursement: id, p_action: action });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Action effectuée ✅"); afficherEspaceClient();
+  }
+  async function payerRemboursement(id) {
+    const ref = prompt("Référence du virement :");
+    if (ref === null) return;
+    const { error } = await db.rpc("admin_traiter_remboursement", { p_remboursement: id, p_action: "payer", p_motif: ref });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Marqué payé ✅"); afficherEspaceClient();
+  }
+
+  // ---- Finances (commissions) ----
+  async function chargerFinances(zone) {
+    const { data: comms } = await db.rpc("admin_lister_commissions");
+    const total = (comms||[]).reduce((s, c) => s + Number(c.montant_commission || 0), 0);
+    zone.innerHTML = `
+      <div class="panneau"><div class="tete">Commissions DamUp</div><div style="padding:16px">
+        <div style="font-size:22px;font-weight:600;margin-bottom:12px">Total à encaisser : ${total.toFixed(2).replace(".",",")} €</div>
+        <button class="btn btn-sm" style="background:var(--champagne);color:var(--aubergine)" onclick="exporterCommissions()">Exporter CSV</button>
+        ${(comms||[]).length ? `<table style="margin-top:12px"><tr><th>Établissement</th><th>Dépense</th><th>%</th><th>Commission</th><th>Statut</th><th></th></tr>
+          ${comms.map(c => `<tr>
+            <td>${esc(c.etablissement)}</td><td>${c.montant_depense??0}€</td><td>${c.pourcentage_applique??0}%</td>
+            <td><strong>${c.montant_commission??0}€</strong></td><td>${esc(c.statut)}</td>
+            <td style="white-space:nowrap">
+              ${c.statut === "a_facturer" ? `<button class="btn btn-sm" onclick="statutCommission('${c.id}','facturee')">Facturée</button>` : ""}
+              ${c.statut === "facturee" ? `<button class="btn btn-sm btn-primaire" onclick="statutCommission('${c.id}','recue')">Reçue</button>` : ""}
+            </td>
+          </tr>`).join("")}</table>` : '<div class="vide">Aucune commission.</div>'}
+      </div></div>`;
+  }
+  async function statutCommission(id, statut) { const { error } = await db.rpc("admin_statut_commission", { p_commission: id, p_statut: statut }); if (error) { toast(error.message, "erreur"); return; } afficherEspaceClient(); }
+  async function exporterCommissions() {
+    const { data: comms } = await db.rpc("admin_lister_commissions");
+    const lignes = [["Établissement","Dépense","%","Commission","Statut"]];
+    (comms||[]).forEach(c => lignes.push([c.etablissement, c.montant_depense, c.pourcentage_applique, c.montant_commission, c.statut]));
+    const csv = "\uFEFF" + lignes.map(l => l.map(v => `"${String(v??"").replace(/"/g,'""')}"`).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "commissions-damup.csv"; a.click();
+  }
+
+  // ---- Signalements clients ----
+  async function chargerSignalementsClients(zone) {
+    const { data: sigs } = await db.rpc("admin_lister_signalements_clients");
+    zone.innerHTML = (sigs||[]).length ? sigs.map(s => `
+      <div style="border:1px solid #EEE4D2;border-radius:12px;padding:14px;margin-bottom:12px;background:#fff">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <strong>${esc(s.client)}</strong><span style="font-size:12px;color:#8A6D3B">par ${esc(s.auteur_type)} · ${s.statut}</span>
+        </div>
+        <div style="font-size:13px;margin:6px 0">${esc(s.motif)}${s.description ? ` : ${esc(s.description)}` : ""}</div>
+        ${s.decision ? `<div style="font-size:13px;color:#555">Décision : ${esc(s.decision)}</div>` : ""}
+        ${s.statut === "ouvert" ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn btn-sm" onclick="traiterSignalementClient('${s.id}','avertissement','actif')">Avertir</button>
+          <button class="btn btn-sm" onclick="traiterSignalementClient('${s.id}','suspension','suspendu')">Suspendre</button>
+          <button class="btn btn-sm btn-danger" onclick="traiterSignalementClient('${s.id}','bannissement','banni')">Bannir</button>
+        </div>` : ""}
+      </div>`).join("") : '<div class="vide">Aucun signalement.</div>';
+  }
+  async function traiterSignalementClient(id, decision, statutClient) {
+    if (!await demander(`${decision} ce client ?`)) return;
+    const { error } = await db.rpc("admin_traiter_signalement_client", { p_signalement: id, p_decision: decision, p_statut_client: statutClient });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Signalement traité ✅"); afficherEspaceClient();
   }
 
   // ============ RÉGLAGES ============

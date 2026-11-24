@@ -1,185 +1,243 @@
 // ============================================================
 //  DamUp · Espace client privé (club.damup.fr)
-//  Accès par code personnel, sans compte. Lecture seule + réservation.
+//  Code personnel → établissements + hôtesses → réservation
+//  → remboursement. Sans compte, tout passe par le code.
 // ============================================================
 const sb = supabase.createClient(SB_URL, SB_KEY);
-
 const CLE_CODE = "damup_club_code";
 
 // --- helpers ---
-function esc(v) {
-  return String(v ?? "").replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-function urlPhoto(p) {
-  const ok = typeof p === "string" && p.startsWith(SB_URL + "/storage/v1/object/public/photos/");
-  return ok ? esc(p) : "";
-}
-function formatDate(d) {
-  if (!d) return "";
-  const date = new Date(d + "T12:00:00");
-  return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-}
-function formatMontant(n) {
-  if (n === null || n === undefined || n === "") return "";
-  return Number(n).toFixed(2).replace(".", ",") + " €";
-}
-function $ (id) { return document.getElementById(id); }
-function show(id) { document.querySelectorAll("section").forEach(s => s.hidden = true); $(id).hidden = false; }
+function esc(v) { return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function urlPhoto(p) { const ok = typeof p === "string" && p.startsWith(SB_URL + "/storage/v1/object/public/photos/"); return ok ? esc(p) : ""; }
+function fmtDate(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return x.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }); }
+function fmtDateCourte(d) { if (!d) return ""; const x = new Date(d + "T12:00:00"); return x.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }); }
+function fmtMontant(n) { if (n === null || n === undefined || n === "") return ""; return Number(n).toFixed(2).replace(".", ",") + " €"; }
+function $(id) { return document.getElementById(id); }
+function montrer(id) { document.querySelectorAll("main > section").forEach(s => s.hidden = true); $(id).hidden = false; $("topbar").hidden = false; window.scrollTo(0, 0); }
 
 let donnees = null;
-let codeCourant = "";
+let code = "";
+let client = null;
+let ficheCourante = null;
 
-// --- code ---
+// --- entrée / code ---
 async function validerCode() {
-  const code = $("code-input").value.trim().toUpperCase();
   $("code-erreur").hidden = true;
-  if (!code) { afficherErreurCode("Entrez votre code."); return; }
-  const { data, error } = await sb.rpc("espace_client_valider_code", { p_code: code });
-  if (error) { afficherErreurCode("Erreur. Vérifiez le code."); return; }
-  if (!data || data.valide !== true) {
-    const raisons = { introuvable: "Code introuvable.", utilise: "Ce code a déjà été utilisé.", expire: "Ce code n'est plus valable." };
-    afficherErreurCode(raisons[data?.raison] || "Code invalide.");
-    return;
-  }
-  codeCourant = code;
+  const saisie = $("code-input").value.trim();
+  if (!saisie) { err("Entre ton code."); return; }
+  const { data, error } = await sb.rpc("espace_client_valider_code", { p_code: saisie });
+  if (error || !data || data.valide !== true) { err("Code invalide ou expiré. Contacte DamUp."); return; }
+  code = saisie;
+  client = data;
   localStorage.setItem(CLE_CODE, code);
+  if (!data.majeur_confirme) {
+    $("bloc-majeur").hidden = false;
+    if (!$("ck-majeur").checked) { err("Confirme que tu as 18 ans ou plus."); return; }
+    await sb.rpc("espace_client_confirmer_majeur", { p_code: code });
+  }
   await chargerDonnees();
 }
-function afficherErreurCode(msg) {
-  const e = $("code-erreur"); e.textContent = msg; e.hidden = false;
-}
+function err(m) { const e = $("code-erreur"); e.textContent = m; e.hidden = false; }
 
 // --- données ---
 async function chargerDonnees() {
-  const { data, error } = await sb.rpc("espace_client_donnees", { p_code: codeCourant });
-  if (error || !data || data.valide !== true) { show("ecran-code"); afficherErreurCode("Code invalide."); return; }
+  const { data, error } = await sb.rpc("espace_client_donnees", { p_code: code });
+  if (error || !data || data.valide !== true) { montrer("ecran-entree"); err("Code invalide ou expiré. Contacte DamUp."); return; }
   donnees = data;
-  const bandeau = $("bandeau-soiree");
-  bandeau.innerHTML = `<strong>Soirée du ${formatDate(data.date_soiree)}</strong> · ${esc(data.etablissements?.length || 0)} établissement(s)`;
-  rendreEtablissements();
-  $("btn-resa").hidden = false;
-  show("ecran-accueil");
-  window.scrollTo(0, 0);
+  $("bandeau-soiree").innerHTML = `<strong>Soirée du ${fmtDate(data.date_soiree)}</strong>`;
+  filtrer("tous");
+  montrer("ecran-etablissements");
 }
 
-function rendreEtablissements() {
+function filtrer(type) {
+  ["tous", "restaurant", "club"].forEach(t => $("f-" + t).classList.toggle("on", t === type));
+  const etabs = (donnees.etablissements || []).filter(e => type === "tous" ? true : (type === "club" ? e.type === "club" : e.type !== "club"));
   const zone = $("liste-etablissements");
-  const etabs = donnees.etablissements || [];
-  if (!etabs.length) {
-    zone.innerHTML = `<p class="vide">Aucun établissement partenaire pour le moment.</p>`;
-    return;
-  }
-  const restaurants = etabs.filter(e => e.type !== "club");
-  const clubs = etabs.filter(e => e.type === "club");
-  zone.innerHTML = blocEtablissements("Restaurants", restaurants) + blocEtablissements("Clubs", clubs);
+  zone.innerHTML = etabs.length ? etabs.map(carteEtab).join("") : `<p class="vide">Aucun établissement pour le moment.</p>`;
 }
 
-function blocEtablissements(titre, etabs) {
-  if (!etabs.length) return "";
-  return `<h3 class="type-titre">${titre}</h3>` + etabs.map(carteEtablissement).join("");
+function avantage(e) {
+  if (!e.seuil_depense_eur || !e.pourcentage_client) return "";
+  const club = e.bouteille_obligatoire ? " · 1 bouteille obligatoire" : "";
+  return `<div class="avantage">Remboursé ${esc(e.pourcentage_client)} % dès ${fmtMontant(e.seuil_depense_eur)} dépensés${club}</div>`;
 }
 
-function carteEtablissement(e) {
+function carteEtab(e) {
   const photo = urlPhoto(e.photos?.[0]);
-  const remb = e.remboursement_pct && e.seuil_depense
-    ? `<div class="remb">💸 ${esc(e.remboursement_pct)} % remboursés dès ${formatMontant(e.seuil_depense)} de dépense</div>` : "";
-  const bouteilles = (e.bouteilles || []).length
-    ? `<div class="bouteilles"><span class="bouteilles-titre">Carte des bouteilles</span>` +
-      e.bouteilles.map(b => `<span class="bouteille">${esc(b.nom)} · ${formatMontant(b.prix)}</span>`).join("") + `</div>` : "";
-  const hotesses = (e.hotesses || []).length
-    ? `<div class="hotesses"><span class="hotesses-titre">Hôtesses</span><div class="hotesses-photos">` +
-      e.hotesses.map(h => `<div class="hotesse"><img src="${urlPhoto(h.photo)}" alt="${esc(h.prenom)}"><span>${esc(h.prenom)}</span></div>`).join("") +
-      `</div></div>` : "";
-  return `<div class="carte-etab">
-    ${photo ? `<img class="etab-photo" src="${photo}" alt="${esc(e.nom)}">` : ""}
+  return `<div class="carte-etab" onclick="ouvrirFiche('${e.id}')">
+    ${photo ? `<img class="etab-photo" src="${photo}" alt="${esc(e.nom)}">` : `<div class="etab-photo-vide">${esc(e.nom[0] || "?")}</div>`}
     <div class="etab-corps">
       <div class="etab-nom">${esc(e.nom)}</div>
       <div class="etab-ville">${esc(e.type || "")} · ${esc(e.ville || "")}</div>
-      ${remb}${bouteilles}${hotesses}
+      ${avantage(e)}
     </div>
   </div>`;
 }
 
-// --- réservation ---
-function ouvrirReservation() {
-  const etabs = donnees.etablissements || [];
-  const restaurants = etabs.filter(e => e.type !== "club");
-  const clubs = etabs.filter(e => e.type === "club");
-  remplirSelect("resa-restaurant", restaurants, "Choisir un restaurant (optionnel)");
-  remplirSelect("resa-club", clubs, "Choisir un club (optionnel)");
-  $("resa-nom").value = donnees.client_nom || "";
-  $("resa-erreur").hidden = true;
-  majBouteilles();
-  show("ecran-reservation");
-  window.scrollTo(0, 0);
-}
-function remplirSelect(id, etabs, placeholder) {
-  const sel = $(id);
-  sel.innerHTML = `<option value="">${placeholder}</option>` + etabs.map(e => `<option value="${e.id}">${esc(e.nom)}</option>`).join("");
-}
-function majBouteilles() {
-  const clubId = $("resa-club").value;
-  const bloc = $("bloc-bouteille");
-  const sel = $("resa-bouteille");
-  if (!clubId) { bloc.hidden = true; sel.innerHTML = ""; return; }
-  const club = (donnees.etablissements || []).find(e => e.id === clubId);
-  const bouteilles = club?.bouteilles || [];
-  sel.innerHTML = `<option value="">Choisir une bouteille</option>` + bouteilles.map(b => `<option value="${b.id}">${esc(b.nom)} · ${formatMontant(b.prix)}</option>`).join("");
-  bloc.hidden = false;
-}
-async function envoyerReservation() {
-  $("resa-erreur").hidden = true;
-  const nom = $("resa-nom").value.trim();
-  const restaurant = $("resa-restaurant").value || null;
-  const club = $("resa-club").value || null;
-  const bouteille = $("resa-bouteille").value || null;
-  if (!restaurant && !club) { afficherErreurResa("Choisissez au moins un établissement."); return; }
-  if (club && !bouteille) { afficherErreurResa("Choisissez une bouteille pour le club."); return; }
-  const { data, error } = await sb.rpc("espace_client_reserver", {
-    p_code: codeCourant, p_client_nom: nom, p_restaurant_id: restaurant, p_club_id: club, p_bouteille_id: bouteille,
-  });
-  if (error || !data?.ok) { afficherErreurResa(data?.erreur || error?.message || "Erreur lors de la réservation."); return; }
-  afficherReservations();
-}
-function afficherErreurResa(msg) {
-  const e = $("resa-erreur"); e.textContent = msg; e.hidden = false;
+// --- fiche établissement ---
+function ouvrirFiche(id) {
+  ficheCourante = (donnees.etablissements || []).find(e => e.id === id);
+  if (!ficheCourante) return;
+  const e = ficheCourante;
+  const photos = (e.photos || []).map(urlPhoto).filter(Boolean);
+  const hotesses = (e.hotesses || []);
+  const bouteilles = (e.bouteilles || []);
+  $("fiche-contenu").innerHTML = `
+    <button class="btn-retour" onclick="retourEtablissements()">‹ Retour</button>
+    ${photos.length ? `<div class="galerie">${photos.map(p => `<img src="${p}" onclick="agrandir('${p}')">`).join("")}</div>` : ""}
+    <h1>${esc(e.nom)}</h1>
+    <div class="etab-ville">${esc(e.type || "")} · ${esc(e.ville || "")}${e.adresse ? " · " + esc(e.adresse) : ""}</div>
+    ${avantage(e)}
+    <h3 class="bloc-titre">Les hôtesses présentes ce soir</h3>
+    ${hotesses.length ? `<div class="hotesses-photos">${hotesses.map(h => `<div class="hotesse"><img src="${urlPhoto(h.photo)}" alt="${esc(h.prenom)}"><span>${esc(h.prenom)}</span></div>`).join("")}</div>`
+      : `<p class="vide-mini">Les hôtesses de ce soir ne sont pas encore annoncées.</p>`}
+    ${bouteilles.length ? `<h3 class="bloc-titre">Carte des bouteilles</h3><div class="bouteilles">${bouteilles.map(b => `<div class="bouteille"><span>${esc(b.nom)}${b.categorie ? " · " + esc(b.categorie) : ""}${b.contenance_cl ? " · " + b.contenance_cl + " cl" : ""}</span><strong>${fmtMontant(b.prix_eur)}</strong></div>`).join("")}</div>` : ""}
+    <h3 class="bloc-titre">Simulateur</h3>
+    <div class="simulateur">
+      <input id="sim-montant" class="field" type="number" placeholder="Ex. 400" oninput="simuler()">
+      <div id="sim-resultat" class="sim-resultat"></div>
+    </div>
+    <button class="btn btn-primaire btn-block" onclick="ouvrirReservation()">Réserver une table</button>`;
+  montrer("ecran-fiche");
 }
 
-// --- mes réservations ---
-async function afficherReservations() {
-  const { data, error } = await sb.rpc("espace_client_mes_reservations", { p_code: codeCourant });
-  const zone = $("liste-reservations");
-  const resas = data?.reservations || [];
-  if (!resas.length) zone.innerHTML = `<p class="vide">Aucune réservation pour le moment.</p>`;
-  else zone.innerHTML = resas.map(carteReservation).join("");
-  show("ecran-reservations");
-  window.scrollTo(0, 0);
+function agrandir(url) {
+  const m = document.createElement("div");
+  m.className = "modal";
+  m.innerHTML = `<img src="${url}" style="max-width:94vw;max-height:90vh;border-radius:12px" onclick="this.parentElement.remove()">`;
+  m.onclick = () => m.remove();
+  m.style.display = "flex";
+  document.body.appendChild(m);
 }
-function carteReservation(r) {
-  const badges = { nouvelle: "Nouvelle", transmise: "Transmise à l'établissement", confirmee: "Confirmée", terminee: "Terminée", annulee: "Annulée" };
-  const lieux = [r.restaurant, r.club].filter(Boolean).join(" + ");
-  const remb = r.remboursement > 0
-    ? `<div class="remb-resa">💸 Remboursement DamUp : ${formatMontant(r.remboursement)}</div>` : "";
+
+async function simuler() {
+  const montant = parseFloat($("sim-montant").value) || 0;
+  const zone = $("sim-resultat");
+  if (!montant || !ficheCourante) { zone.innerHTML = ""; return; }
+  const { data } = await sb.rpc("espace_client_simuler", { p_code: code, p_etablissement_id: ficheCourante.id, p_montant: montant });
+  if (!data?.valide) { zone.innerHTML = ""; return; }
+  zone.innerHTML = data.rembourse > 0
+    ? `Tu seras remboursé de <strong>${fmtMontant(data.rembourse)}</strong>.`
+    : `Encore <strong>${fmtMontant(data.manque)}</strong> de dépense pour être remboursé.`;
+}
+
+// --- réservation ---
+function ouvrirReservation() {
+  const e = ficheCourante;
+  $("resa-etab-nom").textContent = `${e.nom} · ${fmtDate(donnees.date_soiree)}`;
+  $("resa-recap").innerHTML = avantage(e);
+  // heures par tranches de 30 min (18h à 02h)
+  const heures = [];
+  for (let h = 18; h <= 26; h++) for (const m of [0, 30]) { const hh = h % 24; heures.push(`${String(hh).padStart(2, "0")}:${String(m).padStart(2, "0")}`); }
+  $("resa-heure").innerHTML = heures.map(h => `<option value="${h}">${h}</option>`).join("");
+  if (e.bouteille_obligatoire) {
+    $("bloc-bouteille").hidden = false;
+    $("resa-bouteille").innerHTML = `<option value="">Choisir une bouteille</option>` + (e.bouteilles || []).map(b => `<option value="${b.id}">${esc(b.nom)} · ${fmtMontant(b.prix_eur)}</option>`).join("");
+  } else {
+    $("bloc-bouteille").hidden = true;
+  }
+  $("resa-erreur").hidden = true;
+  montrer("ecran-reservation");
+}
+
+async function envoyerReservation() {
+  $("resa-erreur").hidden = true;
+  const heure = $("resa-heure").value;
+  const personnes = parseInt($("resa-personnes").value) || 1;
+  const bouteille = $("resa-bouteille").value || null;
+  const message = $("resa-message").value.trim();
+  if (ficheCourante.bouteille_obligatoire && !bouteille) { resaErr("Choisis une bouteille."); return; }
+  const { data, error } = await sb.rpc("espace_client_reserver", {
+    p_code: code, p_etablissement_id: ficheCourante.id, p_heure_arrivee: heure,
+    p_nb_personnes: personnes, p_bouteille_id: bouteille, p_message: message,
+  });
+  if (error || !data?.ok) { resaErr(data?.erreur || "Erreur lors de la réservation."); return; }
+  afficherReservations();
+}
+function resaErr(m) { const e = $("resa-erreur"); e.textContent = m; e.hidden = false; }
+
+// --- mes réservations ---
+const STATUTS = { en_attente: "En attente", transmise: "Transmise", confirmee: "Confirmée", refusee: "Refusée", terminee: "Terminée", no_show: "No-show", annulee: "Annulée" };
+
+async function afficherReservations() {
+  const { data } = await sb.rpc("espace_client_mes_reservations", { p_code: code });
+  const resas = data?.reservations || [];
+  const zone = $("liste-reservations");
+  zone.innerHTML = resas.length ? resas.map(carteResa).join("") : `<p class="vide">Aucune réservation pour le moment.</p>`;
+  montrer("ecran-reservations");
+}
+
+function carteResa(r) {
+  const annulable = !["terminee", "no_show", "refusee", "annulee"].includes(r.statut);
+  const remboursable = r.statut === "terminee";
   return `<div class="carte-resa">
-    <div class="resa-statut statut-${esc(r.statut)}">${badges[r.statut] || esc(r.statut)}</div>
-    <div class="resa-date">${formatDate(r.date_soiree)}</div>
-    <div class="resa-lieux">${esc(lieux)}${r.bouteille ? ` · Bouteille : ${esc(r.bouteille)}` : ""}</div>
-    ${r.depense ? `<div class="resa-depense">Dépense : ${formatMontant(r.depense)}</div>` : ""}
-    ${remb}
+    <div class="resa-statut statut-${esc(r.statut)}">${STATUTS[r.statut] || esc(r.statut)}</div>
+    <div class="resa-date">${fmtDateCourte(r.date_soiree)} · ${esc(r.heure_arrivee || "")} · ${r.nb_personnes} pers.</div>
+    <div class="resa-lieux">${esc(r.etablissement)}${r.bouteille ? ` · ${esc(r.bouteille)}` : ""}</div>
+    ${r.motif_refus ? `<div class="resa-refus">Refus : ${esc(r.motif_refus)}</div>` : ""}
+    ${r.remboursement != null && r.remboursement > 0 ? `<div class="remb-resa">Remboursement : ${fmtMontant(r.remboursement)}</div>` : ""}
+    <div class="resa-actions">
+      ${annulable ? `<button class="btn btn-sm btn-danger" onclick="annulerResa('${r.id}')">Annuler</button>` : ""}
+      ${remboursable ? `<button class="btn btn-sm btn-primaire" onclick="ouvrirRemboursement('${r.id}')">Remboursement</button>` : ""}
+    </div>
   </div>`;
 }
 
-function retourAccueil() { if (donnees) { show("ecran-accueil"); window.scrollTo(0, 0); } }
+async function annulerResa(id) {
+  if (!confirm("Annuler cette réservation ?")) return;
+  const { data } = await sb.rpc("espace_client_annuler", { p_code: code, p_reservation: id });
+  if (data?.ok) afficherReservations();
+}
 
-// --- démarrage : si un code est déjà enregistré, on reprend ---
+// --- remboursement ---
+function ouvrirRemboursement(id) {
+  $("remboursement-contenu").innerHTML = `
+    <p class="sous-titre">Envoie tes informations pour être remboursé.</p>
+    <label class="label">Moyen de paiement</label>
+    <select id="rb-moyen" class="field">
+      <option value="virement">Virement (IBAN)</option>
+      <option value="wero">Wero (téléphone)</option>
+      <option value="lydia">Lydia (téléphone)</option>
+    </select>
+    <label class="label" id="rb-coord-label">IBAN</label>
+    <input id="rb-coord" class="field" placeholder="FR76 …">
+    <button class="btn btn-primaire btn-block" onclick="envoyerRemboursement('${id}')">Envoyer</button>
+    <p class="note">DamUp vérifie le montant auprès de l'établissement avant de payer. Le remboursement arrive sous quelques jours.</p>`;
+  $("rb-moyen").onchange = () => {
+    $("rb-coord-label").textContent = $("rb-moyen").value === "virement" ? "IBAN" : "Numéro de téléphone";
+    $("rb-coord").placeholder = $("rb-moyen").value === "virement" ? "FR76 …" : "06 …";
+  };
+  montrer("ecran-remboursement");
+}
+
+async function envoyerRemboursement(id) {
+  const moyen = $("rb-moyen").value;
+  const coord = $("rb-coord").value.trim();
+  if (!coord) { alert("Indique tes coordonnées."); return; }
+  const { data, error } = await sb.rpc("espace_client_envoyer_facture", { p_code: code, p_reservation_id: id, p_photo_facture: null, p_moyen_paiement: moyen, p_coordonnees: coord });
+  if (error || !data?.ok) { alert("Erreur. Réessaie."); return; }
+  alert("Bien reçu ! DamUp validera ton remboursement prochainement.");
+  afficherReservations();
+}
+
+// --- navigation ---
+function retourEtablissements() { montrer("ecran-etablissements"); }
+function retourFiche() { if (ficheCourante) ouvrirFiche(ficheCourante.id); }
+function ouvrirConditions() { $("modal-conditions").hidden = false; $("modal-conditions").style.display = "flex"; }
+function fermerConditions() { $("modal-conditions").hidden = true; $("modal-conditions").style.display = "none"; }
+
+// --- démarrage ---
 (function init() {
-  const code = localStorage.getItem(CLE_CODE);
-  if (code) {
-    $("code-input").value = code;
-    codeCourant = code;
-    chargerDonnees();
+  const c = localStorage.getItem(CLE_CODE);
+  if (c) {
+    code = c;
+    $("code-input").value = c;
+    sb.rpc("espace_client_valider_code", { p_code: c }).then(({ data }) => {
+      if (data?.valide) { client = data; chargerDonnees(); }
+      else { montrer("ecran-entree"); $("topbar").hidden = true; }
+    });
   } else {
-    show("ecran-code");
+    montrer("ecran-entree");
+    $("topbar").hidden = true;
   }
 })();

@@ -12,62 +12,91 @@
   <link rel="stylesheet" href="css/club.css">
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar" id="topbar" hidden>
     <div class="logo">DamUp <span class="logo-dot">·</span> <span class="logo-sub">Espace client</span></div>
-    <button id="btn-resa" class="topbar-btn" onclick="afficherReservations()" hidden>Mes réservations</button>
+    <button class="topbar-btn" onclick="afficherReservations()">Mes réservations</button>
   </header>
 
   <main id="app">
-    <!-- Écran code -->
-    <section id="ecran-code" class="carte">
+
+    <!-- 1. Entrée -->
+    <section id="ecran-entree" class="carte">
+      <div class="logo-grand">DamUp</div>
       <h1>Votre soirée privée</h1>
-      <p class="sous-titre">Entrez le code personnel reçu de DamUp pour accéder à votre soirée.</p>
-      <input id="code-input" class="field code-field" placeholder="CODE" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <p class="sous-titre">Entrez le code reçu de DamUp.</p>
+      <input id="code-input" class="field code-field" placeholder="DAMUP-XXXXXX" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <div id="bloc-majeur" hidden>
+        <label class="checkbox"><input type="checkbox" id="ck-majeur"> J'ai 18 ans ou plus et j'accepte les <a href="javascript:void(0)" onclick="ouvrirConditions()">conditions de l'espace client</a>.</label>
+      </div>
       <button class="btn btn-primaire btn-block" onclick="validerCode()">Entrer</button>
       <p id="code-erreur" class="erreur" hidden></p>
       <p class="note">Vous réservez une table, jamais une hôtesse. Les hôtesses travaillent pour l'établissement.</p>
     </section>
 
-    <!-- Écran accueil : établissements + hôtesses -->
-    <section id="ecran-accueil" class="accueil" hidden>
+    <!-- 2. Établissements -->
+    <section id="ecran-etablissements" class="accueil" hidden>
       <div class="bandeau-soiree" id="bandeau-soiree"></div>
-      <h2 class="section-titre">Établissements partenaires</h2>
-      <div id="liste-etablissements" class="liste-etablissements"></div>
-      <button class="btn btn-primaire btn-block" onclick="ouvrirReservation()">Réserver une table</button>
+      <div class="filtres">
+        <button class="chip on" id="f-tous" onclick="filtrer('tous')">Tous</button>
+        <button class="chip" id="f-restaurant" onclick="filtrer('restaurant')">Restaurants</button>
+        <button class="chip" id="f-club" onclick="filtrer('club')">Clubs</button>
+      </div>
+      <div id="liste-etablissements"></div>
     </section>
 
-    <!-- Écran réservation -->
+    <!-- 3. Fiche établissement -->
+    <section id="ecran-fiche" class="accueil" hidden>
+      <div id="fiche-contenu"></div>
+    </section>
+
+    <!-- 4. Réservation -->
     <section id="ecran-reservation" class="carte" hidden>
       <h1>Réserver une table</h1>
-      <p class="sous-titre">Choisissez un restaurant, un club, ou les deux pour la même soirée.</p>
-
-      <label class="label">Votre nom</label>
-      <input id="resa-nom" class="field" placeholder="Nom sous lequel vous réservez">
-
-      <label class="label">Restaurant (optionnel)</label>
-      <select id="resa-restaurant" class="field"></select>
-
-      <label class="label">Club (optionnel)</label>
-      <select id="resa-club" class="field" onchange="majBouteilles()"></select>
-
+      <p class="sous-titre" id="resa-etab-nom"></p>
+      <div id="resa-recap"></div>
+      <label class="label">Heure d'arrivée</label>
+      <select id="resa-heure" class="field"></select>
+      <label class="label">Nombre de personnes</label>
+      <input id="resa-personnes" class="field" type="number" min="1" max="20" value="2">
       <div id="bloc-bouteille" hidden>
-        <label class="label">Bouteille (obligatoire pour le club)</label>
+        <label class="label">Bouteille (obligatoire)</label>
         <select id="resa-bouteille" class="field"></select>
       </div>
-
-      <button class="btn btn-primaire btn-block" onclick="envoyerReservation()">Confirmer la réservation</button>
-      <button class="btn btn-block btn-secondaire" onclick="retourAccueil()">Retour</button>
+      <label class="label">Message (optionnel)</label>
+      <textarea id="resa-message" class="field" maxlength="500" placeholder="Une demande particulière ?"></textarea>
+      <button class="btn btn-primaire btn-block" onclick="envoyerReservation()">Envoyer ma demande</button>
+      <button class="btn btn-block btn-secondaire" onclick="retourFiche()">Retour</button>
       <p id="resa-erreur" class="erreur" hidden></p>
-      <p class="note">Vous réglez la totalité de votre facture directement à l'établissement le soir même.</p>
     </section>
 
-    <!-- Écran mes réservations -->
+    <!-- 5. Mes réservations -->
     <section id="ecran-reservations" class="carte" hidden>
       <h1>Mes réservations</h1>
-      <div id="liste-reservations" class="liste-reservations"></div>
-      <button class="btn btn-block btn-secondaire" onclick="retourAccueil()">Retour</button>
+      <div id="liste-reservations"></div>
+      <button class="btn btn-block btn-secondaire" onclick="retourEtablissements()">Retour</button>
+    </section>
+
+    <!-- 6. Remboursement -->
+    <section id="ecran-remboursement" class="carte" hidden>
+      <h1>Mon remboursement</h1>
+      <div id="remboursement-contenu"></div>
+      <button class="btn btn-block btn-secondaire" onclick="afficherReservations()">Retour</button>
     </section>
   </main>
+
+  <!-- Conditions (modale) -->
+  <div id="modal-conditions" class="modal" hidden>
+    <div class="modal-carte">
+      <h3>Conditions de l'espace client</h3>
+      <ul class="conditions">
+        <li>Je réserve une table dans un établissement. Les hôtesses travaillent pour l'établissement et ne sont pas réservables.</li>
+        <li>Je paie la totalité de ma facture à l'établissement. DamUp me rembourse ensuite le pourcentage affiché si le seuil est atteint et si le montant est confirmé par l'établissement.</li>
+        <li>Tout comportement déplacé envers une hôtesse ou l'établissement peut entraîner mon exclusion définitive.</li>
+        <li>Je ne prends pas en photo et ne diffuse pas les profils visibles sur cet espace.</li>
+      </ul>
+      <button class="btn btn-primaire btn-block" onclick="fermerConditions()">Fermer</button>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
