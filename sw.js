@@ -2,7 +2,7 @@
 //  DamUp — Service worker (application installable)
 //  IMPORTANT : à chaque mise en ligne, augmenter VERSION.
 // ============================================================
-const VERSION = "damup-v33";
+const VERSION = "damup-v34";
 
 const ASSETS = [
   "./",
