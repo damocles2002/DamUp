@@ -27,6 +27,16 @@ create table public.appareils_push (
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
+-- TABLE avantages_etablissement
+create table public.avantages_etablissement (
+  "etablissement_id" uuid NOT NULL,
+  "seuil_depense_eur" numeric,
+  "pourcentage_client" numeric,
+  "pourcentage_commission" numeric,
+  "bouteille_obligatoire" boolean NOT NULL DEFAULT false,
+  "actif" boolean NOT NULL DEFAULT false
+);
+
 -- TABLE avis
 create table public.avis (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -44,7 +54,10 @@ create table public.bouteilles (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
   "etablissement_id" uuid NOT NULL,
   "nom" text NOT NULL,
-  "prix" numeric NOT NULL,
+  "categorie" text,
+  "contenance_cl" integer,
+  "prix_eur" numeric NOT NULL,
+  "disponible" boolean NOT NULL DEFAULT true,
   "ordre" integer NOT NULL DEFAULT 0,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -70,15 +83,46 @@ create table public.candidatures (
   "sanction_signes" integer
 );
 
--- TABLE clients_codes
-create table public.clients_codes (
+-- TABLE clients
+create table public.clients (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "prenom" text NOT NULL,
+  "nom" text NOT NULL,
+  "telephone" text,
+  "email" text,
+  "majeur_confirme" boolean NOT NULL DEFAULT false,
+  "majeur_confirme_le" timestamp with time zone,
+  "statut" text NOT NULL DEFAULT 'actif'::text,
+  "nb_no_show" integer NOT NULL DEFAULT 0,
+  "notes_admin" text,
+  "date_creation" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE codes_acces
+create table public.codes_acces (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
   "code" text NOT NULL,
+  "client_id" uuid NOT NULL,
+  "date_soiree" date NOT NULL,
+  "valide_du" timestamp with time zone,
+  "valide_jusqu_au" timestamp with time zone,
   "statut" text NOT NULL DEFAULT 'actif'::text,
-  "date_soiree" date,
-  "client_nom" text,
-  "cree_le" timestamp with time zone NOT NULL DEFAULT now(),
-  "utilise_le" timestamp with time zone
+  "date_premiere_utilisation" timestamp with time zone,
+  "nb_essais_echoues" integer NOT NULL DEFAULT 0,
+  "cree_le" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE commissions
+create table public.commissions (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "reservation_id" uuid NOT NULL,
+  "etablissement_id" uuid NOT NULL,
+  "montant_depense" numeric,
+  "pourcentage_applique" numeric,
+  "montant_commission" numeric,
+  "statut" text NOT NULL DEFAULT 'a_facturer'::text,
+  "date_reception" timestamp with time zone,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 -- TABLE compteurs
@@ -134,10 +178,7 @@ create table public.etablissements (
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   "id_document" jsonb,
   "verifie_le" timestamp with time zone,
-  "verifie_par" uuid,
-  "visible_client" boolean NOT NULL DEFAULT false,
-  "remboursement_pct" numeric,
-  "seuil_depense" numeric
+  "verifie_par" uuid
 );
 
 -- TABLE factures
@@ -296,21 +337,40 @@ create table public.profiles (
   "reference_virement" text
 );
 
--- TABLE reservations_client
-create table public.reservations_client (
+-- TABLE remboursements
+create table public.remboursements (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
-  "code_id" uuid NOT NULL,
-  "client_nom" text NOT NULL,
+  "reservation_id" uuid NOT NULL,
+  "montant_declare_etablissement" numeric,
+  "photo_facture" text,
+  "montant_retenu" numeric,
+  "seuil_applique" numeric,
+  "pourcentage_applique" numeric,
+  "montant_a_rembourser" numeric,
+  "moyen_paiement" text,
+  "coordonnees_paiement" text,
+  "statut" text NOT NULL DEFAULT 'en_attente_justificatifs'::text,
+  "date_virement" timestamp with time zone,
+  "reference_virement" text,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE reservations
+create table public.reservations (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "client_id" uuid NOT NULL,
+  "code_acces_id" uuid NOT NULL,
+  "etablissement_id" uuid NOT NULL,
   "date_soiree" date NOT NULL,
-  "restaurant_id" uuid,
-  "club_id" uuid,
+  "heure_arrivee" time without time zone,
+  "nb_personnes" integer NOT NULL DEFAULT 1,
   "bouteille_id" uuid,
-  "statut" text NOT NULL DEFAULT 'nouvelle'::text,
-  "depense" numeric,
-  "remboursement" numeric,
-  "rembourse" boolean NOT NULL DEFAULT false,
-  "rembourse_le" timestamp with time zone,
-  "cree_le" timestamp with time zone NOT NULL DEFAULT now()
+  "message_client" text,
+  "statut" text NOT NULL DEFAULT 'en_attente'::text,
+  "date_transmission" timestamp with time zone,
+  "date_confirmation" timestamp with time zone,
+  "motif_refus" text,
+  "date_creation" timestamp with time zone NOT NULL DEFAULT now()
 );
 
 -- TABLE settings
@@ -328,6 +388,20 @@ create table public.signalements (
   "cible_id" uuid NOT NULL,
   "motif" text,
   "statut" text NOT NULL DEFAULT 'nouveau'::text,
+  "decision" text,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- TABLE signalements_clients
+create table public.signalements_clients (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "client_id" uuid NOT NULL,
+  "reservation_id" uuid,
+  "auteur_type" text NOT NULL,
+  "auteur_id" uuid NOT NULL,
+  "motif" text,
+  "description" text,
+  "statut" text NOT NULL DEFAULT 'ouvert'::text,
   "decision" text,
   "created_at" timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -372,7 +446,7 @@ AS $function$
   from public.profiles p where p.id = p_uid;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_ajouter_bouteille(p_etablissement uuid, p_nom text, p_prix numeric)
+CREATE OR REPLACE FUNCTION public.admin_ajouter_bouteille(p_etablissement uuid, p_nom text, p_categorie text, p_contenance integer, p_prix numeric)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -380,8 +454,8 @@ CREATE OR REPLACE FUNCTION public.admin_ajouter_bouteille(p_etablissement uuid, 
 AS $function$
 begin
   if not public.a_le_droit('reglages') then raise exception 'Droit insuffisant.'; end if;
-  insert into public.bouteilles (etablissement_id, nom, prix, ordre)
-  values (p_etablissement, nullif(trim(p_nom), ''), p_prix, coalesce((select max(ordre) + 1 from public.bouteilles where etablissement_id = p_etablissement), 0));
+  insert into public.bouteilles (etablissement_id, nom, categorie, contenance_cl, prix_eur, ordre)
+  values (p_etablissement, nullif(trim(p_nom), ''), nullif(trim(p_categorie), ''), p_contenance, p_prix, coalesce((select max(ordre) + 1 from public.bouteilles where etablissement_id = p_etablissement), 0));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_annuaire_etablissements()
@@ -504,7 +578,33 @@ begin
   perform public.notifier_utilisateur(v_c.hotesse_id, 'notif.sanction_annulee', jsonb_build_object('motif', p_motif));
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_creer_code(p_client_nom text, p_date_soiree date)
+CREATE OR REPLACE FUNCTION public.admin_basculer_bouteille(p_bouteille uuid, p_disponible boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('reglages') then raise exception 'Droit insuffisant.'; end if;
+  update public.bouteilles set disponible = p_disponible where id = p_bouteille;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_creer_client(p_prenom text, p_nom text, p_telephone text, p_email text DEFAULT NULL::text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_id uuid;
+begin
+  if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
+  insert into public.clients (prenom, nom, telephone, email)
+  values (nullif(trim(p_prenom), ''), nullif(trim(p_nom), ''), nullif(trim(p_telephone), ''), nullif(trim(p_email), ''))
+  returning id into v_id;
+  return v_id;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_creer_code(p_client uuid, p_date_soiree date)
  RETURNS text
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -512,18 +612,49 @@ CREATE OR REPLACE FUNCTION public.admin_creer_code(p_client_nom text, p_date_soi
 AS $function$
 declare
   v_code text;
-  v_ok boolean := false;
+  v_client public.clients%rowtype;
 begin
   if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
+  select * into v_client from public.clients where id = p_client;
+  if v_client.id is null then raise exception 'Client introuvable.'; end if;
+  if v_client.statut in ('suspendu', 'banni') then raise exception 'Client suspendu ou banni : impossible de créer un code.'; end if;
   loop
-    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6));
-    v_code := translate(v_code, '0O1IL', 'ABCDEF');
-    if not exists (select 1 from public.clients_codes where code = v_code) then v_ok := true; end if;
-    exit when v_ok;
+    v_code := 'DAMUP-' || (select string_agg(substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789', (floor(random()*32))::int + 1, 1), '') from generate_series(1,6));
+    exit when not exists (select 1 from public.codes_acces where code = v_code);
   end loop;
-  insert into public.clients_codes (code, statut, date_soiree, client_nom)
-  values (v_code, 'actif', p_date_soiree, nullif(trim(p_client_nom), ''));
+  insert into public.codes_acces (code, client_id, date_soiree, valide_du, valide_jusqu_au)
+  values (v_code, p_client, p_date_soiree, now(), (p_date_soiree::timestamp + interval '1 day 6 hours') at time zone 'Europe/Paris');
   return v_code;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_declarer_depense(p_reservation uuid, p_montant numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r public.reservations%rowtype;
+  rb public.remboursements%rowtype;
+  v_remb numeric := 0;
+  v_statut text;
+begin
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
+  select * into r from public.reservations where id = p_reservation;
+  if r.id is null then return jsonb_build_object('ok', false); end if;
+  select * into rb from public.remboursements where reservation_id = p_reservation;
+  if rb.id is null then return jsonb_build_object('ok', false, 'erreur', 'Aucune ligne de remboursement.'); end if;
+  -- montant retenu = celui de l'établissement
+  if p_montant >= coalesce(rb.seuil_applique, 0) then
+    v_remb := round(p_montant * coalesce(rb.pourcentage_applique, 0) / 100, 2);
+    v_statut := 'a_valider';
+  else
+    v_remb := 0;
+    v_statut := 'non_eligible';
+  end if;
+  update public.remboursements set montant_declare_etablissement = p_montant, montant_retenu = p_montant, montant_a_rembourser = v_remb, statut = v_statut where id = rb.id;
+  update public.commissions set montant_depense = p_montant, montant_commission = round(p_montant * coalesce(pourcentage_applique, 0) / 100, 2) where reservation_id = p_reservation;
+  return jsonb_build_object('ok', true, 'remboursement', v_remb, 'statut', v_statut);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_enregistrer_paiement(p_profil uuid, p_mode text, p_periode text, p_montant numeric, p_date date DEFAULT NULL::date, p_note text DEFAULT NULL::text)
@@ -580,20 +711,7 @@ begin
   return query select * from public.messages where mission_id = v_mission order by created_at;
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_lister_codes()
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
-  return coalesce((select jsonb_agg(jsonb_build_object(
-    'id', c.id, 'code', c.code, 'statut', c.statut, 'date_soiree', c.date_soiree, 'client_nom', c.client_nom, 'cree_le', c.cree_le
-  ) order by c.cree_le desc) from public.clients_codes c), '[]'::jsonb);
-end; $function$;
-
-CREATE OR REPLACE FUNCTION public.admin_lister_etablissements_client()
+CREATE OR REPLACE FUNCTION public.admin_lister_avantages()
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -603,11 +721,79 @@ begin
   if not public.a_le_droit('reglages') then raise exception 'Droit insuffisant.'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object(
     'id', e.id, 'nom', e.nom, 'type', e.type, 'ville', e.ville,
-    'visible_client', e.visible_client, 'remboursement_pct', e.remboursement_pct, 'seuil_depense', e.seuil_depense,
-    'bouteilles', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'nom', b.nom, 'prix', b.prix) order by b.ordre)
-      from public.bouteilles b where b.etablissement_id = e.id), '[]'::jsonb)
+    'actif', coalesce(a.actif, false),
+    'seuil_depense_eur', a.seuil_depense_eur, 'pourcentage_client', a.pourcentage_client,
+    'pourcentage_commission', a.pourcentage_commission, 'bouteille_obligatoire', coalesce(a.bouteille_obligatoire, false),
+    'bouteilles', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'nom', b.nom, 'categorie', b.categorie, 'contenance_cl', b.contenance_cl, 'prix_eur', b.prix_eur, 'disponible', b.disponible) order by b.ordre) from public.bouteilles b where b.etablissement_id = e.id), '[]'::jsonb)
   ) order by e.nom)
-  from public.etablissements e where e.type in ('club','restaurant','bar','lounge')), '[]'::jsonb);
+  from public.etablissements e
+  left join public.avantages_etablissement a on a.etablissement_id = e.id
+  where e.type in ('club','restaurant','bar','lounge')), '[]'::jsonb);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_lister_clients()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object(
+    'id', c.id, 'prenom', c.prenom, 'nom', c.nom, 'telephone', c.telephone, 'email', c.email,
+    'majeur_confirme', c.majeur_confirme, 'statut', c.statut, 'nb_no_show', c.nb_no_show, 'notes_admin', c.notes_admin
+  ) order by c.date_creation desc) from public.clients c), '[]'::jsonb);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_lister_codes()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object(
+    'id', c.id, 'code', c.code, 'date_soiree', c.date_soiree, 'statut', c.statut,
+    'valide_jusqu_au', c.valide_jusqu_au, 'nb_essais_echoues', c.nb_essais_echoues,
+    'client', (select prenom || ' ' || left(nom, 1) || '.' from public.clients where id = c.client_id),
+    'client_id', c.client_id
+  ) order by c.cree_le desc) from public.codes_acces c), '[]'::jsonb);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_lister_commissions()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object(
+    'id', c.id, 'etablissement', (select nom from public.etablissements where id = c.etablissement_id),
+    'montant_depense', c.montant_depense, 'pourcentage_applique', c.pourcentage_applique,
+    'montant_commission', c.montant_commission, 'statut', c.statut, 'date_reception', c.date_reception
+  ) order by c.created_at desc) from public.commissions c), '[]'::jsonb);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_lister_remboursements()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object(
+    'id', rb.id, 'reservation_id', rb.reservation_id, 'statut', rb.statut,
+    'montant_declare_etablissement', rb.montant_declare_etablissement, 'montant_retenu', rb.montant_retenu,
+    'seuil_applique', rb.seuil_applique, 'pourcentage_applique', rb.pourcentage_applique,
+    'montant_a_rembourser', rb.montant_a_rembourser, 'moyen_paiement', rb.moyen_paiement,
+    'coordonnees_paiement', rb.coordonnees_paiement, 'photo_facture', rb.photo_facture,
+    'date_virement', rb.date_virement, 'reference_virement', rb.reference_virement,
+    'client', (select prenom || ' ' || left(nom, 1) || '.' from public.clients cl join public.reservations r on r.client_id = cl.id where r.id = rb.reservation_id),
+    'etablissement', (select nom from public.etablissements e join public.reservations r on r.etablissement_id = e.id where r.id = rb.reservation_id)
+  ) order by rb.created_at desc) from public.remboursements rb), '[]'::jsonb);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_lister_reservations()
@@ -619,26 +805,29 @@ AS $function$
 begin
   if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object(
-    'id', r.id, 'client_nom', r.client_nom, 'date_soiree', r.date_soiree, 'statut', r.statut,
-    'depense', r.depense, 'remboursement', r.remboursement, 'rembourse', r.rembourse,
-    'restaurant', (select nom from public.etablissements where id = r.restaurant_id),
-    'club', (select nom from public.etablissements where id = r.club_id),
+    'id', r.id, 'date_soiree', r.date_soiree, 'heure_arrivee', r.heure_arrivee, 'nb_personnes', r.nb_personnes,
+    'statut', r.statut, 'motif_refus', r.motif_refus, 'message_client', r.message_client,
+    'client', (select prenom || ' ' || left(nom, 1) || '.' from public.clients where id = r.client_id),
+    'etablissement', (select nom from public.etablissements where id = r.etablissement_id),
+    'etablissement_type', (select type from public.etablissements where id = r.etablissement_id),
     'bouteille', (select nom from public.bouteilles where id = r.bouteille_id),
-    'code', (select code from public.clients_codes where id = r.code_id),
-    'cree_le', r.cree_le
-  ) order by r.cree_le desc) from public.reservations_client r), '[]'::jsonb);
+    'bouteille_prix', (select prix_eur from public.bouteilles where id = r.bouteille_id)
+  ) order by r.date_creation desc) from public.reservations r), '[]'::jsonb);
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
- RETURNS void
+CREATE OR REPLACE FUNCTION public.admin_lister_signalements_clients()
+ RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 begin
-  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
-  update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
-  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
+  if not public.a_le_droit('signalements') then raise exception 'Droit insuffisant.'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object(
+    'id', s.id, 'client', (select prenom || ' ' || left(nom, 1) || '.' from public.clients where id = s.client_id),
+    'client_id', s.client_id, 'auteur_type', s.auteur_type, 'motif', s.motif, 'description', s.description,
+    'statut', s.statut, 'decision', s.decision, 'created_at', s.created_at
+  ) order by s.created_at desc) from public.signalements_clients s), '[]'::jsonb);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric)
@@ -651,6 +840,18 @@ begin
   if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
   update public.profiles set tarif = p_tarif where id = p_profil;
   perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif));
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_modifier_tarif(p_profil uuid, p_tarif numeric, p_periode text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('paiements') then raise exception 'Droit insuffisant.'; end if;
+  update public.profiles set tarif = p_tarif, periode = p_periode where id = p_profil;
+  perform public.journaliser('tarif_modifie', 'profil', p_profil, jsonb_build_object('tarif', p_tarif, 'periode', p_periode));
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_offrir_periode_groupe(p_type text, p_jours integer)
@@ -751,7 +952,7 @@ begin
   perform public.notifier_utilisateur(p_profil, 'notif.validation_refusee', jsonb_build_object('motif', coalesce(p_motif, '')));
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_regler_etablissement_client(p_etablissement uuid, p_visible boolean, p_remboursement_pct numeric, p_seuil_depense numeric)
+CREATE OR REPLACE FUNCTION public.admin_regler_avantage(p_etablissement uuid, p_actif boolean, p_seuil numeric, p_pct_client numeric, p_pct_commission numeric, p_bouteille_obligatoire boolean)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -759,9 +960,11 @@ CREATE OR REPLACE FUNCTION public.admin_regler_etablissement_client(p_etablissem
 AS $function$
 begin
   if not public.a_le_droit('reglages') then raise exception 'Droit insuffisant.'; end if;
-  update public.etablissements
-     set visible_client = p_visible, remboursement_pct = nullif(p_remboursement_pct, 0), seuil_depense = nullif(p_seuil_depense, 0)
-   where id = p_etablissement;
+  insert into public.avantages_etablissement (etablissement_id, seuil_depense_eur, pourcentage_client, pourcentage_commission, bouteille_obligatoire, actif)
+  values (p_etablissement, nullif(p_seuil, 0), nullif(p_pct_client, 0), nullif(p_pct_commission, 0), coalesce(p_bouteille_obligatoire, false), p_actif)
+  on conflict (etablissement_id) do update
+    set seuil_depense_eur = excluded.seuil_depense_eur, pourcentage_client = excluded.pourcentage_client,
+        pourcentage_commission = excluded.pourcentage_commission, bouteille_obligatoire = excluded.bouteille_obligatoire, actif = excluded.actif;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_renvoyer_facture(p_facture_id uuid)
@@ -774,6 +977,17 @@ begin
   if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
   update public.factures set envoyee_le = null, envoi_erreur = null where id = p_facture_id;
   perform public.envoyer_facture(p_facture_id);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_revoquer_code(p_code uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
+  update public.codes_acces set statut = 'revoque' where id = p_code;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_stats_membre(p_uid uuid)
@@ -804,6 +1018,35 @@ begin
   return v;
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.admin_statut_client(p_client uuid, p_statut text, p_notes text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('suspendre_utilisateurs') then raise exception 'Droit insuffisant.'; end if;
+  if p_statut not in ('actif', 'suspendu', 'banni') then raise exception 'Statut invalide.'; end if;
+  update public.clients set statut = p_statut, notes_admin = coalesce(p_notes, notes_admin) where id = p_client;
+  if p_statut = 'banni' then
+    update public.codes_acces set statut = 'revoque' where client_id = p_client and statut = 'actif';
+    update public.reservations set statut = 'annulee'
+     where client_id = p_client and statut in ('en_attente', 'transmise', 'confirmee');
+  end if;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_statut_commission(p_commission uuid, p_statut text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
+  if p_statut not in ('a_facturer', 'facturee', 'recue') then raise exception 'Statut invalide.'; end if;
+  update public.commissions set statut = p_statut, date_reception = case when p_statut = 'recue' then now() else date_reception end where id = p_commission;
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.admin_supprimer_bouteille(p_bouteille uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -827,43 +1070,97 @@ begin
   perform public.journaliser('compte_suspendu', 'profil', p_profil);
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.admin_traiter_reservation(p_reservation uuid, p_action text, p_depense numeric DEFAULT NULL::numeric)
+CREATE OR REPLACE FUNCTION public.admin_traiter_remboursement(p_remboursement uuid, p_action text, p_motif text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare rb public.remboursements%rowtype;
+begin
+  if not public.a_le_droit('voir_finances') then raise exception 'Droit insuffisant.'; end if;
+  select * into rb from public.remboursements where id = p_remboursement;
+  if p_action = 'valider' then
+    if rb.statut not in ('a_valider', 'ecart') then raise exception 'Transition refusée.'; end if;
+    update public.remboursements set statut = 'valide' where id = p_remboursement;
+  elsif p_action = 'payer' then
+    if rb.statut <> 'valide' then raise exception 'Valider d''abord.'; end if;
+    update public.remboursements set statut = 'rembourse', date_virement = now(), reference_virement = p_motif where id = p_remboursement;
+  elsif p_action = 'refuser' then
+    update public.remboursements set statut = 'refuse' where id = p_remboursement;
+  else
+    raise exception 'Action inconnue.';
+  end if;
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_traiter_reservation(p_reservation uuid, p_action text, p_motif text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
-  r public.reservations_client%rowtype;
-  v_remboursement numeric := 0;
+  r public.reservations%rowtype;
+  a public.avantages_etablissement%rowtype;
+  v_remb numeric;
 begin
   if not public.a_le_droit('voir_donnees') then raise exception 'Droit insuffisant.'; end if;
-  select * into r from public.reservations_client where id = p_reservation;
+  select * into r from public.reservations where id = p_reservation;
   if r.id is null then return jsonb_build_object('ok', false, 'erreur', 'Réservation introuvable.'); end if;
 
   if p_action = 'transmettre' then
-    update public.reservations_client set statut = 'transmise' where id = p_reservation;
+    if r.statut <> 'en_attente' then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'transmise', date_transmission = now() where id = p_reservation;
   elsif p_action = 'confirmer' then
-    update public.reservations_client set statut = 'confirmee' where id = p_reservation;
+    if r.statut <> 'transmise' then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'confirmee', date_confirmation = now() where id = p_reservation;
+  elsif p_action = 'refuser' then
+    if r.statut not in ('en_attente', 'transmise') then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'refusee', motif_refus = p_motif where id = p_reservation;
   elsif p_action = 'terminer' then
-    v_remboursement := 0;
-    if p_depense is not null then
-      select round(p_depense * coalesce(e.remboursement_pct, 0) / 100, 2)
-        into v_remboursement
-        from public.etablissements e
-       where e.id = coalesce(r.club_id, r.restaurant_id)
-         and e.seuil_depense is not null
-         and p_depense >= e.seuil_depense;
+    if r.statut <> 'confirmee' then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'terminee' where id = p_reservation;
+    -- créer remboursement + commission en copiant les réglages du jour
+    select * into a from public.avantages_etablissement where etablissement_id = r.etablissement_id;
+    insert into public.remboursements (reservation_id, seuil_applique, pourcentage_applique)
+    values (p_reservation, a.seuil_depense_eur, a.pourcentage_client);
+    insert into public.commissions (reservation_id, etablissement_id, pourcentage_applique)
+    values (p_reservation, r.etablissement_id, a.pourcentage_commission);
+  elsif p_action = 'no_show' then
+    if r.statut <> 'confirmee' then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'no_show' where id = p_reservation;
+    -- incrémenter nb_no_show + suspension auto à 2
+    update public.clients set nb_no_show = nb_no_show + 1 where id = r.client_id;
+    if (select nb_no_show from public.clients where id = r.client_id) >= 2 then
+      update public.clients set statut = 'suspendu' where id = r.client_id;
     end if;
-    update public.reservations_client set statut = 'terminee', depense = p_depense, remboursement = v_remboursement where id = p_reservation;
-  elsif p_action = 'rembourse' then
-    update public.reservations_client set rembourse = true, rembourse_le = now() where id = p_reservation;
   elsif p_action = 'annuler' then
-    update public.reservations_client set statut = 'annulee' where id = p_reservation;
+    if r.statut in ('terminee', 'no_show', 'refusee', 'annulee') then return jsonb_build_object('ok', false, 'erreur', 'Transition refusée.'); end if;
+    update public.reservations set statut = 'annulee' where id = p_reservation;
   else
     return jsonb_build_object('ok', false, 'erreur', 'Action inconnue.');
   end if;
-  return jsonb_build_object('ok', true, 'remboursement', v_remboursement);
+  return jsonb_build_object('ok', true);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.admin_traiter_signalement_client(p_signalement uuid, p_decision text, p_statut_client text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s public.signalements_clients%rowtype;
+begin
+  if not public.a_le_droit('signalements') then raise exception 'Droit insuffisant.'; end if;
+  select * into s from public.signalements_clients where id = p_signalement;
+  update public.signalements_clients set statut = 'traite', decision = p_decision where id = p_signalement;
+  if p_statut_client in ('actif', 'suspendu', 'banni') then
+    update public.clients set statut = p_statut_client where id = s.client_id;
+    if p_statut_client = 'banni' then
+      update public.codes_acces set statut = 'revoque' where client_id = s.client_id and statut = 'actif';
+      update public.reservations set statut = 'annulee' where client_id = s.client_id and statut in ('en_attente', 'transmise', 'confirmee');
+    end if;
+  end if;
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_valider_identite(p_profil uuid, p_type text, p_valide boolean, p_motif text DEFAULT NULL::text)
@@ -1605,6 +1902,40 @@ begin
   );
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.espace_client_annuler(p_code text, p_reservation uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c public.codes_acces%rowtype;
+  r public.reservations%rowtype;
+begin
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null then return jsonb_build_object('ok', false); end if;
+  select * into r from public.reservations where id = p_reservation and client_id = c.client_id;
+  if r.id is null then return jsonb_build_object('ok', false); end if;
+  if r.statut in ('terminee', 'no_show', 'refusee', 'annulee') then return jsonb_build_object('ok', false); end if;
+  update public.reservations set statut = 'annulee' where id = p_reservation;
+  return jsonb_build_object('ok', true);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.espace_client_confirmer_majeur(p_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c public.codes_acces%rowtype;
+begin
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null or c.statut <> 'actif' then return jsonb_build_object('ok', false); end if;
+  update public.clients set majeur_confirme = true, majeur_confirme_le = now() where id = c.client_id;
+  return jsonb_build_object('ok', true);
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.espace_client_donnees(p_code text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1612,34 +1943,61 @@ CREATE OR REPLACE FUNCTION public.espace_client_donnees(p_code text)
  SET search_path TO 'public'
 AS $function$
 declare
-  c public.clients_codes%rowtype;
+  c public.codes_acces%rowtype;
 begin
-  select * into c from public.clients_codes where upper(code) = upper(trim(p_code));
-  if c.id is null or c.statut <> 'actif' then
-    return jsonb_build_object('valide', false);
-  end if;
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null or c.statut <> 'actif' then return jsonb_build_object('valide', false); end if;
   return jsonb_build_object(
     'valide', true,
     'date_soiree', c.date_soiree,
     'etablissements', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'id', e.id, 'nom', e.nom, 'type', e.type, 'ville', e.ville, 'adresse', e.adresse,
-        'photos', e.photos, 'remboursement_pct', e.remboursement_pct, 'seuil_depense', e.seuil_depense,
-        'bouteilles', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'nom', b.nom, 'prix', b.prix) order by b.ordre) from public.bouteilles b where b.etablissement_id = e.id), '[]'::jsonb),
+        'id', e.id, 'nom', e.nom, 'type', e.type, 'ville', e.ville, 'adresse', e.adresse, 'photos', e.photos,
+        'seuil_depense_eur', a.seuil_depense_eur, 'pourcentage_client', a.pourcentage_client,
+        'bouteille_obligatoire', a.bouteille_obligatoire,
+        'bouteilles', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'nom', b.nom, 'categorie', b.categorie, 'contenance_cl', b.contenance_cl, 'prix_eur', b.prix_eur) order by b.categorie, b.prix_eur) from public.bouteilles b where b.etablissement_id = e.id and b.disponible), '[]'::jsonb),
         'hotesses', coalesce((select jsonb_agg(h) from (
           select distinct on (hh.id) jsonb_build_object('id', hh.id, 'prenom', hh.prenom, 'photo', hh.photos->0) as h
           from public.hotesses hh
           join public.candidatures cd on cd.hotesse_id = hh.id
           join public.missions m on m.id = cd.mission_id
+          join public.profiles p on p.id = hh.id
           where m.etablissement_id = e.id
-            and cd.statut in ('acceptee','confirmee') and not cd.annulation
-            and hh.verifie and hh.photos is not null and jsonb_array_length(hh.photos) > 0
+            and m.date = c.date_soiree
+            and cd.statut = 'confirmee' and not cd.annulation
+            and not p.suspendu
           order by hh.id
         ) t), '[]'::jsonb)
       ) order by e.nom)
-      from public.etablissements e where e.visible_client and e.verifie
+      from public.etablissements e
+      join public.avantages_etablissement a on a.etablissement_id = e.id
+      where a.actif and e.verifie
     ), '[]'::jsonb)
   );
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.espace_client_envoyer_facture(p_code text, p_reservation_id uuid, p_photo_facture text, p_moyen_paiement text, p_coordonnees text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c public.codes_acces%rowtype;
+  r public.reservations%rowtype;
+begin
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null then return jsonb_build_object('ok', false, 'erreur', 'Code invalide.'); end if;
+  select * into r from public.reservations where id = p_reservation_id and client_id = c.client_id;
+  if r.id is null then return jsonb_build_object('ok', false, 'erreur', 'Réservation introuvable.'); end if;
+  if p_moyen_paiement not in ('virement', 'wero', 'lydia') then
+    return jsonb_build_object('ok', false, 'erreur', 'Moyen de paiement invalide.');
+  end if;
+  update public.remboursements
+     set photo_facture = p_photo_facture, moyen_paiement = p_moyen_paiement, coordonnees_paiement = p_coordonnees,
+         statut = case when statut = 'en_attente_justificatifs' then 'a_valider' else statut end
+   where reservation_id = p_reservation_id;
+  return jsonb_build_object('ok', true);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.espace_client_mes_reservations(p_code text)
@@ -1649,46 +2007,100 @@ CREATE OR REPLACE FUNCTION public.espace_client_mes_reservations(p_code text)
  SET search_path TO 'public'
 AS $function$
 declare
-  c public.clients_codes%rowtype;
+  c public.codes_acces%rowtype;
 begin
-  select * into c from public.clients_codes where upper(code) = upper(trim(p_code));
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
   if c.id is null then return jsonb_build_object('valide', false); end if;
   return jsonb_build_object('valide', true, 'reservations', coalesce((
     select jsonb_agg(jsonb_build_object(
-      'id', r.id, 'date_soiree', r.date_soiree, 'statut', r.statut, 'depense', r.depense, 'remboursement', r.remboursement,
-      'restaurant', (select nom from public.etablissements where id = r.restaurant_id),
-      'club', (select nom from public.etablissements where id = r.club_id),
-      'bouteille', (select nom from public.bouteilles where id = r.bouteille_id)
-    ) order by r.cree_le desc)
-    from public.reservations_client r where r.code_id = c.id
+      'id', r.id, 'date_soiree', r.date_soiree, 'heure_arrivee', r.heure_arrivee, 'nb_personnes', r.nb_personnes,
+      'statut', r.statut, 'motif_refus', r.motif_refus,
+      'etablissement', (select nom from public.etablissements where id = r.etablissement_id),
+      'etablissement_type', (select type from public.etablissements where id = r.etablissement_id),
+      'bouteille', (select nom from public.bouteilles where id = r.bouteille_id),
+      'remboursement', (select montant_a_rembourser from public.remboursements where reservation_id = r.id)
+    ) order by r.date_soiree desc, r.date_creation desc)
+    from public.reservations r where r.client_id = c.client_id
   ), '[]'::jsonb));
 end; $function$;
 
-CREATE OR REPLACE FUNCTION public.espace_client_reserver(p_code text, p_client_nom text, p_restaurant_id uuid, p_club_id uuid, p_bouteille_id uuid)
+CREATE OR REPLACE FUNCTION public.espace_client_reserver(p_code text, p_etablissement_id uuid, p_heure_arrivee text, p_nb_personnes integer, p_bouteille_id uuid, p_message text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
-  c public.clients_codes%rowtype;
+  c public.codes_acces%rowtype;
+  cl public.clients%rowtype;
+  a public.avantages_etablissement%rowtype;
   v_id uuid;
+  v_heure time;
 begin
-  select * into c from public.clients_codes where upper(code) = upper(trim(p_code));
-  if c.id is null then return jsonb_build_object('ok', false, 'erreur', 'Code invalide.'); end if;
-  if c.statut <> 'actif' then return jsonb_build_object('ok', false, 'erreur', 'Code déjà utilisé.'); end if;
-  if p_restaurant_id is null and p_club_id is null then
-    return jsonb_build_object('ok', false, 'erreur', 'Choisissez au moins un établissement.');
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null then return jsonb_build_object('ok', false, 'erreur', 'Code invalide ou expiré.'); end if;
+  if c.statut <> 'actif' then return jsonb_build_object('ok', false, 'erreur', 'Code invalide ou expiré.'); end if;
+  if c.valide_jusqu_au is not null and now() > c.valide_jusqu_au then
+    update public.codes_acces set statut = 'expire' where id = c.id;
+    return jsonb_build_object('ok', false, 'erreur', 'Code invalide ou expiré.');
   end if;
-  -- en club, la bouteille est obligatoire
-  if p_club_id is not null and p_bouteille_id is null then
-    return jsonb_build_object('ok', false, 'erreur', 'Choisissez une bouteille pour le club.');
+  select * into cl from public.clients where id = c.client_id;
+  if cl.statut <> 'actif' then return jsonb_build_object('ok', false, 'erreur', 'Compte non autorisé.'); end if;
+
+  select * into a from public.avantages_etablissement where etablissement_id = p_etablissement_id and actif;
+  if a.etablissement_id is null then return jsonb_build_object('ok', false, 'erreur', 'Établissement indisponible.'); end if;
+
+  -- heure au format HH:MM (tranches de 30 min)
+  begin
+    v_heure := p_heure_arrivee::time;
+  exception when others then
+    return jsonb_build_object('ok', false, 'erreur', 'Heure invalide.');
+  end;
+  if extract(minute from v_heure) not in (0, 30) then
+    return jsonb_build_object('ok', false, 'erreur', 'Heure par tranches de 30 minutes.');
   end if;
-  insert into public.reservations_client (code_id, client_nom, date_soiree, restaurant_id, club_id, bouteille_id)
-  values (c.id, coalesce(nullif(trim(p_client_nom), ''), coalesce(c.client_nom, 'Client')), coalesce(c.date_soiree, current_date), p_restaurant_id, p_club_id, p_bouteille_id)
+  if p_nb_personnes < 1 or p_nb_personnes > 20 then
+    return jsonb_build_object('ok', false, 'erreur', 'Nombre de personnes entre 1 et 20.');
+  end if;
+
+  -- bouteille obligatoire si club
+  if a.bouteille_obligatoire and p_bouteille_id is null then
+    return jsonb_build_object('ok', false, 'erreur', 'Choisissez une bouteille.');
+  end if;
+  if p_bouteille_id is not null then
+    if not exists (select 1 from public.bouteilles where id = p_bouteille_id and etablissement_id = p_etablissement_id and disponible) then
+      return jsonb_build_object('ok', false, 'erreur', 'Bouteille invalide.');
+    end if;
+  end if;
+
+  insert into public.reservations (client_id, code_acces_id, etablissement_id, date_soiree, heure_arrivee, nb_personnes, bouteille_id, message_client)
+  values (cl.id, c.id, p_etablissement_id, c.date_soiree, v_heure, p_nb_personnes, p_bouteille_id, nullif(trim(p_message), ''))
   returning id into v_id;
-  update public.clients_codes set statut = 'utilise', utilise_le = now() where id = c.id;
   return jsonb_build_object('ok', true, 'reservation_id', v_id);
+end; $function$;
+
+CREATE OR REPLACE FUNCTION public.espace_client_simuler(p_code text, p_etablissement_id uuid, p_montant numeric)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c public.codes_acces%rowtype;
+  a public.avantages_etablissement%rowtype;
+  v_remb numeric := 0;
+  v_manque numeric := 0;
+begin
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null or c.statut <> 'actif' then return jsonb_build_object('valide', false); end if;
+  select * into a from public.avantages_etablissement where etablissement_id = p_etablissement_id and actif;
+  if a.etablissement_id is null then return jsonb_build_object('valide', false); end if;
+  if p_montant >= coalesce(a.seuil_depense_eur, 0) then
+    v_remb := round(p_montant * coalesce(a.pourcentage_client, 0) / 100, 2);
+  else
+    v_manque := round(coalesce(a.seuil_depense_eur, 0) - p_montant, 2);
+  end if;
+  return jsonb_build_object('valide', true, 'montant', p_montant, 'rembourse', v_remb, 'manque', v_manque);
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.espace_client_valider_code(p_code text)
@@ -1698,15 +2110,25 @@ CREATE OR REPLACE FUNCTION public.espace_client_valider_code(p_code text)
  SET search_path TO 'public'
 AS $function$
 declare
-  c public.clients_codes%rowtype;
+  c public.codes_acces%rowtype;
+  cl public.clients%rowtype;
 begin
-  select * into c from public.clients_codes where upper(code) = upper(trim(p_code));
-  if c.id is null then return jsonb_build_object('valide', false, 'raison', 'introuvable'); end if;
-  if c.statut <> 'actif' then return jsonb_build_object('valide', false, 'raison', 'utilise'); end if;
-  if c.date_soiree is not null and c.date_soiree < current_date then
-    return jsonb_build_object('valide', false, 'raison', 'expire');
+  select * into c from public.codes_acces where replace(code, '-', '') = public.normaliser_code(p_code);
+  if c.id is null then return jsonb_build_object('valide', false); end if;
+  if c.statut <> 'actif' then return jsonb_build_object('valide', false); end if;
+  if c.valide_jusqu_au is not null and now() > c.valide_jusqu_au then
+    update public.codes_acces set statut = 'expire' where id = c.id;
+    return jsonb_build_object('valide', false);
   end if;
-  return jsonb_build_object('valide', true, 'code_id', c.id, 'date_soiree', c.date_soiree, 'client_nom', c.client_nom);
+  select * into cl from public.clients where id = c.client_id;
+  if cl.id is null or cl.statut <> 'actif' then return jsonb_build_object('valide', false); end if;
+  if c.date_premiere_utilisation is null then
+    update public.codes_acces set date_premiere_utilisation = now() where id = c.id;
+  end if;
+  return jsonb_build_object(
+    'valide', true, 'code_id', c.id, 'client_id', cl.id,
+    'prenom', cl.prenom, 'date_soiree', c.date_soiree, 'majeur_confirme', cl.majeur_confirme
+  );
 end; $function$;
 
 CREATE OR REPLACE FUNCTION public.est_proprietaire()
@@ -2018,6 +2440,14 @@ begin
   end if;
   return new;
 end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.normaliser_code(p_code text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select upper(replace(replace(trim(coalesce(p_code, '')), ' ', ''), '-', ''));
 $function$;
 
 CREATE OR REPLACE FUNCTION public.notifier_candidature()
@@ -2653,6 +3083,21 @@ begin
     jsonb_build_object('prenom', v_prenom_marraine));
 end; $function$;
 
+CREATE OR REPLACE FUNCTION public.signaler_client(p_client uuid, p_reservation uuid, p_motif text, p_description text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_type text;
+begin
+  select type into v_type from public.profiles where id = auth.uid();
+  if v_type not in ('hotesse', 'etablissement', 'admin') then raise exception 'Non autorisé.'; end if;
+  insert into public.signalements_clients (client_id, reservation_id, auteur_type, auteur_id, motif, description)
+  values (p_client, p_reservation, v_type, auth.uid(), p_motif, p_description);
+end; $function$;
+
 CREATE OR REPLACE FUNCTION public.taches_auto()
  RETURNS void
  LANGUAGE plpgsql
@@ -3152,11 +3597,26 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_annuler_sanction -> authenticated (EXECUTE)
 -- admin_annuler_sanction -> postgres (EXECUTE)
 -- admin_annuler_sanction -> service_role (EXECUTE)
+-- admin_basculer_bouteille -> PUBLIC (EXECUTE)
+-- admin_basculer_bouteille -> anon (EXECUTE)
+-- admin_basculer_bouteille -> authenticated (EXECUTE)
+-- admin_basculer_bouteille -> postgres (EXECUTE)
+-- admin_basculer_bouteille -> service_role (EXECUTE)
+-- admin_creer_client -> PUBLIC (EXECUTE)
+-- admin_creer_client -> anon (EXECUTE)
+-- admin_creer_client -> authenticated (EXECUTE)
+-- admin_creer_client -> postgres (EXECUTE)
+-- admin_creer_client -> service_role (EXECUTE)
 -- admin_creer_code -> PUBLIC (EXECUTE)
 -- admin_creer_code -> anon (EXECUTE)
 -- admin_creer_code -> authenticated (EXECUTE)
 -- admin_creer_code -> postgres (EXECUTE)
 -- admin_creer_code -> service_role (EXECUTE)
+-- admin_declarer_depense -> PUBLIC (EXECUTE)
+-- admin_declarer_depense -> anon (EXECUTE)
+-- admin_declarer_depense -> authenticated (EXECUTE)
+-- admin_declarer_depense -> postgres (EXECUTE)
+-- admin_declarer_depense -> service_role (EXECUTE)
 -- admin_enregistrer_paiement -> authenticated (EXECUTE)
 -- admin_enregistrer_paiement -> postgres (EXECUTE)
 -- admin_enregistrer_paiement -> service_role (EXECUTE)
@@ -3167,21 +3627,41 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_lire_conversation -> authenticated (EXECUTE)
 -- admin_lire_conversation -> postgres (EXECUTE)
 -- admin_lire_conversation -> service_role (EXECUTE)
+-- admin_lister_avantages -> PUBLIC (EXECUTE)
+-- admin_lister_avantages -> anon (EXECUTE)
+-- admin_lister_avantages -> authenticated (EXECUTE)
+-- admin_lister_avantages -> postgres (EXECUTE)
+-- admin_lister_avantages -> service_role (EXECUTE)
+-- admin_lister_clients -> PUBLIC (EXECUTE)
+-- admin_lister_clients -> anon (EXECUTE)
+-- admin_lister_clients -> authenticated (EXECUTE)
+-- admin_lister_clients -> postgres (EXECUTE)
+-- admin_lister_clients -> service_role (EXECUTE)
 -- admin_lister_codes -> PUBLIC (EXECUTE)
 -- admin_lister_codes -> anon (EXECUTE)
 -- admin_lister_codes -> authenticated (EXECUTE)
 -- admin_lister_codes -> postgres (EXECUTE)
 -- admin_lister_codes -> service_role (EXECUTE)
--- admin_lister_etablissements_client -> PUBLIC (EXECUTE)
--- admin_lister_etablissements_client -> anon (EXECUTE)
--- admin_lister_etablissements_client -> authenticated (EXECUTE)
--- admin_lister_etablissements_client -> postgres (EXECUTE)
--- admin_lister_etablissements_client -> service_role (EXECUTE)
+-- admin_lister_commissions -> PUBLIC (EXECUTE)
+-- admin_lister_commissions -> anon (EXECUTE)
+-- admin_lister_commissions -> authenticated (EXECUTE)
+-- admin_lister_commissions -> postgres (EXECUTE)
+-- admin_lister_commissions -> service_role (EXECUTE)
+-- admin_lister_remboursements -> PUBLIC (EXECUTE)
+-- admin_lister_remboursements -> anon (EXECUTE)
+-- admin_lister_remboursements -> authenticated (EXECUTE)
+-- admin_lister_remboursements -> postgres (EXECUTE)
+-- admin_lister_remboursements -> service_role (EXECUTE)
 -- admin_lister_reservations -> PUBLIC (EXECUTE)
 -- admin_lister_reservations -> anon (EXECUTE)
 -- admin_lister_reservations -> authenticated (EXECUTE)
 -- admin_lister_reservations -> postgres (EXECUTE)
 -- admin_lister_reservations -> service_role (EXECUTE)
+-- admin_lister_signalements_clients -> PUBLIC (EXECUTE)
+-- admin_lister_signalements_clients -> anon (EXECUTE)
+-- admin_lister_signalements_clients -> authenticated (EXECUTE)
+-- admin_lister_signalements_clients -> postgres (EXECUTE)
+-- admin_lister_signalements_clients -> service_role (EXECUTE)
 -- admin_modifier_tarif -> authenticated (EXECUTE)
 -- admin_modifier_tarif -> authenticated (EXECUTE)
 -- admin_modifier_tarif -> postgres (EXECUTE)
@@ -3206,16 +3686,31 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_refuser_profil -> authenticated (EXECUTE)
 -- admin_refuser_profil -> postgres (EXECUTE)
 -- admin_refuser_profil -> service_role (EXECUTE)
--- admin_regler_etablissement_client -> PUBLIC (EXECUTE)
--- admin_regler_etablissement_client -> anon (EXECUTE)
--- admin_regler_etablissement_client -> authenticated (EXECUTE)
--- admin_regler_etablissement_client -> postgres (EXECUTE)
--- admin_regler_etablissement_client -> service_role (EXECUTE)
+-- admin_regler_avantage -> PUBLIC (EXECUTE)
+-- admin_regler_avantage -> anon (EXECUTE)
+-- admin_regler_avantage -> authenticated (EXECUTE)
+-- admin_regler_avantage -> postgres (EXECUTE)
+-- admin_regler_avantage -> service_role (EXECUTE)
 -- admin_renvoyer_facture -> authenticated (EXECUTE)
 -- admin_renvoyer_facture -> postgres (EXECUTE)
 -- admin_renvoyer_facture -> service_role (EXECUTE)
+-- admin_revoquer_code -> PUBLIC (EXECUTE)
+-- admin_revoquer_code -> anon (EXECUTE)
+-- admin_revoquer_code -> authenticated (EXECUTE)
+-- admin_revoquer_code -> postgres (EXECUTE)
+-- admin_revoquer_code -> service_role (EXECUTE)
 -- admin_stats_membre -> postgres (EXECUTE)
 -- admin_stats_membre -> service_role (EXECUTE)
+-- admin_statut_client -> PUBLIC (EXECUTE)
+-- admin_statut_client -> anon (EXECUTE)
+-- admin_statut_client -> authenticated (EXECUTE)
+-- admin_statut_client -> postgres (EXECUTE)
+-- admin_statut_client -> service_role (EXECUTE)
+-- admin_statut_commission -> PUBLIC (EXECUTE)
+-- admin_statut_commission -> anon (EXECUTE)
+-- admin_statut_commission -> authenticated (EXECUTE)
+-- admin_statut_commission -> postgres (EXECUTE)
+-- admin_statut_commission -> service_role (EXECUTE)
 -- admin_supprimer_bouteille -> PUBLIC (EXECUTE)
 -- admin_supprimer_bouteille -> anon (EXECUTE)
 -- admin_supprimer_bouteille -> authenticated (EXECUTE)
@@ -3224,11 +3719,21 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- admin_suspendre_compte -> authenticated (EXECUTE)
 -- admin_suspendre_compte -> postgres (EXECUTE)
 -- admin_suspendre_compte -> service_role (EXECUTE)
+-- admin_traiter_remboursement -> PUBLIC (EXECUTE)
+-- admin_traiter_remboursement -> anon (EXECUTE)
+-- admin_traiter_remboursement -> authenticated (EXECUTE)
+-- admin_traiter_remboursement -> postgres (EXECUTE)
+-- admin_traiter_remboursement -> service_role (EXECUTE)
 -- admin_traiter_reservation -> PUBLIC (EXECUTE)
 -- admin_traiter_reservation -> anon (EXECUTE)
 -- admin_traiter_reservation -> authenticated (EXECUTE)
 -- admin_traiter_reservation -> postgres (EXECUTE)
 -- admin_traiter_reservation -> service_role (EXECUTE)
+-- admin_traiter_signalement_client -> PUBLIC (EXECUTE)
+-- admin_traiter_signalement_client -> anon (EXECUTE)
+-- admin_traiter_signalement_client -> authenticated (EXECUTE)
+-- admin_traiter_signalement_client -> postgres (EXECUTE)
+-- admin_traiter_signalement_client -> service_role (EXECUTE)
 -- admin_valider_identite -> authenticated (EXECUTE)
 -- admin_valider_identite -> postgres (EXECUTE)
 -- admin_valider_identite -> service_role (EXECUTE)
@@ -3322,11 +3827,26 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- envoyer_facture -> service_role (EXECUTE)
 -- envoyer_mail -> postgres (EXECUTE)
 -- envoyer_mail -> service_role (EXECUTE)
+-- espace_client_annuler -> PUBLIC (EXECUTE)
+-- espace_client_annuler -> anon (EXECUTE)
+-- espace_client_annuler -> authenticated (EXECUTE)
+-- espace_client_annuler -> postgres (EXECUTE)
+-- espace_client_annuler -> service_role (EXECUTE)
+-- espace_client_confirmer_majeur -> PUBLIC (EXECUTE)
+-- espace_client_confirmer_majeur -> anon (EXECUTE)
+-- espace_client_confirmer_majeur -> authenticated (EXECUTE)
+-- espace_client_confirmer_majeur -> postgres (EXECUTE)
+-- espace_client_confirmer_majeur -> service_role (EXECUTE)
 -- espace_client_donnees -> PUBLIC (EXECUTE)
 -- espace_client_donnees -> anon (EXECUTE)
 -- espace_client_donnees -> authenticated (EXECUTE)
 -- espace_client_donnees -> postgres (EXECUTE)
 -- espace_client_donnees -> service_role (EXECUTE)
+-- espace_client_envoyer_facture -> PUBLIC (EXECUTE)
+-- espace_client_envoyer_facture -> anon (EXECUTE)
+-- espace_client_envoyer_facture -> authenticated (EXECUTE)
+-- espace_client_envoyer_facture -> postgres (EXECUTE)
+-- espace_client_envoyer_facture -> service_role (EXECUTE)
 -- espace_client_mes_reservations -> PUBLIC (EXECUTE)
 -- espace_client_mes_reservations -> anon (EXECUTE)
 -- espace_client_mes_reservations -> authenticated (EXECUTE)
@@ -3337,6 +3857,11 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- espace_client_reserver -> authenticated (EXECUTE)
 -- espace_client_reserver -> postgres (EXECUTE)
 -- espace_client_reserver -> service_role (EXECUTE)
+-- espace_client_simuler -> PUBLIC (EXECUTE)
+-- espace_client_simuler -> anon (EXECUTE)
+-- espace_client_simuler -> authenticated (EXECUTE)
+-- espace_client_simuler -> postgres (EXECUTE)
+-- espace_client_simuler -> service_role (EXECUTE)
 -- espace_client_valider_code -> PUBLIC (EXECUTE)
 -- espace_client_valider_code -> anon (EXECUTE)
 -- espace_client_valider_code -> authenticated (EXECUTE)
@@ -3411,6 +3936,11 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- nettoie_document_hotesse -> authenticated (EXECUTE)
 -- nettoie_document_hotesse -> postgres (EXECUTE)
 -- nettoie_document_hotesse -> service_role (EXECUTE)
+-- normaliser_code -> PUBLIC (EXECUTE)
+-- normaliser_code -> anon (EXECUTE)
+-- normaliser_code -> authenticated (EXECUTE)
+-- normaliser_code -> postgres (EXECUTE)
+-- normaliser_code -> service_role (EXECUTE)
 -- notifier_candidature -> postgres (EXECUTE)
 -- notifier_candidature -> service_role (EXECUTE)
 -- notifier_equipe -> postgres (EXECUTE)
@@ -3475,6 +4005,11 @@ CREATE TRIGGER controle_signalement BEFORE INSERT ON public.signalements FOR EAC
 -- repondre_invitation -> authenticated (EXECUTE)
 -- repondre_invitation -> postgres (EXECUTE)
 -- repondre_invitation -> service_role (EXECUTE)
+-- signaler_client -> PUBLIC (EXECUTE)
+-- signaler_client -> anon (EXECUTE)
+-- signaler_client -> authenticated (EXECUTE)
+-- signaler_client -> postgres (EXECUTE)
+-- signaler_client -> service_role (EXECUTE)
 -- taches_auto -> postgres (EXECUTE)
 -- taches_auto -> service_role (EXECUTE)
 -- traduire -> PUBLIC (EXECUTE)
