@@ -73,6 +73,7 @@
       <a data-vue="missions"><span class="ico">📅</span>Missions</a>
       <a data-vue="recettes"><span class="ico">💰</span>Recettes</a>
       <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
+      <a data-vue="espace-client"><span class="ico">🍾</span>Espace client</a>
       <a data-vue="equipe"><span class="ico">🛡️</span>Équipe & droits</a>
       <div class="sep"></div>
       <a data-vue="journal"><span class="ico">📜</span>Journal</a>
@@ -92,6 +93,7 @@
     <a data-vue="missions"><span class="ico">📅</span>Missions</a>
     <a data-vue="recettes"><span class="ico">💰</span>Recettes</a>
     <a data-vue="signalements"><span class="ico">🚩</span>Signalements</a>
+    <a data-vue="espace-client"><span class="ico">🍾</span>Espace client</a>
     <a data-vue="equipe"><span class="ico">🛡️</span>Équipe</a>
     <a data-vue="journal"><span class="ico">📜</span>Journal</a>
     <a data-vue="reglages"><span class="ico">⚙️</span>Réglages</a>
@@ -303,6 +305,7 @@
     if (vue === "missions") return afficherMissions();
     if (vue === "recettes") return afficherRecettes();
     if (vue === "signalements") return afficherSignalements();
+    if (vue === "espace-client") return afficherEspaceClient();
     if (vue === "journal") return afficherJournal();
     if (vue === "reglages") return afficherReglages();
     if (vue === "equipe") return afficherEquipe();
@@ -850,6 +853,149 @@
     if (error) { toast(error.message, "erreur"); return; }
     toast("Mission annulée ✅");
     chargerSignalements();
+  }
+
+  // ============ ESPACE CLIENT (s14) ============
+  let espaceClientOnglet = "codes";
+  async function afficherEspaceClient() {
+    if (!sessionAal2) { afficherEcranSecurite(); return; }
+    main.innerHTML = `<h1>Espace client</h1>
+      <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+        <button class="btn btn-sm ${espaceClientOnglet==='codes'?'btn-primaire':''}" onclick="espaceClientOnglet='codes';afficherEspaceClient()">Codes</button>
+        <button class="btn btn-sm ${espaceClientOnglet==='etablissements'?'btn-primaire':''}" onclick="espaceClientOnglet='etablissements';afficherEspaceClient()">Établissements</button>
+        <button class="btn btn-sm ${espaceClientOnglet==='reservations'?'btn-primaire':''}" onclick="espaceClientOnglet='reservations';afficherEspaceClient()">Réservations</button>
+      </div>
+      <div id="espace-client-contenu" class="vide">Chargement…</div>`;
+    if (espaceClientOnglet === "codes") chargerCodes();
+    else if (espaceClientOnglet === "etablissements") chargerEtablissementsClient();
+    else chargerReservationsClient();
+  }
+
+  async function chargerCodes() {
+    const zone = document.getElementById("espace-client-contenu");
+    const { data: codes } = await db.rpc("admin_lister_codes");
+    zone.innerHTML = `
+      <div class="panneau">
+        <div class="tete">Nouveau code</div>
+        <div style="padding:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:140px"><label>Nom du client</label><input id="ec-nom" class="field" placeholder="Nom du client"></div>
+          <div style="flex:1;min-width:140px"><label>Date de la soirée</label><input id="ec-date" type="date" class="field"></div>
+          <button class="btn btn-sm btn-primaire" onclick="creerCode()">Générer un code</button>
+        </div>
+      </div>
+      <div class="panneau">
+        <div class="tete">Codes existants</div>
+        <div style="padding:16px">
+          ${(codes||[]).length ? `<table><tr><th>Code</th><th>Client</th><th>Soirée</th><th>Statut</th><th></th></tr>
+            ${codes.map(c => `<tr>
+              <td><strong>${esc(c.code)}</strong></td>
+              <td>${esc(c.client_nom || ":")}</td>
+              <td>${esc(c.date_soiree || ":")}</td>
+              <td>${c.statut === "actif" ? '<span style="color:#1E7A3C">Actif</span>' : '<span style="color:#999">Utilisé</span>'}</td>
+              <td><button class="btn btn-sm" onclick="copierCode('${esc(c.code)}')">Copier</button></td>
+            </tr>`).join("")}</table>` : '<div class="vide">Aucun code.</div>'}
+        </div>
+      </div>`;
+  }
+  async function creerCode() {
+    const nom = document.getElementById("ec-nom").value.trim();
+    const date = document.getElementById("ec-date").value || null;
+    if (!nom) { toast("Indiquez le nom du client."); return; }
+    const { data, error } = await db.rpc("admin_creer_code", { p_client_nom: nom, p_date_soiree: date });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast(`Code créé : ${data} ✅`);
+    chargerCodes();
+  }
+  function copierCode(code) {
+    navigator.clipboard.writeText(code).then(() => toast("Code copié ✅")).catch(() => toast(code));
+  }
+
+  async function chargerEtablissementsClient() {
+    const zone = document.getElementById("espace-client-contenu");
+    const { data: etabs } = await db.rpc("admin_lister_etablissements_client");
+    zone.innerHTML = (etabs||[]).length ? etabs.map(e => `
+      <div class="panneau">
+        <div class="tete">${esc(e.nom)} <span style="font-weight:400;font-size:12px">${esc(e.type||"")}</span></div>
+        <div style="padding:16px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="vis-${e.id}" ${e.visible_client?"checked":""}> Visible dans l'espace client</label>
+          <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:120px"><label>% remboursé</label><input class="field" type="number" id="pct-${e.id}" value="${e.remboursement_pct??""}" placeholder="ex. 10"></div>
+            <div style="flex:1;min-width:120px"><label>Seuil (€)</label><input class="field" type="number" id="seuil-${e.id}" value="${e.seuil_depense??""}" placeholder="ex. 500"></div>
+            <button class="btn btn-sm btn-primaire" onclick="enregistrerReglages('${e.id}')">Enregistrer</button>
+          </div>
+          <div style="font-weight:600;font-size:13px;margin:14px 0 8px">Bouteilles</div>
+          <div>${(e.bouteilles||[]).map(b => `<span style="display:inline-block;background:#F4E8D6;border-radius:8px;padding:4px 10px;margin:0 6px 6px 0;font-size:13px">${esc(b.nom)} · ${b.prix}€ <a href="javascript:void(0)" style="color:#C0392B;text-decoration:none" onclick="supprimerBouteille('${b.id}')">✕</a></span>`).join("") || '<span style="color:#999;font-size:13px">Aucune bouteille.</span>'}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <input id="bnom-${e.id}" class="field" style="flex:1;min-width:110px" placeholder="Nom (ex. Vodka)">
+            <input id="bprix-${e.id}" class="field" type="number" style="width:100px" placeholder="Prix €">
+            <button class="btn btn-sm btn-primaire" onclick="ajouterBouteille('${e.id}')">Ajouter</button>
+          </div>
+        </div>
+      </div>`).join("") : '<div class="vide">Aucun établissement.</div>';
+  }
+  async function enregistrerReglages(id) {
+    const visible = document.getElementById(`vis-${id}`).checked;
+    const pct = parseFloat(document.getElementById(`pct-${id}`).value) || 0;
+    const seuil = parseFloat(document.getElementById(`seuil-${id}`).value) || 0;
+    const { error } = await db.rpc("admin_regler_etablissement_client", { p_etablissement: id, p_visible: visible, p_remboursement_pct: pct, p_seuil_depense: seuil });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Enregistré ✅");
+  }
+  async function ajouterBouteille(id) {
+    const nom = document.getElementById(`bnom-${id}`).value.trim();
+    const prix = parseFloat(document.getElementById(`bprix-${id}`).value) || 0;
+    if (!nom || !prix) { toast("Indiquez le nom et le prix."); return; }
+    const { error } = await db.rpc("admin_ajouter_bouteille", { p_etablissement: id, p_nom: nom, p_prix: prix });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Bouteille ajoutée ✅");
+    chargerEtablissementsClient();
+  }
+  async function supprimerBouteille(id) {
+    if (!await demander("Supprimer cette bouteille ?")) return;
+    const { error } = await db.rpc("admin_supprimer_bouteille", { p_bouteille: id });
+    if (error) { toast(error.message, "erreur"); return; }
+    toast("Supprimée ✅");
+    chargerEtablissementsClient();
+  }
+
+  async function chargerReservationsClient() {
+    const zone = document.getElementById("espace-client-contenu");
+    const { data: resas } = await db.rpc("admin_lister_reservations");
+    zone.innerHTML = (resas||[]).length ? resas.map(r => {
+      const lieux = [r.restaurant, r.club].filter(Boolean).join(" + ");
+      return `<div style="border:1px solid #EEE4D2;border-radius:12px;padding:14px;margin-bottom:12px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <strong>${esc(r.client_nom)}</strong>
+          <span style="font-size:12px;color:#8A6D3B">${esc(r.date_soiree || "")} · ${esc(r.code || "")}</span>
+        </div>
+        <div style="font-size:14px;margin:6px 0">${esc(lieux)}${r.bouteille ? ` · ${esc(r.bouteille)}` : ""}</div>
+        <div style="font-size:13px;margin:6px 0">Statut : ${esc(r.statut)}${r.depense ? ` · Dépense ${r.depense}€` : ""}${r.remboursement > 0 ? ` · Remboursement ${r.remboursement}€` : ""}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${r.statut === "nouvelle" ? `<button class="btn btn-sm btn-primaire" onclick="traiterResa('${r.id}','transmettre')">Transmettre</button>` : ""}
+          ${r.statut === "transmise" ? `<button class="btn btn-sm btn-primaire" onclick="traiterResa('${r.id}','confirmer')">Confirmer</button>` : ""}
+          ${(r.statut === "transmise" || r.statut === "confirmee") ? `<button class="btn btn-sm" onclick="terminerResa('${r.id}')">Terminer + dépense</button>` : ""}
+          ${r.remboursement > 0 && !r.rembourse ? `<button class="btn btn-sm" onclick="traiterResa('${r.id}','rembourse')">Marquer remboursé</button>` : ""}
+          ${r.statut !== "terminee" && r.statut !== "annulee" ? `<button class="btn btn-sm" style="background:#FBE4E1;color:var(--danger)" onclick="traiterResa('${r.id}','annuler')">Annuler</button>` : ""}
+        </div>
+      </div>`;
+    }).join("") : '<div class="vide">Aucune réservation.</div>';
+  }
+  async function traiterResa(id, action) {
+    const { data, error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: action });
+    if (error) { toast(error.message, "erreur"); return; }
+    if (data?.remboursement > 0) toast(`Remboursement DamUp : ${data.remboursement}€ ✅`);
+    else toast("Action effectuée ✅");
+    chargerReservationsClient();
+  }
+  async function terminerResa(id) {
+    const depense = prompt("Dépense totale du client (€) :");
+    if (depense === null) return;
+    const montant = parseFloat(depense) || 0;
+    const { data, error } = await db.rpc("admin_traiter_reservation", { p_reservation: id, p_action: "terminer", p_depense: montant });
+    if (error) { toast(error.message, "erreur"); return; }
+    if (data?.remboursement > 0) toast(`Terminé. Remboursement DamUp : ${data.remboursement}€ ✅`);
+    else toast("Réservation terminée ✅");
+    chargerReservationsClient();
   }
 
   // ============ RÉGLAGES ============

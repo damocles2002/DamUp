@@ -1,0 +1,151 @@
+/* ============================================================
+   DamUp · Espace client privé — design system
+   aubergine #2A1120 · champagne #E7CFA8 · ivoire #F4E8D6
+   ============================================================ */
+:root {
+  --aubergine: #2A1120;
+  --champagne: #E7CFA8;
+  --ivoire: #F4E8D6;
+  --creme: #FFFDF8;
+  --gris: #8A6D3B;
+  --danger: #C0392B;
+  --vert: #1E7A3C;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: 'Jost', Arial, sans-serif;
+  background: var(--ivoire);
+  color: var(--aubergine);
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: 40px;
+}
+h1, h2, h3 { font-family: 'Bodoni Moda', Georgia, serif; font-weight: 600; }
+
+/* --- barre haute --- */
+.topbar {
+  background: var(--aubergine);
+  color: var(--champagne);
+  padding: 14px 18px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.logo { font-family: 'Bodoni Moda', Georgia, serif; font-size: 20px; letter-spacing: .5px; }
+.logo-dot { color: var(--champagne); opacity: .6; }
+.logo-sub { font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: .85; }
+.topbar-btn { background: var(--champagne); color: var(--aubergine); border: none; border-radius: 20px; padding: 8px 14px; font-family: 'Jost', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* --- structure --- */
+#app { max-width: 520px; margin: 0 auto; padding: 16px; }
+.carte {
+  background: var(--creme);
+  border-radius: 16px;
+  border: 1px solid #EDE3D0;
+  padding: 24px 20px;
+  margin-top: 20px;
+}
+h1 { font-size: 26px; margin-bottom: 6px; }
+.sous-titre { color: var(--gris); font-size: 14.5px; line-height: 1.5; margin-bottom: 18px; }
+
+/* --- champs & boutons --- */
+.field {
+  width: 100%;
+  border: 1px solid #E4D8C2;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: 'Jost', sans-serif;
+  background: #fff;
+  color: var(--aubergine);
+  margin-bottom: 4px;
+}
+.field:focus { outline: none; border-color: var(--aubergine); }
+.code-field {
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.label { display: block; font-size: 13px; font-weight: 600; color: var(--gris); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+.btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Jost', sans-serif;
+  cursor: pointer;
+  margin-top: 16px;
+}
+.btn-primaire { background: var(--aubergine); color: var(--champagne); }
+.btn-secondaire { background: transparent; color: var(--aubergine); border: 1px solid #E4D8C2; }
+.btn:active { transform: scale(.99); }
+.erreur { color: var(--danger); font-size: 13.5px; margin-top: 10px; }
+.note { margin-top: 18px; font-size: 12.5px; color: var(--gris); line-height: 1.5; }
+
+/* --- accueil --- */
+.bandeau-soiree {
+  background: var(--aubergine);
+  color: var(--champagne);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  font-size: 14.5px;
+}
+.section-titre { font-size: 22px; margin: 8px 0 14px; }
+.type-titre { font-size: 17px; margin: 18px 0 10px; color: var(--aubergine); }
+.vide { color: var(--gris); text-align: center; padding: 24px; }
+
+/* --- carte établissement --- */
+.carte-etab {
+  background: var(--creme);
+  border-radius: 14px;
+  border: 1px solid #EDE3D0;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.etab-photo { width: 100%; height: 160px; object-fit: cover; display: block; }
+.etab-corps { padding: 14px 16px; }
+.etab-nom { font-family: 'Bodoni Moda', serif; font-size: 19px; font-weight: 600; }
+.etab-ville { font-size: 13px; color: var(--gris); text-transform: capitalize; margin-bottom: 8px; }
+.remb {
+  display: inline-block;
+  background: var(--champagne);
+  color: var(--aubergine);
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.bouteilles { margin-top: 8px; }
+.bouteilles-titre, .hotesses-titre { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin-bottom: 6px; }
+.bouteille { display: inline-block; background: #fff; border: 1px solid #E4D8C2; border-radius: 8px; padding: 5px 10px; font-size: 12.5px; margin: 0 6px 6px 0; }
+.hotesses { margin-top: 12px; }
+.hotesses-photos { display: flex; flex-wrap: wrap; gap: 12px; }
+.hotesse { text-align: center; width: 64px; }
+.hotesse img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 4px; }
+.hotesse span { font-size: 12px; }
+
+/* --- réservations --- */
+.liste-reservations { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.carte-resa { background: var(--creme); border: 1px solid #EDE3D0; border-radius: 14px; padding: 14px 16px; }
+.resa-statut { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 20px; padding: 4px 12px; margin-bottom: 8px; }
+.statut-nouvelle { background: #FBE4E1; color: var(--danger); }
+.statut-transmise { background: #FFF3D6; color: #9A6B00; }
+.statut-confirmee { background: #E0F0E6; color: var(--vert); }
+.statut-terminee { background: #EEE; color: #555; }
+.statut-annulee { background: #EEE; color: #999; text-decoration: line-through; }
+.resa-date { font-family: 'Bodoni Moda', serif; font-size: 17px; font-weight: 600; }
+.resa-lieux { font-size: 14px; color: var(--aubergine); margin-top: 4px; }
+.resa-depense { font-size: 13px; color: var(--gris); margin-top: 6px; }
+.remb-resa { color: var(--vert); font-weight: 600; font-size: 14px; margin-top: 6px; }

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#2A1120">
+  <title>DamUp · Espace client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/club.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">DamUp <span class="logo-dot">·</span> <span class="logo-sub">Espace client</span></div>
+    <button id="btn-resa" class="topbar-btn" onclick="afficherReservations()" hidden>Mes réservations</button>
+  </header>
+
+  <main id="app">
+    <!-- Écran code -->
+    <section id="ecran-code" class="carte">
+      <h1>Votre soirée privée</h1>
+      <p class="sous-titre">Entrez le code personnel reçu de DamUp pour accéder à votre soirée.</p>
+      <input id="code-input" class="field code-field" placeholder="CODE" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn btn-primaire btn-block" onclick="validerCode()">Entrer</button>
+      <p id="code-erreur" class="erreur" hidden></p>
+      <p class="note">Vous réservez une table, jamais une hôtesse. Les hôtesses travaillent pour l'établissement.</p>
+    </section>
+
+    <!-- Écran accueil : établissements + hôtesses -->
+    <section id="ecran-accueil" class="accueil" hidden>
+      <div class="bandeau-soiree" id="bandeau-soiree"></div>
+      <h2 class="section-titre">Établissements partenaires</h2>
+      <div id="liste-etablissements" class="liste-etablissements"></div>
+      <button class="btn btn-primaire btn-block" onclick="ouvrirReservation()">Réserver une table</button>
+    </section>
+
+    <!-- Écran réservation -->
+    <section id="ecran-reservation" class="carte" hidden>
+      <h1>Réserver une table</h1>
+      <p class="sous-titre">Choisissez un restaurant, un club, ou les deux pour la même soirée.</p>
+
+      <label class="label">Votre nom</label>
+      <input id="resa-nom" class="field" placeholder="Nom sous lequel vous réservez">
+
+      <label class="label">Restaurant (optionnel)</label>
+      <select id="resa-restaurant" class="field"></select>
+
+      <label class="label">Club (optionnel)</label>
+      <select id="resa-club" class="field" onchange="majBouteilles()"></select>
+
+      <div id="bloc-bouteille" hidden>
+        <label class="label">Bouteille (obligatoire pour le club)</label>
+        <select id="resa-bouteille" class="field"></select>
+      </div>
+
+      <button class="btn btn-primaire btn-block" onclick="envoyerReservation()">Confirmer la réservation</button>
+      <button class="btn btn-block btn-secondaire" onclick="retourAccueil()">Retour</button>
+      <p id="resa-erreur" class="erreur" hidden></p>
+      <p class="note">Vous réglez la totalité de votre facture directement à l'établissement le soir même.</p>
+    </section>
+
+    <!-- Écran mes réservations -->
+    <section id="ecran-reservations" class="carte" hidden>
+      <h1>Mes réservations</h1>
+      <div id="liste-reservations" class="liste-reservations"></div>
+      <button class="btn btn-block btn-secondaire" onclick="retourAccueil()">Retour</button>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/club.js"></script>
+</body>
+</html>
